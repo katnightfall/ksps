@@ -2,7 +2,7 @@
   "name": "Old School RuneScape",
   "plugins": { "TutorialIsland": false },
   "description": "",
-  "experienceMultiplier": 1,
+  "experienceMultiplier": 10,
   "spawn": {
     "x": 3089,
     "y": 3524,
