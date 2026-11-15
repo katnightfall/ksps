@@ -116,20 +116,24 @@ fi
 # ---- 2. the user and the folders ------------------------------------------------------------------
 say "The $APP_USER user and its folders"
 if ! id "$APP_USER" >/dev/null 2>&1; then
-  useradd --system --home-dir "$BASE/home" --shell "$(command -v nologin || echo /usr/sbin/nologin)" "$APP_USER"
+  useradd --system --user-group --home-dir "$BASE/home" --shell "$(command -v nologin || echo /usr/sbin/nologin)" "$APP_USER"
+fi
+# The services run as that user with systemd's plain PATH, so Node has to be where both can reach it
+# (a Node installed only for root, through nvm say, is not).
+if ! runuser -u "$APP_USER" -- env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin node -v >/dev/null 2>&1; then
+  echo "Node is at $(command -v node), where the $APP_USER user and the services can't run it."
+  echo "Install Node 22 system-wide (so that /usr/bin/node or /usr/local/bin/node exists), then run this again."
+  exit 1
 fi
 install -d -m 755 -o "$APP_USER" -g "$APP_USER" "$DEST"
 install -d -m 750 -o "$APP_USER" -g "$APP_USER" "$BASE" "$BASE/home" "$BASE/backups"
 if [ ! -f "$DEST/.env" ]; then
   # Never sent or replaced by a deploy. Settings and secrets for this server only go here.
   cat > "$DEST/.env" <<'ENV'
-# This server's own settings. A deploy never sends or replaces this file.
-# The full list of what can go here is in .env.example next to it.
-# After changing it: restart the game (npm run remote -- restart game), and for
-# REACT_APP_ lines also rebuild the web client (npm run remote -- rebuild).
-
-# Accounts that are developers (highest rank) every time they log in, comma-separated.
-# DEV_USERNAME=
+# This server's secrets: tokens and keys. A deploy never sends or replaces this file.
+# Everything that isn't secret is set in deploy/settings.env in the project instead,
+# which travels with a deploy and wins over a line of the same name here.
+# After changing this file: npm run remote -- restart game
 
 # To list the world on rsps.app (token from Settings > Server tokens there):
 # WEBRTC_WORLD_ID=my-world

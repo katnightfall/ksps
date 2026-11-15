@@ -20,9 +20,19 @@ changed:
   server/src (the engine)                    builds it (seconds), restarts   saved, reconnect
   client/ (the web client)                   builds it (a few minutes)       stay online
   package.json / yarn.lock                   installs packages, builds       as above
+  deploy/settings.env                        restarts the game server (and   saved, reconnect
+                                             rebuilds the client if one of
+                                             its lines changed)
   docs, tests                                nothing                         stay online
 
 If the restarted half does not come back up, the backup is put back by itself.
+
+Settings
+--------
+  deploy/settings.env     ours, in git, sent with a deploy: developer accounts, the server's
+                          name on the login screen, anything from .env.example that isn't secret
+  server/data/definitions/world.json    the world itself: name, spawn, XP rate, plugins on or off
+  /opt/tsps/.env          on the server only: tokens and keys
 
 Other commands
 --------------
@@ -31,7 +41,7 @@ Other commands
   npm run remote -- status
   npm run remote -- restart game      or: restart web, or just restart for both
   npm run remote -- rollback          undo the last update (again for the one before; 3 are kept)
-  npm run remote -- rebuild           build both halves again (after changing REACT_APP_ lines in .env)
+  npm run remote -- rebuild           build both halves again from what is installed
   npm run deploy -- --full            send every file again
 
 One-time setup (yours to run: it asks for the server's password)
@@ -60,7 +70,7 @@ On the server
 
 Things only someone logged in to the server can do
 --------------------------------------------------
-  - Edit /opt/tsps/.env (for example DEV_USERNAME=yourname to make an account a developer).
+  - Edit /opt/tsps/.env (tokens, such as the one that lists the world on rsps.app).
   - Open the world config page (settings, players and their ranks, plugins). It only listens on
     the server itself, so tunnel to it:   ssh -L 49600:127.0.0.1:49600 <your login>@<server>
     then open the link the game log prints at start; the token is in

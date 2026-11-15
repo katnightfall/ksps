@@ -29,8 +29,9 @@ case "${1:-}" in
     export TASK_SLOW_WARN_ENABLED=0 PROJECTILE_DEBUG=0 MAGIC_CAST_DEBUG=0
     # One process, so systemd's stop signal reaches the server itself and it saves every
     # player before it exits. The .env files are read the way scripts/run-with-env.mjs
-    # reads them: server/.env over the root one, and anything set above over both.
-    exec node --env-file-if-exists=../.env --env-file-if-exists=.env \
+    # reads them (server/.env over the root one), then deploy/settings.env over those,
+    # and anything set above over all of them.
+    exec node --env-file-if-exists=../.env --env-file-if-exists=.env --env-file-if-exists=../deploy/settings.env \
       --max-old-space-size="${GAME_HEAP_MB:-8192}" --max-semi-space-size=16 ./dist/Server.js
     ;;
   web)
@@ -54,11 +55,14 @@ case "${1:-}" in
     # package.json mounts the client at /play (where rsps.app serves it). Here it is the whole site.
     export PUBLIC_URL=/
     # The client looks for the game on the page's own host, port 43594, unless told otherwise.
-    if [ "$GAME_PORT" != 43594 ] && ! grep -qs '^REACT_APP_DEFAULT_WS_URL=' ../.env; then
+    if [ "$GAME_PORT" != 43594 ] && ! grep -qs '^REACT_APP_DEFAULT_WS_URL=' ../.env ../deploy/settings.env; then
       export REACT_APP_DEFAULT_WS_URL="ws://localhost:$GAME_PORT"
       export REACT_APP_DEFAULT_SERVER_ADDRESS="localhost:$GAME_PORT"
     fi
-    npm run --silent build
+    # What "build" in client/package.json runs, with deploy/settings.env read first so its
+    # lines win over the server's .env. Keep the two in step when upstream changes theirs.
+    node --env-file-if-exists=../deploy/settings.env ../scripts/run-with-env.mjs production \
+      ./node_modules/@craco/craco/dist/bin/craco.js build
     exec node scripts/serve-build.mjs --precompress
     ;;
   *)
