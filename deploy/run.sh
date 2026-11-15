@@ -37,6 +37,10 @@ case "${1:-}" in
   web)
     cd "$ROOT/client"
     export PORT="$WEB_PORT"
+    # The game cache the client downloads is the one the game server fetched. Named outright:
+    # left to itself the web server only looks for that folder once, when it starts, and on a
+    # new server it starts before the game has downloaded anything.
+    export CACHE_DIR="$ROOT/server/caches"
     exec node scripts/serve-build.mjs
     ;;
   install)
