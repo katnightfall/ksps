@@ -46,6 +46,9 @@ test('bots, other worlds\' characters, stubs and broken saves are not ranked', (
     assert.equal(entry('league:kat', 'Kat'), null);
     assert.equal(entry('hardcore:kat', 'Kat'), null);
     assert.equal(entry('playerbot7', 'PlayerBot7'), null);
+    assert.equal(entry('sitebot1204', 'SiteBot1204'), null, 'a levelling site bot');
+    assert.equal(Ranking.isBotName('sitebot3'), true);
+    assert.equal(Ranking.isBotName('kat'), false);
     assert.equal(entry('clever_bot', 'Clever Bot'), null, 'on the AI roster');
     assert.equal(Ranking.entryFromSave('gone', save('Gone', {}, {}, { unmade: true }), SKILLS.length), null);
     assert.equal(Ranking.entryFromSave('short', { displayName: 'Short', skills: { maxLevel: [1], experience: [0] } }, SKILLS.length), null);

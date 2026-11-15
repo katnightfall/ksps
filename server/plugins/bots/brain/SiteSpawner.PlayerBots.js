@@ -1,5 +1,7 @@
 "use strict";
 
+const crypto = require("crypto");
+const { GameConstants } = require("../../../src/main/typescript/elvarg/game/GameConstants");
 const { Location } = require("../../../src/main/typescript/elvarg/game/model/Location");
 const { attachBrain } = require("./AttachBrain.PlayerBots");
 const { runPaced } = require("../runtime/SpawnPacing.PlayerBots");
@@ -168,6 +170,17 @@ function applyOutfit(bot, tier) {
 const SPAWN_ATTEMPTS = 16;
 
 /**
+ * Ours: the bots of a progression site keep their saves, so each needs a name that is the same
+ * every time the server starts. Hiscores.plugin.js leaves these names out of the tables.
+ */
+const PROGRESSION_BOT_NAME = "SiteBot";
+
+/** A password no one can log in with: these accounts are never playable by people. */
+function lockedPassword() {
+  return `${crypto.randomBytes(16).toString("hex")}:${crypto.randomBytes(32).toString("hex")}`;
+}
+
+/**
  * Spawns the skilling sites in bot-sites.json as brain-driven bots. Only sites with
  * "enabled": true spawn (temporary until /host controls them).
  */
@@ -180,7 +193,73 @@ function startBotSites(options = {}) {
   }
   const RegionManager = api?.getRegionManager?.() ?? null;
 
+  /** A free tile near a site's anchor, or the anchor itself. */
+  function spawnTile(site, anchor) {
+    const radius = Math.max(0, Math.min(24, Number(site.spawnRadius ?? 6)));
+    for (let attempt = 0; attempt < SPAWN_ATTEMPTS; attempt++) {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = 1 + Math.floor(Math.random() * Math.max(1, radius));
+      const candidate = new Location(
+        anchor.x + Math.round(Math.cos(angle) * distance),
+        anchor.y + Math.round(Math.sin(angle) * distance),
+        anchor.z ?? 0
+      );
+      if (!RegionManager || !RegionManager.blocked(candidate, null)) return candidate;
+    }
+    return new Location(anchor.x, anchor.y, anchor.z ?? 0);
+  }
+
+  /**
+   * Ours: a progression site's bot. The first time it is a brand-new character at the site's
+   * anchor (the world's start location): every skill at 1, nothing worn or carried. After that
+   * it comes back from its save, where it was, with what it had earned. Either way it starts on
+   * the best activity its levels allow, in a mode drawn by the site's counts.
+   */
+  function spawnProgressionBot(site, index) {
+    const anchor = site.anchor ?? null;
+    if (!anchor || site.activities.length === 0) return false;
+    const username = `${PROGRESSION_BOT_NAME}${index + 1}`;
+    const persistence = GameConstants.PLAYER_PERSISTENCE ?? null;
+    let saved = null;
+    try {
+      saved = persistence?.exists?.(username) === true ? persistence.load(username)?.getPosition?.() ?? null : null;
+    } catch {
+      saved = null;
+    }
+    const returning = saved != null;
+    RegionManager?.loadMapFiles?.(anchor.x, anchor.y);
+    const location = returning ? saved.clone() : spawnTile(site, anchor);
+    if (returning) RegionManager?.loadMapFiles?.(location.getX(), location.getY());
+    // Any of the site's modes will do to start with: the real pick needs the bot and its levels.
+    const bot = runtime.spawnPvpBot(location, { username, mode: site.activities[0].mode, activity: "world", persistent: true });
+    if (!bot) {
+      return false;
+    }
+    bot.setPasswordHashWithSalt?.(lockedPassword());
+    // New or not, Agility is 99: the routes bots are given use every shortcut (see applyLevels).
+    applyLevels(bot, {});
+    const activity = registry.pickActivity(bot, Date.now(), {
+      allowed: site.rotation.activityIds,
+      weights: site.rotation.weights,
+      best: true,
+    }) ?? site.activities.find((candidate) => registry.hasRoom(candidate.id));
+    if (!activity) {
+      return false;
+    }
+    return attachBrain({
+      runtime,
+      registry,
+      world,
+      bot,
+      activity,
+      rotation: site.rotation,
+      home: anchor,
+      resetMovementState,
+    });
+  }
+
   function spawn(site, index) {
+    if (site.progression === true) return spawnProgressionBot(site, index);
     const anchor = site.anchor ?? null;
     // Start on a random site activity that still has a capacity slot.
     const open = site.activities.filter((activity) => registry.hasRoom(activity.id));

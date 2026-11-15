@@ -342,8 +342,66 @@ function createBotActivityRegistry(options = {}) {
   }
   const siteModes = new Set(siteCandidates.map((activity) => activity.mode));
   const sites = [];
+
+  /** Of several activities, the one per mode that needs the highest level (yews over oaks). */
+  function bestPerMode(list) {
+    const best = new Map();
+    for (const activity of list) {
+      const current = best.get(activity.mode);
+      if (!current || requiredLevel(activity) > requiredLevel(current)) best.set(activity.mode, activity);
+    }
+    return list.filter((activity) => best.get(activity.mode) === activity);
+  }
+
+  /**
+   * Ours: a `"progression": true` site is one crowd of brand-new characters that play on like
+   * people do. Its `bots` maps each mode to a plain count; the counts add up to the crowd and
+   * weigh what a bot turns to next. Every bot may do any of the site's modes: every
+   * `switchMinutes` (default [20, 40]) it changes mode, and in a mode it always does the best
+   * activity its own levels allow, so a woodcutter moves from trees to oaks, willows and yews
+   * as it levels. SiteSpawner starts these bots fresh and keeps their saves.
+   */
+  function progressionSite(place) {
+    const counts = new Map();
+    for (const [mode, count] of Object.entries(place.bots ?? {})) {
+      if (!siteModes.has(mode)) {
+        throw new Error(`[bot sites] site '${place.id}' has unknown mode '${mode}' (${[...siteModes].join(", ")})`);
+      }
+      if (!Number.isInteger(count) || count < 0) {
+        throw new Error(`[bot sites] progression site '${place.id}' needs a whole number of bots for ${mode}`);
+      }
+      if (count > 0) counts.set(mode, count);
+    }
+    const [min, max] = place.switchMinutes ?? [20, 40];
+    if (!(min > 0 && max >= min)) {
+      throw new Error(`[bot sites] site '${place.id}' switchMinutes must be [min, max] minutes`);
+    }
+    const candidates = siteCandidates.filter((activity) => counts.has(activity.mode));
+    return {
+      ...SITE_DEFAULTS,
+      ...(place.radius != null ? { spawnRadius: place.radius } : {}),
+      id: place.id,
+      tier: null,
+      progression: true,
+      enabled: place.enabled === true,
+      anchor: { x: place.x, y: place.y, z: place.z ?? 0 },
+      count: [...counts.values()].reduce((sum, count) => sum + count, 0),
+      levels: null,
+      activities: candidates,
+      rotation: {
+        best: true,
+        activityIds: candidates.map((activity) => activity.id),
+        weights: Object.fromEntries(candidates.map((activity) => [activity.id, counts.get(activity.mode)])),
+        switchAfterMs: { min: min * 60000, max: max * 60000 },
+      },
+    };
+  }
   for (const place of sitesFile.sites ?? []) {
     if (place.pvp) continue;
+    if (place.progression === true) {
+      sites.push(progressionSite(place));
+      continue;
+    }
     const placeSites = [];
     for (const [mode, counts] of Object.entries(place.bots ?? {})) {
       if (!siteModes.has(mode)) {
@@ -443,7 +501,8 @@ function createBotActivityRegistry(options = {}) {
     },
     /** `allowed` limits the pick to those ids; `avoid` excludes one (a rotation switch). */
     /** `weights` (id -> weight, default 1) biases a fresh pick, e.g. by a site's mode counts. */
-    pickActivity(player, nowMs = Date.now(), { allowed = null, avoid = null, own = null, weights = null } = {}) {
+    /** `best` (a progression site's rotation) keeps, per mode, only the activity needing the highest level. */
+    pickActivity(player, nowMs = Date.now(), { allowed = null, avoid = null, own = null, weights = null, best = false } = {}) {
       if (own) {
         // A bot going back to the activity it was given: only its failure cooldown
         // holds it back (capacity and `manual` are about handing out new activities).
@@ -451,9 +510,10 @@ function createBotActivityRegistry(options = {}) {
         return activity && !isBlocked(player, own, nowMs) ? activity : null;
       }
       const previousId = lastActivityByPlayer.get(player);
-      const candidates = available(player, nowMs).filter(
+      const open = available(player, nowMs).filter(
         (activity) => activity.id !== avoid && (!allowed || allowed.includes(activity.id))
       );
+      const candidates = best ? bestPerMode(open) : open;
       const previous = candidates.find((activity) => activity.id === previousId);
       const weightOf = (activity) => Math.max(0, Number(weights?.[activity.id] ?? 1));
       let roll = Math.random() * candidates.reduce((sum, activity) => sum + weightOf(activity), 0);
@@ -472,6 +532,14 @@ function createBotActivityRegistry(options = {}) {
     },
     getSite(siteId) {
       return sites.find((site) => site.id === siteId) ?? null;
+    },
+    /** The level an activity asks for in its skill (1 when it asks for none). */
+    requiredLevel,
+    /** The best site activity of `mode` this player can do now and that has room, or null. */
+    bestForMode(player, mode, nowMs = Date.now()) {
+      return bestPerMode(available(player, nowMs).filter(
+        (activity) => activity.mode === mode && siteCandidates.includes(activity)
+      ))[0] ?? null;
     },
   };
 }

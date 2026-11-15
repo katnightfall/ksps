@@ -10,8 +10,11 @@
 const PAGE_SIZE = 25;
 const MODES = ["regular", "ironman", "hardcore", "ultimate"];
 const MODE_LABELS = { regular: "Regular", ironman: "Ironman", hardcore: "Hardcore Ironman", ultimate: "Ultimate Ironman" };
-/** Saved bots that the AI roster does not list (Registry.PlayerBots.js names them PlayerBot<N>). */
-const BOT_NAME = /^playerbot\d+$/i;
+/**
+ * Saved bots that the AI roster does not list: Registry.PlayerBots.js names its own
+ * PlayerBot<N>, and the levelling crowd of a progression site is SiteBot<N> (SiteSpawner).
+ */
+const BOT_NAME = /^(playerbot|sitebot)\d+$/i;
 const CLUE_TIERS = ["beginner", "easy", "medium", "hard", "elite", "master"];
 
 /** The ranked things that are not skills: what they are called and where a save keeps them. */
@@ -186,4 +189,7 @@ function profile(board, name, online = new Set()) {
   };
 }
 
-module.exports = { ACTIVITIES, MODES, MODE_LABELS, PAGE_SIZE, entryFromSave, buildBoard, tableFor, page, profile, combatLevel };
+/** Whether a save's name (or its database key) is one of those bots': told without reading the save. */
+const isBotName = (name) => BOT_NAME.test(String(name ?? ""));
+
+module.exports = { ACTIVITIES, MODES, MODE_LABELS, PAGE_SIZE, entryFromSave, buildBoard, tableFor, page, profile, combatLevel, isBotName };

@@ -1958,7 +1958,8 @@ test('sites split each mode\'s count over the tiers and the registry only assign
       Object.values(bots).reduce((sum, counts) => sum + total(counts), 0), `${town} spawns exactly its configured bots`);
   }
   const raw = JSON.parse(fs.readFileSync('data/definitions/bot-activities.json', 'utf8'));
-  for (const site of registry.sites) {
+  // Ours: a progression site (tests/bot-progression.test.cjs) is one crowd over every activity.
+  for (const site of registry.sites.filter((site) => site.progression !== true)) {
     assert.equal(site.activities.length, 1, site.id);
     const level = raw.activities.find((activity) => activity.id === site.activities[0].id)?.fields?.level ?? 1;
     assert.ok(level <= site.levels.all[0], `${site.id} can do ${site.activities[0].id} (needs ${level})`);
@@ -1987,7 +1988,7 @@ test('sites split each mode\'s count over the tiers and the registry only assign
   assert.throws(() => createBotActivityRegistry({ world: { core: PluginManager.getCoreApi() }, sitesPath }), /unknown tier 'gods'/);
   fs.writeFileSync(sitesPath, JSON.stringify({ sites: [{ id: 'camp', x: 3222, y: 3218, bots: { woodcutting: 4, mining: 4 } }] }));
   const fixed = createBotActivityRegistry({ world: { core: PluginManager.getCoreApi() }, sitesPath });
-  assert.ok(fixed.sites.every((site) => site.rotation === null), 'no switchMinutes, no switching');
+  assert.ok(fixed.sites.filter((site) => site.progression !== true).every((site) => site.rotation === null), 'no switchMinutes, no switching');
   const weighted = new Map();
   for (let i = 0; i < 2000; i++) {
     const skilled = { ...fakePlayer(), getSkillManager: () => ({ getCurrentLevel: () => 99 }) };

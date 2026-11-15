@@ -75,8 +75,9 @@ function readSaves() {
       seen.add(username);
       if (rows.get(username)?.updatedAt === updatedAt) continue;
       let entry = null;
-      // League and hardcore-world characters ("league:<name>") are not ranked, so not read either.
-      if (!username.includes(":")) {
+      // League and hardcore-world characters ("league:<name>") are not ranked, so not read either;
+      // nor are the bots' saves, of which a busy world has over a thousand, each saved every few minutes.
+      if (!username.includes(":") && !Ranking.isBotName(username)) {
         try {
           entry = Ranking.entryFromSave(username, JSON.parse(read.get(username)?.json ?? "null"), skillNames.length, bots);
         } catch {
@@ -112,6 +113,15 @@ function currentBoard(now = Date.now()) {
   return board;
 }
 
+/** How many bots are in the world now (they are never ranked or counted as online). */
+function botCount() {
+  let bots = 0;
+  for (const player of core.World.getPlayers()) {
+    if (player?.isPlayerBot?.() === true) bots++;
+  }
+  return bots;
+}
+
 /** Lower-case names of the people playing now. */
 function onlineNames() {
   const names = new Set();
@@ -133,6 +143,7 @@ function hiscores(query, segments) {
       world: String(core.WorldDefinition.getWorldDefinition().name ?? ""),
       players: tables.entries.length,
       online: onlineNames().size,
+      bots: botCount(),
       pageSize: Ranking.PAGE_SIZE,
       skills: skillNames.map((name, index) => ({ name, icon: skillIcons[index] ?? null })),
       activities: Ranking.ACTIVITIES.map(({ key, name }) => ({ key, name })),

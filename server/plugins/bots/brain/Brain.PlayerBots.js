@@ -207,7 +207,7 @@ class BotBrain {
       return true;
     }
     const activity = this.registry?.pickActivity?.(this.player, nowMs, this.rotation
-      ? { allowed: this.rotation.activityIds, weights: this.rotation.weights }
+      ? { allowed: this.rotation.activityIds, weights: this.rotation.weights, ...(this.rotation.best === true ? { best: true } : {}) }
       : { own: this.rootActivityId });
     if (!activity) {
       return false;
@@ -234,6 +234,8 @@ class BotBrain {
       allowed: this.rotation.activityIds,
       weights: this.rotation.weights,
       avoid: frame.behaviour.id,
+      // A progression site's rotation: the best activity of each mode for the bot's levels.
+      ...(this.rotation.best === true ? { best: true } : {}),
     });
     if (!next) {
       this.switchAt = nowMs + SWITCH_RETRY_MS;
@@ -299,6 +301,10 @@ class BotBrain {
       const repeat = frame.behaviour.repeat === true;
       if (repeat) {
         frame.actionIndex = 0;
+        // Ours: a progression bot that has outgrown what it is doing moves up before going
+        // round again (trees to oaks once its Woodcutting allows). This is a safe point: the
+        // activity's own steps have just finished.
+        if (this.promote(frame, nowMs)) return;
       } else {
         this.completeFrame(nowMs);
         return;
@@ -306,6 +312,28 @@ class BotBrain {
     }
     frame.state = FRAME_STATE.PENDING;
     this.startFrame(frame, nowMs);
+  }
+
+  /**
+   * A progression rotation only (`rotation.best`): swaps the root activity for a better one of
+   * the same mode once the bot's levels allow it and it has room. The rotation's own timer
+   * keeps running, so the next change of mode comes when it was due.
+   */
+  promote(frame, nowMs) {
+    if (this.rotation?.best !== true || this.frames.length !== 1) return false;
+    const current = frame.behaviour;
+    const better = this.registry?.bestForMode?.(this.player, current.mode, nowMs);
+    if (!better || better.id === current.id) return false;
+    if (!(this.registry.requiredLevel(better) > this.registry.requiredLevel(current))) return false;
+    this.world?.log?.("bot_brain_activity_promoted", {
+      username: this.player.getUsername?.() ?? null,
+      from: current.id,
+      to: better.id,
+    });
+    const switchAt = this.switchAt;
+    this.replaceRoot(better, nowMs);
+    this.switchAt = switchAt;
+    return true;
   }
 
   completeFrame(nowMs) {
