@@ -51,6 +51,8 @@ const rows = new Map();
 const LISTS = [{ key: "official", name: "Official" }, { key: "unofficial", name: "Unofficial" }];
 /** The name each bot is listed under, by its save's key: who is "online" on the unofficial list is told by it. */
 let listedBots = new Map();
+/** How many bots were in the world when the lists were last ranked: their shown names are read from there. */
+let rankedWithBots = -1;
 let boards = { official: Ranking.buildBoard([], []), unofficial: Ranking.buildBoard([], []) };
 let refreshedAt = -Infinity;
 let warned = false;
@@ -104,7 +106,8 @@ function readSaves() {
   } finally {
     db.close();
   }
-  if (changed) rank();
+  // Bots walk in over the first minutes after a start, and bring their shown names with them.
+  if (changed || botCount() !== rankedWithBots) rank();
 }
 
 /**
@@ -125,14 +128,28 @@ function rank() {
   const people = entries.filter((entry) => !entry.bot);
   const taken = new Set(people.map((entry) => entry.name.toLowerCase()));
   const live = liveBotNames();
+  rankedWithBots = botCount();
+  // Bots are given 99 Agility so their routes can use every shortcut (SiteSpawner). They did not
+  // earn it, so it is not counted for them.
+  const agility = skillNames.findIndex((skill) => skill.toLowerCase() === "agility");
+  const isTaken = (name) => taken.has(name.toLowerCase());
   const bots = [];
-  for (const entry of entries) {
-    if (!entry.bot) continue;
-    // A name is one line of a table: a shown name someone already has falls back to the bot's own.
-    let name = live.get(entry.key.toLowerCase()) ?? generateBotName(entry.name) ?? entry.name;
-    if (taken.has(name.toLowerCase())) name = entry.name;
+  // The bots in the world first: theirs are the names people see, so they keep them.
+  const botEntries = entries.filter((entry) => entry.bot).sort((a, b) => Number(live.has(b.key.toLowerCase())) - Number(live.has(a.key.toLowerCase())));
+  for (const entry of botEntries) {
+    // A name is one line of a table, so no two entries share one: a bot not in the world yet
+    // gets the roll it would be given there, and its own name if all else fails.
+    let name = live.get(entry.key.toLowerCase());
+    if (!name || isTaken(name)) name = generateBotName(entry.name, isTaken) ?? entry.name;
     taken.add(name.toLowerCase());
-    bots.push({ ...entry, name });
+    const bot = { ...entry, name, levels: [...entry.levels], xp: [...entry.xp] };
+    if (agility >= 0) {
+      bot.levels[agility] = 1;
+      bot.xp[agility] = 0;
+      bot.totalLevel = bot.levels.reduce((sum, level) => sum + level, 0);
+      bot.totalXp = bot.xp.reduce((sum, xp) => sum + xp, 0);
+    }
+    bots.push(bot);
   }
   listedBots = new Map(bots.map((bot) => [bot.key.toLowerCase(), bot.name.toLowerCase()]));
   boards = { official: Ranking.buildBoard(people, skillNames), unofficial: Ranking.buildBoard([...people, ...bots], skillNames) };

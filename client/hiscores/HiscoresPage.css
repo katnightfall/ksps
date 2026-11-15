@@ -340,8 +340,9 @@ html.hs-document #root {
 
 .hs-player {
     display: inline-flex;
+    flex-wrap: wrap;
     align-items: baseline;
-    gap: 5px;
+    gap: 2px 5px;
     white-space: nowrap;
 }
 
