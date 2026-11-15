@@ -87,7 +87,7 @@ phase_stage() {   # <commit of the version the upload builds on> | full | rebuil
     : > "$INCOMING/changed"
     : > "$INCOMING/deleted"
   else
-    tar -xzf - -C "$src" --no-same-owner
+    tar -xzmf - -C "$src" --no-same-owner     # -m: the PC's clock may run a little ahead of this one
     if [ ! -f "$src/.tsps-deploy/commit" ] || [ ! -f "$src/.tsps-deploy/manifest" ]; then fail "That upload isn't a TSPS deploy."; fi
     new_commit="$(tr -dc '0-9a-f' < "$src/.tsps-deploy/commit" | head -c 40)"
     if [ "${#new_commit}" -ne 40 ]; then fail "The upload doesn't say which version it is."; fi
