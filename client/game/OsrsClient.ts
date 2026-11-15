@@ -1,3 +1,4 @@
+import { BRAND_NAME } from "../config/brand";
 import { AGILITY_HELPER_HIGHLIGHT_OBSTACLES_ENABLED, HELPER_AGILITY_HIGHLIGHTED_COURSE } from "@runelite/api/gameval/VarbitID";
 import { retainedInventory, stopInventoryTransmit } from "./sync/InventoryStopTransmit";
 import { openClientUrl } from "../common/openUrl";
@@ -210,6 +211,7 @@ import { VarManager } from "../rs/config/vartype/VarManager";
 import { chatHistory } from "../rs/cs2/ChatHistory";
 import { addExaminePriceLine, EXAMINE_PRICE_ALCH_VARBIT, EXAMINE_PRICE_GE_VARBIT } from "./examinePrice";
 import { alchemyValues, guidePrice, itemPricesPending } from "../network/serverConnection/domain/itemPrices";
+import { examineOverride } from "../network/serverConnection/domain/itemExamines";
 import { FriendLoginUpdates, friendLoginNoticesShown } from "./chat/FriendLoginUpdates";
 import { Cs2Vm, ScriptArgMagic, type ScriptEvent, createScriptEvent } from "../rs/cs2/Cs2Vm";
 import { setSpawnSearch } from "../rs/cs2/spawnSearch";
@@ -1456,7 +1458,7 @@ export class OsrsClient {
             widgetManager.invalidateWidgetRender(widgetManager.getGroupRoot(INVENTORY), "shift");
         };
         if (editMode) {
-            document.title = "Edit Mode - RSPS.app";
+            document.title = `Edit Mode - ${BRAND_NAME}`;
             this.loadEditModePlugin();
         }
         // If cache is provided, initialize immediately
@@ -7604,7 +7606,8 @@ export class OsrsClient {
         const itemId = item?.itemId ?? -1;
         if (!(itemId >= 0)) return false;
         try {
-            const examine = this.objTypeLoader?.load?.(itemId)?.examine;
+            // The world's own text for the item, when it has changed it; else the cache's.
+            const examine = examineOverride(itemId) ?? this.objTypeLoader?.load?.(itemId)?.examine;
             if (typeof examine !== "string" || examine.length === 0 || examine === "null") {
                 return false;
             }

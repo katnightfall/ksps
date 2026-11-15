@@ -3,6 +3,7 @@ import { clearHintArrow, setHintArrowNpc, setHintArrowPlayer,
     setHintArrowWorldEntity, setHintArrowTile } from "../../../game/HintArrow";
 import { clearAttackTimer, setAttackTimer } from "../../../game/plugins/attacktimer/attackTimerState";
 import { loadItemPrices } from "../domain/itemPrices";
+import { loadItemExamines } from "../domain/itemExamines";
 import { LOGIN_FLAG_REMEMBER, LOGIN_FLAG_TOKEN } from "../constants";
 import { state } from "../state";
 
@@ -41,6 +42,7 @@ export function handleAuthTickMessage(msg: any): boolean {
             clearHintArrow();
             clearAttackTimer();
             loadItemPrices();
+            void loadItemExamines();
             // A relog in the same tab may be another account's clan.
             state.clans.vars.clear();
         }

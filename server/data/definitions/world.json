@@ -1,10 +1,10 @@
 {
-  "name": "Old School RuneScape",
+  "name": "Kat-Net",
   "plugins": { "TutorialIsland": false },
-  "description": "",
+  "description": "10x custom, US/Dallas dedicated",
   "experienceMultiplier": 10,
   "pluginConfig": {
-    "WelcomeScreen:messageOfTheWeek": "Welcome to Old School RuneScape!<br>Edited and hosted for free by kat-net.us"
+    "WelcomeScreen:messageOfTheWeek": "Welcome to Kat-Net!<br>Edited and hosted for free by kat-net.us"
   },
   "spawn": {
     "x": 3089,

@@ -1,3 +1,4 @@
+import { BRAND_NAME } from "../../../../config/brand";
 import type { LoginState } from "../../LoginState";
 import type { LoginRendererHost, RenderContext } from "../host";
 import { isCaretVisible } from "../canvas";
@@ -238,7 +239,7 @@ export function drawWelcomeDisplayName(
         drawCenteredText(host, 
             ctx,
             host.fontBold12,
-            `Welcome to ${state.serverName?.trim() || "RSPS.app"}`,
+            `Welcome to ${state.serverName?.trim() || BRAND_NAME}`,
             centerX,
             REMEMBERED_TITLE_Y,
             0xffff00,

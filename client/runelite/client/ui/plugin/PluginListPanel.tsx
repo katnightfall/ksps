@@ -1,3 +1,4 @@
+import { BRAND_NAME } from "../../../../config/brand";
 import { useEffect, useReducer, useState } from "react";
 
 import type { PluginClass } from "@runelite/client/plugins/Plugin";
@@ -11,7 +12,7 @@ import { runeliteImage } from "@runelite/client/ui/runeliteImages";
 import { onConfigurationRequest, takePendingConfiguration } from "@runelite/client/plugins/config/configurationRequests";
 
 /** The client's own settings row, pinned above the plugins (RuneLite's "RuneLite" entry). */
-const CLIENT_NAME = "RSPS.app";
+const CLIENT_NAME = BRAND_NAME;
 
 type View = { kind: "list" } | { kind: "client" } | { kind: "plugin"; pluginClass: PluginClass };
 

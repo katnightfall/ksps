@@ -1,3 +1,4 @@
+import { BRAND_NAME } from "../../config/brand";
 import {
     ACCOUNT_NAME_PATTERN,
     MAX_ACCOUNT_NAME_LENGTH,
@@ -367,7 +368,8 @@ export class LoginState {
         this.currentServerName = name;
         // Edit mode keeps its own title (OsrsClient sets it).
         if (typeof document === "undefined" || isMapEditorUrl()) return;
-        document.title = name.trim() ? `${name.trim()} - RSPS.app` : "RSPS.app";
+        // A world named after the client itself is not said twice.
+        document.title = name.trim() && name.trim() !== BRAND_NAME ? `${name.trim()} - ${BRAND_NAME}` : BRAND_NAME;
     }
 
     /** Whether the current server uses secure WebSocket */

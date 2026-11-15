@@ -1,3 +1,4 @@
+import { BRAND_NAME } from "../../../../config/brand";
 import { GameState } from "../../GameState";
 import type { LoginState } from "../../LoginState";
 import type { LoginRendererHost, RenderContext } from "../host";
@@ -14,7 +15,7 @@ export function drawWelcomeScreen(host: LoginRendererHost, ctx: RenderContext, s
 
         if (!host.fontBold12) return;
         const layout = getWelcomeLayout(host);
-        const welcomeName = state.serverName?.trim() || "RSPS.app";
+        const welcomeName = state.serverName?.trim() || BRAND_NAME;
         drawCenteredText(host, 
             ctx,
             host.fontBold12,

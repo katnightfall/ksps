@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import "./HiscoresPage.css";
+import { BRAND_NAME } from "../config/brand";
 import {
     fetchHiscores,
     type HiscoresMeta,
@@ -111,6 +112,7 @@ export default function HiscoresPage(): JSX.Element {
     // The game's own stylesheet locks the page for the game canvas: no scrolling, no text selection.
     useEffect(() => {
         document.documentElement.classList.add("hs-document");
+        document.title = `Hiscores - ${BRAND_NAME}`;
         return () => document.documentElement.classList.remove("hs-document");
     }, []);
 
