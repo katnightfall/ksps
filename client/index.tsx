@@ -6,7 +6,9 @@ import "./index.css";
 import reportWebVitals from "./reportWebVitals";
 import { registerServiceWorker } from "./serviceWorkerRegistration";
 
-const Page = lazy(() => import("./game/GamePage"));
+// /hiscores is a page of its own (our world's rankings): the game client is not loaded there.
+const isHiscores = /^\/(hiscores|highscores)\/?$/i.test(window.location.pathname);
+const Page = lazy(() => (isHiscores ? import("./hiscores/HiscoresPage") : import("./game/GamePage")));
 
 const root = ReactDOM.createRoot(document.getElementById("root") as HTMLElement);
 root.render(

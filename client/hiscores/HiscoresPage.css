@@ -1,0 +1,451 @@
+/*
+ * The hiscores page, in the classic layout: dark stone, game modes across the top, a slate
+ * category list, the table on a parchment scroll, stone boxes down the right. Everything is
+ * drawn here with gradients and borders; there are no pictures besides the skill icons.
+ */
+
+/* index.css locks the document for the game canvas; this page reads and scrolls like a website. */
+html.hs-document,
+html.hs-document body,
+html.hs-document #root {
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+    overflow-x: hidden;
+    user-select: text;
+    -webkit-user-select: text;
+    background-color: #0b0a08;
+}
+
+.hs-page {
+    --hs-gold: #e6d7a0;
+    --hs-green: #90c040;
+    --hs-ink: #1c1206;
+    min-height: 100vh;
+    padding: 0 12px 28px;
+    color: #fff;
+    font: 14px/1.35 Arial, Helvetica, sans-serif;
+    /* Cobbled stone: two offset grids of soft dark blots over near-black. */
+    background-color: #0b0a08;
+    background-image:
+        radial-gradient(ellipse at 30% 30%, rgba(58, 52, 41, 0.42) 0 30%, transparent 68%),
+        radial-gradient(ellipse at 70% 65%, rgba(46, 41, 32, 0.4) 0 26%, transparent 66%),
+        linear-gradient(#141210, #0b0a08);
+    background-size: 118px 96px, 164px 128px, auto;
+    background-position: 0 0, 47px 38px, 0 0;
+}
+
+.hs-page a {
+    color: var(--hs-green);
+    text-decoration: none;
+}
+
+.hs-page a:hover {
+    text-decoration: underline;
+}
+
+.hs-page button,
+.hs-page input {
+    font: inherit;
+}
+
+/* ---- top: the title plate and the game modes ---- */
+
+.hs-header {
+    max-width: 980px;
+    margin: 0 auto;
+    padding-top: 34px;
+    text-align: center;
+}
+
+.hs-masthead {
+    display: inline-block;
+    min-width: 220px;
+    padding: 9px 26px 8px;
+    border: 3px solid #3a3226;
+    outline: 1px solid #000;
+    background: #000;
+    box-shadow: 0 0 0 1px #5a4e3a inset, 0 6px 18px rgba(0, 0, 0, 0.7);
+}
+
+.hs-masthead h1 {
+    margin: 0 0 2px;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.hs-modes {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin: 46px 0 22px;
+}
+
+.hs-modes button {
+    padding: 8px 18px;
+    border: 2px solid #3a3226;
+    outline: 1px solid #000;
+    background: #060606;
+    color: var(--hs-green);
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.hs-modes button:hover {
+    background: #17140f;
+}
+
+.hs-modes button.hs-on {
+    color: #fff;
+}
+
+/* ---- the three columns ---- */
+
+.hs-body {
+    display: grid;
+    grid-template-columns: 172px minmax(0, 1fr) 176px;
+    gap: 22px;
+    align-items: start;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+/* ---- left: categories on slate, under a banner ---- */
+
+.hs-categories {
+    position: relative;
+    padding: 46px 0 10px;
+    border: 1px solid #1d232b;
+    border-radius: 3px;
+    background: linear-gradient(90deg, #3c4653, #4a5564 45%, #3a4350);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.7);
+}
+
+.hs-categories h2 {
+    position: absolute;
+    top: 10px;
+    left: -14px;
+    right: -14px;
+    margin: 0;
+    padding: 5px 0 6px;
+    border: 1px solid #5a4a22;
+    border-radius: 2px;
+    background: linear-gradient(#e9c873, #c79a3f 55%, #a67a2a);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.6);
+    color: #4a3410;
+    font: bold 17px/1 Georgia, "Times New Roman", serif;
+    letter-spacing: 1px;
+    text-align: center;
+    text-transform: uppercase;
+    transform: rotate(-4deg);
+}
+
+.hs-category-list {
+    max-height: 640px;
+    padding: 0 8px 0 10px;
+    overflow-y: auto;
+    scrollbar-color: #7c8796 #2c343f;
+    scrollbar-width: thin;
+}
+
+.hs-categories a {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 1px 0;
+    color: #d3dbe5;
+    font-size: 14px;
+    line-height: 17px;
+}
+
+.hs-categories a.hs-on {
+    color: #fff;
+    font-weight: bold;
+}
+
+.hs-categories img,
+.hs-skill img,
+.hs-noicon {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
+    image-rendering: pixelated;
+}
+
+.hs-noicon {
+    display: inline-block;
+}
+
+.hs-rule {
+    display: block;
+    padding: 1px 0 1px 34px;
+    color: #9aa5b3;
+}
+
+/* ---- middle: the scroll ---- */
+
+.hs-scroll {
+    filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.7));
+}
+
+/* The rolled ends: a darker band wider than the sheet. */
+.hs-scroll-end {
+    height: 16px;
+    margin: 0 -7px;
+    border: 1px solid #6f5c37;
+    border-radius: 8px / 9px;
+    background: linear-gradient(#e2d2a6, #bfa873 55%, #9b8454);
+}
+
+.hs-parchment {
+    min-height: 420px;
+    padding: 16px 14px 20px;
+    border-left: 1px solid #8a7648;
+    border-right: 1px solid #8a7648;
+    color: var(--hs-ink);
+    background-color: #d6c59b;
+    /* Worn paper: darker at the edges, with faint blotches. */
+    background-image:
+        radial-gradient(ellipse at 22% 18%, rgba(255, 246, 214, 0.5), transparent 55%),
+        radial-gradient(ellipse at 78% 72%, rgba(150, 122, 70, 0.22), transparent 60%),
+        linear-gradient(90deg, rgba(120, 96, 52, 0.3), transparent 10%, transparent 90%, rgba(120, 96, 52, 0.3));
+}
+
+.hs-parchment h2 {
+    margin: 0 0 8px;
+    font-size: 14px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.hs-parchment a {
+    color: var(--hs-ink);
+}
+
+.hs-pageline,
+.hs-note {
+    margin: 6px 0 10px;
+    text-align: center;
+}
+
+.hs-note {
+    padding: 28px 12px;
+}
+
+.hs-tablewrap {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 22px;
+    gap: 6px;
+    align-items: center;
+}
+
+.hs-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.hs-table th {
+    padding: 3px 6px;
+    font-weight: bold;
+    text-align: left;
+}
+
+.hs-table td {
+    padding: 2px 6px;
+    height: 19px;
+}
+
+.hs-table .hs-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.hs-table tbody tr:hover {
+    background: rgba(120, 96, 52, 0.18);
+}
+
+.hs-table tr.hs-found {
+    background: rgba(255, 244, 190, 0.75);
+    outline: 1px solid #8a7648;
+}
+
+.hs-none {
+    padding: 30px 0 !important;
+    text-align: center;
+}
+
+.hs-trophy {
+    display: block;
+    width: 14px;
+    height: 14px;
+}
+
+.hs-trophy-1 { fill: #c9980f; }
+.hs-trophy-2 { fill: #8d8f96; }
+.hs-trophy-3 { fill: #9a5b25; }
+
+.hs-arrows {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.hs-arrows button {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: #9a5b25;
+    font-size: 17px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.hs-arrows button:disabled {
+    visibility: hidden;
+}
+
+.hs-player {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+    white-space: nowrap;
+}
+
+.hs-badge,
+.hs-staff,
+.hs-online {
+    padding: 0 4px;
+    border-radius: 2px;
+    font-size: 10px;
+    font-weight: bold;
+    line-height: 14px;
+}
+
+.hs-badge { background: #5f6368; color: #fff; }
+.hs-badge-hardcore { background: #8d1f1f; }
+.hs-badge-ultimate { background: #d9d9d9; color: #222; }
+.hs-badge-dead { text-decoration: line-through; opacity: 0.75; }
+.hs-staff { background: #6b4b12; color: #ffe9a8; }
+.hs-online { background: #2f6f1c; color: #eaffd9; }
+
+/* Personal scores and comparisons */
+.hs-personal thead + tbody + thead th {
+    padding-top: 14px;
+}
+
+.hs-skill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.hs-names th {
+    text-align: center;
+    border-bottom: 1px solid rgba(60, 40, 10, 0.4);
+}
+
+.hs-table .hs-gap {
+    padding-left: 16px;
+    border-left: 1px solid rgba(60, 40, 10, 0.4);
+}
+
+.hs-better {
+    color: #175c0b;
+    font-weight: bold;
+}
+
+/* ---- right: riveted stone boxes ---- */
+
+.hs-side {
+    display: grid;
+    gap: 22px;
+}
+
+.hs-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    padding: 9px 12px 12px;
+    border: 3px solid #6d6a63;
+    border-radius: 7px;
+    outline: 2px solid #23211d;
+    background: linear-gradient(160deg, #4f4638, #3b3429 60%, #453c30);
+    box-shadow: 0 0 0 2px #2c2922 inset, 0 5px 12px rgba(0, 0, 0, 0.7);
+    text-align: center;
+}
+
+.hs-box h3 {
+    margin: 0 0 2px;
+    color: var(--hs-gold);
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.hs-box p {
+    margin: 0;
+    color: var(--hs-gold);
+    font-size: 13px;
+}
+
+.hs-box input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 2px 5px;
+    border: 1px solid #1a1814;
+    border-radius: 3px;
+    background: #fff;
+    color: #000;
+}
+
+.hs-box button {
+    padding: 1px 9px;
+    border: 1px solid #555;
+    border-radius: 3px;
+    background: #efefef;
+    color: #000;
+    cursor: pointer;
+}
+
+.hs-footer {
+    max-width: 800px;
+    margin: 26px auto 0;
+    color: #8f8778;
+    font-size: 12px;
+    text-align: center;
+}
+
+/* ---- narrow screens: one column, the categories as a short scrolling list ---- */
+
+@media (max-width: 760px) {
+    .hs-body {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 26px;
+    }
+
+    .hs-categories {
+        margin: 0 14px;
+    }
+
+    /* Across the full width the tilted banner would cover the first lines. */
+    .hs-categories h2 {
+        transform: none;
+    }
+
+    .hs-category-list {
+        max-height: 190px;
+    }
+
+    .hs-side {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+    }
+
+    .hs-modes {
+        margin: 26px 0 26px;
+    }
+}
