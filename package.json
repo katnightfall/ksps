@@ -14,7 +14,10 @@
     "bridge": "node scripts/run-with-env.mjs - scripts/quest-helper-bridge.mjs",
     "gateway": "runelite-gateway/gradlew -p runelite-gateway run --console=plain",
     "gateway:test": "runelite-gateway/gradlew -p runelite-gateway test --console=plain",
-    "docs:quests": "node scripts/quest-docs.mjs"
+    "docs:quests": "node scripts/quest-docs.mjs",
+    "deploy": "node deploy/remote.mjs update",
+    "remote": "node deploy/remote.mjs",
+    "deploy:setup": "node deploy/setup-remote.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

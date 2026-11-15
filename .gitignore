@@ -104,3 +104,6 @@ server/data/definitions/world-admin.token
 /gateway/
 /tools/runelite-gateway/
 /tools/runelite-client/
+
+# This PC's deploy target and key path (deploy/README.txt)
+/deploy.local.json

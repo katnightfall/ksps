@@ -1,0 +1,26 @@
+[Unit]
+Description=TSPS game server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tsps
+Group=tsps
+WorkingDirectory=/opt/tsps
+Environment=HOME=/opt/tsps-deploy/home
+ExecStart=/usr/bin/env bash /opt/tsps/deploy/run.sh game
+Restart=always
+RestartSec=5
+# Stopping saves every player first; give it time before systemd gives up and kills it.
+TimeoutStopSec=90
+LimitNOFILE=65535
+SyslogIdentifier=tsps-game
+
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

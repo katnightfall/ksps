@@ -1,0 +1,23 @@
+[Unit]
+Description=TSPS web client
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tsps
+Group=tsps
+WorkingDirectory=/opt/tsps
+Environment=HOME=/opt/tsps-deploy/home
+ExecStart=/usr/bin/env bash /opt/tsps/deploy/run.sh web
+Restart=always
+RestartSec=5
+SyslogIdentifier=tsps-web
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
