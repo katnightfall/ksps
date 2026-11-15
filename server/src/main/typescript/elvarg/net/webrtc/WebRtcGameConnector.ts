@@ -166,7 +166,9 @@ export class WebRtcGameConnector {
     }
     if (message.type === "error" && typeof message.sessionId !== "string"
       && typeof message.message === "string") {
-      console.warn(`[webrtc] signalling relay rejected registration: ${message.message}`);
+      // Ours: which world ID was refused, and enough about the token to spot a pasting slip without showing it.
+      console.warn(`[webrtc] signalling relay rejected registration: ${message.message} (world ID "${this.worldId}", `
+        + `token of ${this.token.length} characters${/^[A-Za-z0-9_-]+$/.test(this.token) ? "" : " with characters a token doesn't have"})`);
       return;
     }
     const sessionId = typeof message.sessionId === "string" ? message.sessionId : "";
