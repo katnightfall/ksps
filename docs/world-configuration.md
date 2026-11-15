@@ -631,7 +631,7 @@ This table lists bundled plugins that have a description. The world config page 
 | `Arclight` | Arclight | items | yes | Arclight: made at an altar from the Darklight, charged with ancient shards, and infused per sword for extra damage against demons. (members only) |
 | `AscensionCrossbows` | AscensionCrossbows | items | yes | Ascension crossbows: fires ascension bolts and alternates the left and right firing animations on every shot. (members only) |
 | `AshSanctifier` | AshSanctifier | items | yes | Ash sanctifier: Tyss gives it after the hard Kourend & Kebos diary; charged with death runes, it scatters the ashes demons drop for Prayer XP. (members only) |
-| `AttackStyles` | AttackStyles | items | yes | Changes what some weapons' attack styles train on this world: the scythes' Jab gives shared XP (Attack, Strength and Defence) instead of Strength. |
+| `AttackStyles` | AttackStyles | items | yes | Changes what some weapons' attack styles train on this world, and says so in the Combat Options tab: the scythes' Jab gives shared XP (Attack, Strength and Defence) instead of Strength. |
 | `AvasAccumulator` | AvasAccumulator | items | yes | Ava's attractor, accumulator and assembler: recover 60% to 80% of fired ammunition, blocked by metal body armour. |
 | `AvernicDefender` | AvernicDefender | items | yes | Avernic defender: combine the hilt with a dragon defender, dismantle it back, and inspect the hilt, with confirmations and preset-item protection. (members only) |
 | `AvernicTreads` | AvernicTreads | items | yes | Avernic treads: add primordial, pegasian and eternal boots for demon tears, gaining Magic and Runecraft XP, and dismantle them back. (members only) |
