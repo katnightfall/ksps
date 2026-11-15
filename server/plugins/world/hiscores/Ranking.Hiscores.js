@@ -48,7 +48,8 @@ function combatLevel(levels) {
 /**
  * The entry of one saved player, or null for a save that is not ranked: a league or hardcore
  * world character (their rows are keyed "league:<name>"), an account stub left by a Hardcore
- * reset, a bot, or a save whose skills can't be read.
+ * reset, or a save whose skills can't be read. A bot's entry has `bot: true`: bots are ranked
+ * on the unofficial list only (the plugin keeps a board for each list).
  */
 function entryFromSave(key, save, skillCount, botNames = new Set()) {
   if (!save || typeof save !== "object" || key.includes(":") || save.unmade === true) return null;
@@ -56,12 +57,12 @@ function entryFromSave(key, save, skillCount, botNames = new Set()) {
   const experience = save.skills?.experience;
   if (!Array.isArray(levels) || !Array.isArray(experience) || levels.length < skillCount || experience.length < skillCount) return null;
   const name = String(save.displayName ?? key).trim() || key;
-  if (BOT_NAME.test(name) || botNames.has(name.toLowerCase())) return null;
   const attributes = save.attributes && typeof save.attributes === "object" ? save.attributes : {};
   const mode = MODES.includes(attributes["ironman:mode"]) ? attributes["ironman:mode"] : "regular";
   const entry = {
     key,
     name,
+    bot: BOT_NAME.test(key) || BOT_NAME.test(name) || botNames.has(name.toLowerCase()),
     rights: count(save.rights?.id),
     mode,
     dead: mode === "hardcore" && count(attributes["ironman:hardcore-dead"]) > 0,

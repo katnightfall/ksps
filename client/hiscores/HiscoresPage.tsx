@@ -24,9 +24,13 @@ import {
  * What is open lives in the address, so a table or a player can be linked to and the browser's
  * back button works:  ?skill=mining  ?activity=quest-points  ?kills=zulrah  with  &mode=ironman
  * &page=2  or  &rank=140 ;  ?player=kat  for personal scores, and  &vs=sam  to compare.
+ * &list=unofficial  on any of them is the unofficial list: everyone in the world, bots included.
  */
 
-type Route = { view: TableView; mode: string; page: number; rank: number; find: string; player: string; vs: string };
+type Route = { view: TableView; mode: string; page: number; rank: number; find: string; player: string; vs: string; list: string };
+
+/** The list the address names: the official one unless it says otherwise. */
+const listOf = (query: URLSearchParams) => (query.get("list") === "unofficial" ? "unofficial" : "official");
 
 const number = (value: number) => value.toLocaleString("en-US");
 const MODE_BADGES: Record<string, string> = { ironman: "IM", hardcore: "HC", ultimate: "UIM" };
@@ -49,6 +53,7 @@ function readRoute(): Route {
         find: query.get("find") ?? "",
         player: query.get("player") ?? "",
         vs: query.get("vs") ?? "",
+        list: listOf(query),
     };
 }
 
@@ -65,6 +70,8 @@ function routeUrl(route: Partial<Route>): string {
         else if (route.rank) query.set("rank", String(route.rank));
         else if (route.page && route.page > 1) query.set("page", String(route.page));
     }
+    // A link stays on the list that is open unless it names the other one.
+    if ((route.list ?? listOf(new URLSearchParams(window.location.search))) === "unofficial") query.set("list", "unofficial");
     const search = query.toString();
     return `${window.location.pathname}${search ? `?${search}` : ""}`;
 }
@@ -130,14 +137,14 @@ export default function HiscoresPage(): JSX.Element {
 
     useEffect(() => {
         const abort = new AbortController();
-        fetchHiscores<HiscoresMeta>({}, abort.signal).then((result) => setMeta(result), () => setStatus("error"));
+        fetchHiscores<HiscoresMeta>({ list: route.list }, abort.signal).then((result) => setMeta(result), () => setStatus("error"));
         return () => abort.abort();
-    }, []);
+    }, [route.list]);
 
     useEffect(() => {
         const abort = new AbortController();
         setStatus("loading");
-        const person = (name: string) => fetchHiscores<HiscoresProfile>({ view: "player", name }, abort.signal);
+        const person = (name: string) => fetchHiscores<HiscoresProfile>({ view: "player", name, list: route.list }, abort.signal);
         const request: Promise<boolean> = route.player
             ? Promise.all([person(route.player), route.vs ? person(route.vs) : Promise.resolve(null)]).then(([first, second]) => {
                   setProfile(first);
@@ -145,7 +152,7 @@ export default function HiscoresPage(): JSX.Element {
                   return first !== null && (!route.vs || second !== null);
               })
             : fetchHiscores<HiscoresTable>(
-                  { view: route.view.kind, name: route.view.name, mode: route.mode === "all" ? undefined : route.mode, page: route.page, find: route.find || undefined },
+                  { view: route.view.kind, name: route.view.name, mode: route.mode === "all" ? undefined : route.mode, page: route.page, find: route.find || undefined, list: route.list },
                   abort.signal,
               ).then((result) => {
                   setTable(result);
@@ -173,6 +180,7 @@ export default function HiscoresPage(): JSX.Element {
     const openPlayer = (name: string) => go({ player: name });
     const icon = (name: string) => meta?.skills.find((skill) => skill.name === name)?.icon ?? null;
     const modeName = route.mode === "all" ? "" : meta?.modes.find((mode) => mode.key === route.mode)?.name ?? "";
+    const unofficial = route.list === "unofficial";
     const highlighted = (row: HiscoresRow) => (route.find && row.name.toLowerCase() === route.find.toLowerCase()) || (route.rank > 0 && row.rank === route.rank);
 
     const category = (view: TableView, label: string, image?: string | null) => (
@@ -222,6 +230,18 @@ export default function HiscoresPage(): JSX.Element {
                     <h1>{meta?.world ? `${meta.world} Hiscores` : "Hiscores"}</h1>
                     <a href="/">Play now</a>
                 </div>
+                <nav className="hs-lists" aria-label="Lists">
+                    {(meta?.lists ?? [{ key: "official", name: "Official", players: 0 }, { key: "unofficial", name: "Unofficial", players: 0 }]).map((list) => (
+                        <button
+                            key={list.key}
+                            className={route.list === list.key ? "hs-on" : ""}
+                            title={list.key === "unofficial" ? "Everyone in the world, bots included" : "Players only"}
+                            onClick={() => go({ view: route.view, mode: route.mode, list: list.key })}
+                        >
+                            {list.name}
+                        </button>
+                    ))}
+                </nav>
                 <nav className="hs-modes" aria-label="Game modes">
                     {[{ key: "all", name: "Hiscores" }, ...(meta?.modes ?? [])].map((mode) => (
                         <button key={mode.key} className={!route.player && route.mode === mode.key ? "hs-on" : ""} onClick={() => go({ view: route.view, mode: mode.key })}>
@@ -252,6 +272,7 @@ export default function HiscoresPage(): JSX.Element {
                         {!route.player && status !== "error" && (
                             <>
                                 <h2>{modeName ? `${title} Hiscores: ${modeName}` : `${title} Hiscores`}</h2>
+                                {unofficial && <p className="hs-pageline">Unofficial list: everyone in the world, bots included.</p>}
                                 {status === "missing" && <p className="hs-note">There is no table called "{route.view.name}".</p>}
                                 {table && status !== "missing" && (
                                     <div className="hs-tablewrap">
@@ -292,7 +313,7 @@ export default function HiscoresPage(): JSX.Element {
 
                         {route.player && status === "missing" && (
                             <p className="hs-note">
-                                No player called "{!profile ? route.player : route.vs}" is ranked. A new player appears here after their first save: when they log out, or a few minutes into playing.
+                                No player called "{!profile ? route.player : route.vs}" is ranked{unofficial ? "" : " on the official list"}. A new player appears here after their first save: when they log out, or a few minutes into playing.
                             </p>
                         )}
                         {route.player && profile && status !== "missing" && status !== "error" && (
@@ -300,7 +321,7 @@ export default function HiscoresPage(): JSX.Element {
                                 <h2>
                                     {comparing ? <>Comparing <PlayerName row={profile} onOpen={openPlayer} /> and <PlayerName row={rival!} onOpen={openPlayer} /></> : <>Personal scores for <PlayerName row={profile} /></>}
                                 </h2>
-                                {!comparing && <p className="hs-pageline">Combat level {number(profile.combat)}</p>}
+                                {!comparing && <p className="hs-pageline">Combat level {number(profile.combat)}{unofficial ? " (ranks on the unofficial list)" : ""}</p>}
                                 <table className="hs-table hs-personal">
                                     <thead>
                                         {comparing && (
@@ -389,7 +410,7 @@ export default function HiscoresPage(): JSX.Element {
                     </form>
                     <div className="hs-box">
                         <h3>{meta?.world || "Our world"}</h3>
-                        <p>{meta ? `${number(meta.players)} ${meta.players === 1 ? "player" : "players"} ranked` : " "}</p>
+                        <p>{meta ? `${number(meta.players)} ${meta.players === 1 ? "player" : "players"} ranked${unofficial ? ", bots included" : ""}` : " "}</p>
                         <p>{meta ? `${number(meta.online)} online now` : " "}</p>
                         <a href="/">Play now</a>
                     </div>

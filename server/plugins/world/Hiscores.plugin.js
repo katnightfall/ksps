@@ -4,6 +4,10 @@
  * each monster the game counts. The tables are served to the website's /hiscores page over the
  * content API, and ::hiscores shows the top of one in game.
  *
+ * There are two lists. The official one is people only. The unofficial one (&list=unofficial on
+ * any address below) ranks everyone in the world, the bots that keep a save included, each under
+ * the name it is shown by in game.
+ *
  *   GET /api/hiscores                               what there is to rank by, and how many players
  *   GET /api/hiscores?view=skill&name=mining        a table: &page=2, &mode=ironman, &find=<player>
  *   GET /api/hiscores?view=activity&name=quest-points
@@ -13,12 +17,13 @@
  * The numbers come from the save database, read through a second, read-only connection (the
  * world config page's Players list does the same), so a player moves up when the game saves
  * them: at logout and at each autosave. A save is only parsed again when its row has changed.
- * Left out: bots, league and hardcore-world characters, and account stubs. The ranking itself
+ * Left out of both: league and hardcore-world characters, and account stubs. The ranking itself
  * is hiscores/Ranking.Hiscores.js.
  */
 const fs = require("node:fs");
 const path = require("node:path");
 const Ranking = require("./hiscores/Ranking.Hiscores");
+const { generateBotName } = require("../bots/lib/BotNames.PlayerBots");
 
 /** How long a request may be answered from the tables as they are before the database is looked at again. */
 const REFRESH_MS = 30_000;
@@ -42,7 +47,11 @@ let skillNames = [];
 let skillIcons = [];
 /** Save rows as last read: database key -> { updatedAt, entry or null }. */
 const rows = new Map();
-let board = Ranking.buildBoard([], []);
+/** The two lists' tables: people only, and everyone with the bots. */
+const LISTS = [{ key: "official", name: "Official" }, { key: "unofficial", name: "Unofficial" }];
+/** The name each bot is listed under, by its save's key: who is "online" on the unofficial list is told by it. */
+let listedBots = new Map();
+let boards = { official: Ranking.buildBoard([], []), unofficial: Ranking.buildBoard([], []) };
 let refreshedAt = -Infinity;
 let warned = false;
 
@@ -75,9 +84,8 @@ function readSaves() {
       seen.add(username);
       if (rows.get(username)?.updatedAt === updatedAt) continue;
       let entry = null;
-      // League and hardcore-world characters ("league:<name>") are not ranked, so not read either;
-      // nor are the bots' saves, of which a busy world has over a thousand, each saved every few minutes.
-      if (!username.includes(":") && !Ranking.isBotName(username)) {
+      // League and hardcore-world characters ("league:<name>") are not ranked, so not read either.
+      if (!username.includes(":")) {
         try {
           entry = Ranking.entryFromSave(username, JSON.parse(read.get(username)?.json ?? "null"), skillNames.length, bots);
         } catch {
@@ -96,11 +104,43 @@ function readSaves() {
   } finally {
     db.close();
   }
-  if (changed) board = Ranking.buildBoard([...rows.values()].flatMap((row) => (row.entry ? [row.entry] : [])), skillNames);
+  if (changed) rank();
 }
 
-function currentBoard(now = Date.now()) {
-  if (now - refreshedAt < REFRESH_MS) return board;
+/**
+ * The name a bot is shown by in game, which is not the one its save is under: the bot's own
+ * while it is in the world, else the one it will be given (the same roll, by its username).
+ */
+function liveBotNames() {
+  const names = new Map();
+  for (const player of core.World.getPlayers()) {
+    if (player?.isPlayerBot?.() === true) names.set(String(player.getUsername()).toLowerCase(), String(player.getDisplayName?.() ?? player.getUsername()));
+  }
+  return names;
+}
+
+/** Ranks both lists again from the entries as read. */
+function rank() {
+  const entries = [...rows.values()].flatMap((row) => (row.entry ? [row.entry] : []));
+  const people = entries.filter((entry) => !entry.bot);
+  const taken = new Set(people.map((entry) => entry.name.toLowerCase()));
+  const live = liveBotNames();
+  const bots = [];
+  for (const entry of entries) {
+    if (!entry.bot) continue;
+    // A name is one line of a table: a shown name someone already has falls back to the bot's own.
+    let name = live.get(entry.key.toLowerCase()) ?? generateBotName(entry.name) ?? entry.name;
+    if (taken.has(name.toLowerCase())) name = entry.name;
+    taken.add(name.toLowerCase());
+    bots.push({ ...entry, name });
+  }
+  listedBots = new Map(bots.map((bot) => [bot.key.toLowerCase(), bot.name.toLowerCase()]));
+  boards = { official: Ranking.buildBoard(people, skillNames), unofficial: Ranking.buildBoard([...people, ...bots], skillNames) };
+}
+
+function currentBoard(now = Date.now(), list = "official") {
+  const wanted = list === "unofficial" ? "unofficial" : "official";
+  if (now - refreshedAt < REFRESH_MS) return boards[wanted];
   refreshedAt = now;
   try {
     readSaves();
@@ -110,7 +150,7 @@ function currentBoard(now = Date.now()) {
     if (!warned) console.warn("[hiscores] could not read the save database", error);
     warned = true;
   }
-  return board;
+  return boards[wanted];
 }
 
 /** How many bots are in the world now (they are never ranked or counted as online). */
@@ -122,12 +162,17 @@ function botCount() {
   return bots;
 }
 
-/** Lower-case names of the people playing now. */
-function onlineNames() {
+/** Lower-case names of the people playing now; with `bots`, the bots in the world too, by the names they are listed under. */
+function onlineNames(bots = false) {
   const names = new Set();
   for (const player of core.World.getPlayers()) {
-    if (!player || player.isPlayerBot?.() === true || !core.World.isPlayerSessionConnected(player)) continue;
-    names.add(String(player.getUsername()).toLowerCase());
+    if (!player) continue;
+    if (player.isPlayerBot?.() === true) {
+      const listed = bots ? listedBots.get(String(player.getUsername()).toLowerCase()) : undefined;
+      if (listed) names.add(listed);
+    } else if (core.World.isPlayerSessionConnected(player)) {
+      names.add(String(player.getUsername()).toLowerCase());
+    }
   }
   return names;
 }
@@ -137,10 +182,14 @@ const TABLE_VIEWS = { skill: "skill", activity: "activity", kills: "kills" };
 function hiscores(query, segments) {
   if (segments.length) return undefined;
   const view = query.get("view") ?? "meta";
-  const tables = currentBoard();
+  const list = query.get("list") === "unofficial" ? "unofficial" : "official";
+  const tables = currentBoard(Date.now(), list);
+  const online = () => onlineNames(list === "unofficial");
   if (view === "meta") {
     return {
       world: String(core.WorldDefinition.getWorldDefinition().name ?? ""),
+      list,
+      lists: LISTS.map(({ key, name }) => ({ key, name, players: boards[key].entries.length })),
       players: tables.entries.length,
       online: onlineNames().size,
       bots: botCount(),
@@ -152,13 +201,13 @@ function hiscores(query, segments) {
     };
   }
   const name = String(query.get("name") ?? "").trim();
-  if (view === "player") return Ranking.profile(tables, name, onlineNames());
+  if (view === "player") return Ranking.profile(tables, name, online());
   if (!TABLE_VIEWS[view]) return undefined;
   return Ranking.page(tables, `${TABLE_VIEWS[view]}:${(name || "overall").toLowerCase()}`, {
     mode: query.get("mode") ?? "all",
     page: query.get("page") ?? 1,
     find: query.get("find") ?? undefined,
-    online: onlineNames(),
+    online: online(),
   });
 }
 
@@ -210,7 +259,7 @@ function loadSkillIcons() {
 
 module.exports = {
   name: "Hiscores",
-  description: "Ranks every saved player by total level, each skill, activities and monster kills; serves the tables to the website's /hiscores page and shows the top of one in game with ::hiscores.",
+  description: "Ranks every saved player by total level, each skill, activities and monster kills, on an official list (people only) and an unofficial one (bots included); serves the tables to the website's /hiscores page and shows the top of the official ones in game with ::hiscores.",
   register(api) {
     core = api.core;
     skillNames = core.Skill.values().map((skill) => skill.getName());
@@ -219,5 +268,5 @@ module.exports = {
     api.registerCommand("hiscores", showHiscores, core.PlayerRights.NONE, "Show the top players: ::hiscores, or ::hiscores <skill>");
     api.registerCommand("highscores", showHiscores, core.PlayerRights.NONE, "Show the top players: ::highscores, or ::highscores <skill>");
   },
-  _test: { hiscores, showHiscores, currentBoard, reset() { rows.clear(); board = Ranking.buildBoard([], skillNames); refreshedAt = -Infinity; } },
+  _test: { hiscores, showHiscores, currentBoard, reset() { rows.clear(); rank(); refreshedAt = -Infinity; } },
 };

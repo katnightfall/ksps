@@ -74,12 +74,43 @@ html.hs-document #root {
     font-weight: bold;
 }
 
+/* Official | Unofficial: one joined pair under the masthead. */
+.hs-lists {
+    display: flex;
+    justify-content: center;
+    margin: 18px 0 0;
+}
+
+.hs-lists button {
+    padding: 5px 16px;
+    border: 2px solid #3a3226;
+    outline: 1px solid #000;
+    background: #060606;
+    color: var(--hs-green);
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.hs-lists button + button {
+    border-left: 0;
+}
+
+.hs-lists button:hover {
+    background: #17140f;
+}
+
+.hs-lists button.hs-on {
+    background: #2a2419;
+    color: #fff;
+}
+
 .hs-modes {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
     gap: 8px;
-    margin: 46px 0 22px;
+    margin: 20px 0 22px;
 }
 
 .hs-modes button {
@@ -446,6 +477,6 @@ html.hs-document #root {
     }
 
     .hs-modes {
-        margin: 26px 0 26px;
+        margin: 16px 0 26px;
     }
 }

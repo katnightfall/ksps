@@ -3,6 +3,9 @@ import { getDefaultWsUrl } from "../config/clientEnv";
 /** What the game server's /api/hiscores sends (server/plugins/world/Hiscores.plugin.js). */
 export type HiscoresMeta = {
     world: string;
+    /** The list these numbers are for, and the two there are: "official" (people only) and "unofficial" (bots included). */
+    list: string;
+    lists: { key: string; name: string; players: number }[];
     players: number;
     online: number;
     pageSize: number;

@@ -42,14 +42,16 @@ test('the combat level is the game\'s', () => {
     assert.equal(Ranking.combatLevel(SKILLS.map((name) => (name === 'Hitpoints' ? 10 : 1))), 3);
 });
 
-test('bots, other worlds\' characters, stubs and broken saves are not ranked', () => {
+test('a bot\'s entry says so; other worlds\' characters, stubs and broken saves are not ranked', () => {
     assert.equal(entry('league:kat', 'Kat'), null);
     assert.equal(entry('hardcore:kat', 'Kat'), null);
-    assert.equal(entry('playerbot7', 'PlayerBot7'), null);
-    assert.equal(entry('sitebot1204', 'SiteBot1204'), null, 'a levelling site bot');
+    assert.equal(entry('playerbot7', 'PlayerBot7').bot, true);
+    assert.equal(entry('sitebot1204', 'SiteBot1204', { Mining: [30, 13_363] }).bot, true, 'a levelling site bot');
+    assert.equal(entry('sitebot1204', 'SiteBot1204', { Mining: [30, 13_363] }).levels[MINING], 30);
     assert.equal(Ranking.isBotName('sitebot3'), true);
     assert.equal(Ranking.isBotName('kat'), false);
-    assert.equal(entry('clever_bot', 'Clever Bot'), null, 'on the AI roster');
+    assert.equal(entry('clever_bot', 'Clever Bot').bot, true, 'on the AI roster');
+    assert.equal(entry('kat', 'Kat').bot, false);
     assert.equal(Ranking.entryFromSave('gone', save('Gone', {}, {}, { unmade: true }), SKILLS.length), null);
     assert.equal(Ranking.entryFromSave('short', { displayName: 'Short', skills: { maxLevel: [1], experience: [0] } }, SKILLS.length), null);
     assert.equal(Ranking.entryFromSave('none', null, SKILLS.length), null);
@@ -128,12 +130,18 @@ test('the plugin reads the save database, serves the tables and shows ::hiscores
     put.run('sam', JSON.stringify(save('Sam', { Mining: [60, 273_742] })), '2026-11-15T00:00:00.000Z');
     put.run('league:kat', JSON.stringify(save('Kat', { Mining: [99, 13_034_431] })), '2026-11-15T00:00:00.000Z');
     put.run('playerbot1', JSON.stringify(save('PlayerBot1', { Mining: [99, 13_034_431] })), '2026-11-15T00:00:00.000Z');
+    put.run('sitebot1', JSON.stringify(save('SiteBot1', { Mining: [55, 166_636] })), '2026-11-15T00:00:00.000Z');
+    put.run('sitebot2', JSON.stringify(save('SiteBot2', { Mining: [20, 4_470] })), '2026-11-15T00:00:00.000Z');
+    put.run('sitebot3', JSON.stringify(save('SiteBot3', { Mining: [10, 1_154] })), '2026-11-15T00:00:00.000Z');
     put.run('broken', '{not json', '2026-11-15T00:00:00.000Z');
     const before = process.env.PLAYER_SAVE_DATABASE_PATH;
     process.env.PLAYER_SAVE_DATABASE_PATH = database;
     try {
         const plugin = require('../plugins/world/Hiscores.plugin');
-        const online = [{ getUsername: () => 'Kat', isPlayerBot: () => false }, { getUsername: () => 'DevBot1', isPlayerBot: () => true }];
+        // SiteBot1 is in the world under the name it is shown by; SiteBot2 is not, and SiteBot3 is shown by a person's name.
+        const online = [{ getUsername: () => 'Kat', isPlayerBot: () => false }, { getUsername: () => 'DevBot1', isPlayerBot: () => true },
+            { getUsername: () => 'SiteBot1', getDisplayName: () => 'Iron Fisher', isPlayerBot: () => true },
+            { getUsername: () => 'SiteBot3', getDisplayName: () => 'Sam', isPlayerBot: () => true }];
         const registered = { commands: [] };
         plugin.register({
             core: {
@@ -151,7 +159,26 @@ test('the plugin reads the save database, serves the tables and shows ::hiscores
 
         const meta = get('');
         assert.equal(meta.world, 'Test World');
-        assert.equal(meta.players, 2, 'the league character, the bot and the unreadable save are left out');
+        assert.equal(meta.players, 2, 'the league character, the bots and the unreadable save are left out');
+        assert.equal(meta.list, 'official');
+        assert.deepEqual(meta.lists, [{ key: 'official', name: 'Official', players: 2 }, { key: 'unofficial', name: 'Unofficial', players: 6 }]);
+
+        // The unofficial list: the same people with the bots among them, each bot under the name it is shown by.
+        const { generateBotName } = require('../plugins/bots/lib/BotNames.PlayerBots');
+        const everyone = get('view=skill&name=mining&list=unofficial');
+        assert.deepEqual(everyone.rows.map((row) => [row.rank, row.name, row.level, row.online]), [
+            [1, 'PlayerBot1' === generateBotName('PlayerBot1') ? 'PlayerBot1' : generateBotName('PlayerBot1'), 99, false],
+            [2, 'Sam', 60, false],
+            [3, 'Iron Fisher', 55, true],
+            [4, 'Kat', 50, true],
+            [5, generateBotName('SiteBot2'), 20, false],
+            [6, 'SiteBot3', 10, true],
+        ], 'a bot shown by a name someone has keeps its own');
+        assert.equal(get('list=unofficial').players, 6);
+        assert.equal(get('list=unofficial').online, 1, 'bots are never counted as online');
+        assert.equal(get('view=player&name=iron fisher&list=unofficial').skills[MINING].rank, 3);
+        assert.equal(get('view=player&name=iron fisher'), undefined, 'a bot is not on the official list');
+        assert.equal(get('view=player&name=kat&list=unofficial').skills[MINING].rank, 4);
         assert.equal(meta.online, 1, 'bots are not counted as online');
         assert.equal(meta.skills.length, SKILLS.length);
         assert.ok(meta.skills[0].icon.startsWith('data:image/png'), 'skill icons come along');
