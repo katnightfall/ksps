@@ -32,6 +32,7 @@ import { GroundItemsPlugin } from "../../../game/plugins/grounditems/GroundItems
 import { GroundMarkerPlugin } from "../../../game/plugins/groundmarkers/GroundMarkerPlugin";
 import { MultiLinesPlugin } from "../../../game/plugins/multilines/MultiLinesPlugin";
 import { NpcAggroAreaPlugin } from "../../../game/plugins/npcaggroarea/NpcAggroAreaPlugin";
+import { UsefulLinksPlugin } from "../../../game/plugins/usefullinks/UsefulLinksPlugin";
 import { HdPlugin } from "../../../game/plugins/hd/HdPlugin";
 import { IdleNotifierPlugin } from "../../../game/plugins/idlenotifier/IdleNotifierPlugin";
 import { ImplingsPlugin } from "../../../game/plugins/implings/ImplingsPlugin";
@@ -112,6 +113,7 @@ export const CORE_PLUGINS: ReadonlyArray<PluginClass> = [
     NotesPlugin,
     NpcIndicatorsPlugin,
     NpcAggroAreaPlugin,
+    UsefulLinksPlugin,
     ImplingsPlugin,
     ObjectIndicatorsPlugin,
     ChatNotificationsPlugin,
