@@ -188,6 +188,15 @@ const shiftDrop = config({
 });
 assert.equal(leftClick(applyMenuSwaps(whip(), inventory(false, true), shiftDrop, noSave)), "Drop");
 
+// Ctrl opens the same submenus as Shift (Firefox keeps Shift + right-click for its own menu),
+// without pinning the shift-click swap.
+const ctrlMenu = applyMenuSwaps(whip(), { ...inventory(true, false), isCtrlHeld: true }, shiftUse, noSave);
+assert.ok(options(ctrlMenu).includes(SWAP_LEFT_CLICK), "Ctrl + right-click offers Swap left click");
+assert.equal(leftClick(ctrlMenu), "Wield", "Ctrl does not apply the shift-click swap");
+assert.ok(!options(applyMenuSwaps(whip(), inventory(true, false), shiftUse, noSave)).includes(SWAP_LEFT_CLICK));
+assert.ok(!options(applyMenuSwaps(whip(), { ...inventory(false, false), isCtrlHeld: true }, shiftUse, noSave)).includes(SWAP_LEFT_CLICK),
+    "only an opened menu gets the submenus");
+
 // The plugin saves, clears and persists swaps.
 let persisted: MenuSwapperPluginConfig | undefined;
 const plugin = new MenuSwapperPlugin({

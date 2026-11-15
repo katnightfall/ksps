@@ -3,7 +3,14 @@ import type { SimpleMenuEntry } from "../../../ui/menu/MenuEngine";
 import type { MenuTransformContext } from "../../../ui/menu/menuTransforms";
 import type { MenuSwapKind, MenuSwapperPluginConfig, MenuSwapperPresets } from "./types";
 
-export type SwapContext = MenuTransformContext & { isShiftHeld: boolean };
+export type SwapContext = MenuTransformContext & {
+    isShiftHeld: boolean;
+    /**
+     * Ctrl held: opens the same "Swap ... click" submenus as Shift. Some browsers (Firefox) show
+     * their own menu on Shift + right-click, whatever the page does, so Shift alone can't be relied on.
+     */
+    isCtrlHeld?: boolean;
+};
 
 /** Saves (or with `option` null, clears) a swap chosen from the "Swap … click" submenus. */
 export type SaveSwap = (
@@ -141,7 +148,8 @@ function swapSubmenu(
 /**
  * The menu with the player's swaps and the enabled presets applied (display order, top first;
  * the first eligible entry is the left-click). With Shift held, a shift-click swap is pinned as
- * the left-click, and the opened menu gets "Swap left click" / "Swap shift click" submenus.
+ * the left-click. With Shift or Ctrl held, the opened menu gets "Swap left click" / "Swap shift
+ * click" submenus.
  */
 export function applyMenuSwaps(
     entries: SimpleMenuEntry[],
@@ -158,7 +166,7 @@ export function applyMenuSwaps(
         const left = chosenOption(group, "left", config);
         if (left) moveFirst(out, group, left, false);
     }
-    if (!context.menu || !context.isShiftHeld) return out;
+    if (!context.menu || !(context.isShiftHeld || context.isCtrlHeld)) return out;
     // The submenus go below each target's options (Examine sits at the bottom of the menu),
     // inserted from the bottom up so the positions above stay valid.
     const anchored = groups.flatMap((group) => {

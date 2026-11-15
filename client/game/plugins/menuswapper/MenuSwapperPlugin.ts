@@ -36,7 +36,7 @@ function withDefaults(
 }
 
 /**
- * RuneLite-style menu entry swapper: Shift + right-click a target for "Swap left click" /
+ * RuneLite-style menu entry swapper: Ctrl or Shift + right-click a target for "Swap left click" /
  * "Swap shift click", plus a few built-in presets. Swaps are saved per NPC, object or item id.
  */
 export class MenuSwapperPlugin extends Plugin {
@@ -114,7 +114,7 @@ export class MenuSwapperPlugin extends Plugin {
         if (context.surface === "widget") return entries;
         return applyMenuSwaps(
             entries,
-            { ...context, isShiftHeld: ClientState.isShiftPressed() },
+            { ...context, isShiftHeld: ClientState.isShiftPressed(), isCtrlHeld: ClientState.isCtrlPressed() },
             { ...this.config, enabled: this.isEnabled() },
             (kind, key, option, name) => this.setSwap(kind, key, option, name),
         );

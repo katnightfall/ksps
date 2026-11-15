@@ -30,8 +30,8 @@ export function MenuSwapperPanel({ plugin }: { plugin: MenuSwapperPlugin }): JSX
     return (
         <div className="rl-sidebar-panel-content rl-sidebar-scrollable">
             <p className="rl-sidebar-panel-copy">
-                Hold Shift and right-click an NPC, object or item, then pick "Swap left click" or
-                "Swap shift click".
+                Hold Ctrl (or Shift) and right-click an NPC, object or item, then pick "Swap left
+                click" or "Swap shift click".
             </p>
 
             {PRESET_LABELS.map(([preset, label]) => (
