@@ -387,7 +387,7 @@ export default function HiscoresPage(): JSX.Element {
                     </form>
                     <div className="hs-box">
                         <h3>{meta?.world || "Our world"}</h3>
-                        <p>{meta ? `${number(meta.players)} players ranked` : " "}</p>
+                        <p>{meta ? `${number(meta.players)} ${meta.players === 1 ? "player" : "players"} ranked` : " "}</p>
                         <p>{meta ? `${number(meta.online)} online now` : " "}</p>
                         <a href="/">Play now</a>
                     </div>
