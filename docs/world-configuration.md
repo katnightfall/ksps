@@ -928,6 +928,7 @@ This table lists bundled plugins that have a description. The world config page 
 | `Quests` | Quests | quests | yes | Registers every implemented quest from the quests folder, members and free-to-play, plus their shared widgets and ground items. |
 | `Agility` | Agility | skills | yes | The Agility skill: rooftop and other obstacle courses, lap counting, marks of grace and Grace's lap counts and lap-counter toggle. (members only) |
 | `AgilityDispenser` | AgilityDispenser | skills | yes | The Wilderness Agility Course dispenser: lap tickets, the 150,000 coin fee and reward streak, and tag, pay and redeem for loot or XP. (members only) |
+| `AutoPickpocket` | AutoPickpocket | skills | yes | One Pickpocket click keeps picking the same pocket, an attempt every 2 ticks, until the player is caught, clicks elsewhere, or runs out of room. (members only) |
 | `BarbarianPyres` | BarbarianPyres | skills | yes | Barbarian funeral pyres by Otto's Grotto: carve a pyre ship, load bones, light it, with the elite clue and ferocious barbarian spirit. (members only) |
 | `BoltEnchanting` | BoltEnchanting | skills | yes | The Enchant Crossbow Bolt spell, which enchants gem bolts ten at a time from the spellbook. (members only) |
 | `BoneAltars` | BoneAltars | skills | yes | Offering bones on altars, including the Chaos Temple altar's boosted Prayer XP and house altars, repeating while bones last. (members only) |
