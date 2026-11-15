@@ -66,8 +66,11 @@ On the server
   /opt/tsps/server/caches   the game cache (downloaded by the server itself)
   /opt/tsps-deploy          backups of the last 3 updates, the build folder, package caches
   /etc/tsps-deploy.conf     the two ports
-  tsps-game.service         the game server, port 43594 (players' browsers connect to it directly)
-  tsps-web.service          the web client, port 3000
+  tsps-game.service         the game server, port 43594
+  tsps-web.service          the front door, port 3000 (deploy/front.mjs): the website, and the game
+                            connection and the game's /api addresses passed on to the game server,
+                            so one address is enough. https://rs.kat-net.us reaches it through
+                            Cloudflare; http://<server>:3000 works too.
 
 Things only someone logged in to the server can do
 --------------------------------------------------

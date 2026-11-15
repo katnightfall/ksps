@@ -73,13 +73,32 @@ function withPageHost(address: string): string {
     return address.replace(/^(wss?:\/\/)?(localhost|127\.0\.0\.1|\[::1\])(?=[:/]|$)/i, `$1${pageHost}`);
 }
 
+/**
+ * Our deployment (REACT_APP_SAME_ORIGIN_GAME=true in deploy/settings.env): the game connection
+ * and the game's /api addresses answer on the page's own address (deploy/front.mjs), secure
+ * when the page is. An https page may not open the plain ws:// connection the default is, and
+ * a proxy such as Cloudflare carries web ports only, so the game's own port can't be used there.
+ */
+function sameOriginGame(): { address: string; secure: boolean } | undefined {
+    if (read(process.env.REACT_APP_SAME_ORIGIN_GAME)?.toLowerCase() !== "true") return undefined;
+    const location = typeof window !== "undefined" ? window.location : undefined;
+    if (!location?.host || !/^https?:$/.test(location.protocol)) return undefined;
+    return { address: location.host, secure: location.protocol === "https:" };
+}
+
 /** Default WebSocket URL used before the player picks a server. */
 export function getDefaultWsUrl(): string {
-    return withPageHost(read(process.env.REACT_APP_DEFAULT_WS_URL) ?? "ws://localhost:43594");
+    const configured = read(process.env.REACT_APP_DEFAULT_WS_URL);
+    const same = configured ? undefined : sameOriginGame();
+    if (same) return `${same.secure ? "wss" : "ws"}://${same.address}`;
+    return withPageHost(configured ?? "ws://localhost:43594");
 }
 
 export function getDefaultServerAddress(): string {
-    return withPageHost(read(process.env.REACT_APP_DEFAULT_SERVER_ADDRESS) ?? "localhost:43594");
+    const configured = read(process.env.REACT_APP_DEFAULT_SERVER_ADDRESS);
+    const same = configured ? undefined : sameOriginGame();
+    if (same) return same.address;
+    return withPageHost(configured ?? "localhost:43594");
 }
 
 export function getDefaultServerName(): string {

@@ -36,12 +36,14 @@ case "${1:-}" in
     ;;
   web)
     cd "$ROOT/client"
-    export PORT="$WEB_PORT"
+    export PORT="$WEB_PORT" GAME_PORT
     # The game cache the client downloads is the one the game server fetched. Named outright:
     # left to itself the web server only looks for that folder once, when it starts, and on a
     # new server it starts before the game has downloaded anything.
     export CACHE_DIR="$ROOT/server/caches"
-    exec node scripts/serve-build.mjs
+    # The front door: the website (client/scripts/serve-build.mjs, which it starts), and the game
+    # connection and the game's /api addresses passed on to the game server, all on this one port.
+    exec node "$ROOT/deploy/front.mjs"
     ;;
   install)
     case "${2:-}" in server|client) ;; *) echo "install server or client"; exit 1 ;; esac
