@@ -3,6 +3,9 @@
   "plugins": { "TutorialIsland": false },
   "description": "",
   "experienceMultiplier": 10,
+  "pluginConfig": {
+    "WelcomeScreen:messageOfTheWeek": "Welcome to Old School RuneScape!<br>Edited and hosted for free by kat-net.us"
+  },
   "spawn": {
     "x": 3089,
     "y": 3524,
