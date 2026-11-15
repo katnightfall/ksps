@@ -5,6 +5,8 @@ const { GameConstants } = require("../../../src/main/typescript/elvarg/game/Game
 const { PlayerSave } = require("../../../src/main/typescript/elvarg/game/entity/impl/player/persistence/PlayerSave");
 const { Location } = require("../../../src/main/typescript/elvarg/game/model/Location");
 const { attachBrain } = require("./AttachBrain.PlayerBots");
+const { sharedRouteFinder } = require("./DoorOpening.PlayerBots");
+const { RETURN_ATTRIBUTE, returnTile } = require("./actions/RunCourse.PlayerBots");
 const { runPaced } = require("../runtime/SpawnPacing.PlayerBots");
 const { botActivityAllowed } = require("../behaviours/spawn/PlayerFactory.PlayerBots");
 const { Skill } = require("../../../src/main/typescript/elvarg/game/model/Skill");
@@ -202,7 +204,27 @@ function startBotSites(options = {}) {
   }
   const RegionManager = api?.getRegionManager?.() ?? null;
 
-  /** A free tile near a site's anchor, or the anchor itself. */
+  /**
+   * Ours: whether a bot standing on (x, y) can walk to the site's anchor. A free tile is not
+   * always one a bot can leave: the strip behind Lumbridge castle's east wall is walled in, and
+   * a bot put there never got to its first tree. True when it can't be told.
+   */
+  function reachesAnchor(x, y, anchor) {
+    const core = world?.core;
+    if (!core?.RsmodRouteFinding) return true;
+    try {
+      return sharedRouteFinder(core).findRoute({
+        level: anchor.z ?? 0, srcX: x, srcY: y, srcSize: 1,
+        destX: anchor.x, destY: anchor.y, destWidth: 1, destLength: 1,
+        locAngle: 0, blockAccessFlags: 0, locShape: -2, moveNear: false,
+        maxWaypoints: 25, privateArea: null,
+      }).success === true;
+    } catch {
+      return true;
+    }
+  }
+
+  /** A free tile near a site's anchor that a bot can walk away from, or the anchor itself. */
   function spawnTile(site, anchor) {
     const radius = Math.max(0, Math.min(24, Number(site.spawnRadius ?? 6)));
     for (let attempt = 0; attempt < SPAWN_ATTEMPTS; attempt++) {
@@ -213,16 +235,17 @@ function startBotSites(options = {}) {
         anchor.y + Math.round(Math.sin(angle) * distance),
         anchor.z ?? 0
       );
-      if (!RegionManager || !RegionManager.blocked(candidate, null)) return candidate;
+      if ((!RegionManager || !RegionManager.blocked(candidate, null)) && reachesAnchor(candidate.getX(), candidate.getY(), anchor)) return candidate;
     }
     return new Location(anchor.x, anchor.y, anchor.z ?? 0);
   }
 
   /**
    * Ours: a progression site's bot. The first time it is a brand-new character at the site's
-   * anchor (the world's start location): every skill at 1, nothing worn or carried. After that
-   * it comes back from its save, where it was, with what it had earned. Either way it starts on
-   * the best activity its levels allow, in a mode drawn by the site's counts.
+   * anchor (the world's start location): every skill at 1, Agility too, nothing worn or carried.
+   * After that it comes back from its save, where it was, with what it had earned (a bot saved
+   * up on an Agility course's roofs comes back on the ground at the course's start). Either way
+   * it starts on the best activity its levels allow, in a mode drawn by the site's counts.
    */
   function spawnProgressionBot(site, index) {
     const anchor = site.anchor ?? null;
@@ -234,13 +257,20 @@ function startBotSites(options = {}) {
     try {
       const save = persistence?.exists?.(username) === true ? persistence.load(username) : null;
       // A save from an earlier round is left unread: the bot starts over, and its next save replaces it.
-      if (save && Number(save.attributes?.[START_OVER_ATTRIBUTE] ?? 0) === round) saved = save.getPosition?.() ?? null;
+      if (save && Number(save.attributes?.[START_OVER_ATTRIBUTE] ?? 0) === round) {
+        const back = returnTile(save.attributes);
+        saved = back ? new Location(back[0], back[1], back[2]) : save.getPosition?.() ?? null;
+      }
     } catch {
       saved = null;
     }
     const returning = saved != null;
     RegionManager?.loadMapFiles?.(anchor.x, anchor.y);
-    const location = returning ? saved.clone() : spawnTile(site, anchor);
+    // A bot saved where it was first put, on a tile it could never leave, is put somewhere it can.
+    const stranded = returning && saved.getZ() === (anchor.z ?? 0) &&
+      Math.max(Math.abs(saved.getX() - anchor.x), Math.abs(saved.getY() - anchor.y)) <= Number(site.spawnRadius ?? 6) + 2 &&
+      !reachesAnchor(saved.getX(), saved.getY(), anchor);
+    const location = returning && !stranded ? saved.clone() : spawnTile(site, anchor);
     if (returning) RegionManager?.loadMapFiles?.(location.getX(), location.getY());
     // Any of the site's modes will do to start with: the real pick needs the bot and its levels.
     const bot = runtime.spawnPvpBot(location, { username, mode: site.activities[0].mode, activity: "world", persistent: true, fresh: !returning });
@@ -248,9 +278,14 @@ function startBotSites(options = {}) {
       return false;
     }
     bot.setAttribute?.(START_OVER_ATTRIBUTE, round);
+    bot.setAttribute?.(RETURN_ATTRIBUTE, null);
     bot.setPasswordHashWithSalt?.(lockedPassword());
-    // New or not, Agility is 99: the routes bots are given use every shortcut (see applyLevels).
-    applyLevels(bot, {});
+    // These bots earn their Agility on the courses like any other skill. One saved before they
+    // could still holds the 99 it was handed (exactly level 99's experience): that is taken back.
+    const skills = bot.getSkillManager?.();
+    if (skills && skills.getMaxLevel(Skill.AGILITY) === 99 && skills.getExperience(Skill.AGILITY) === SkillManager.getExperienceForLevel(99)) {
+      skills.setCurrentLevel(Skill.AGILITY, 1, false).setMaxLevels(Skill.AGILITY, 1, false).setExperience(Skill.AGILITY, 0);
+    }
     const activity = registry.pickActivity(bot, Date.now(), {
       allowed: site.rotation.activityIds,
       weights: site.rotation.weights,

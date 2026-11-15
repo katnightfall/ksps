@@ -131,7 +131,7 @@ test('the plugin reads the save database, serves the tables and shows ::hiscores
     put.run('league:kat', JSON.stringify(save('Kat', { Mining: [99, 13_034_431] })), '2026-11-15T00:00:00.000Z');
     put.run('playerbot1', JSON.stringify(save('PlayerBot1', { Mining: [99, 13_034_431] })), '2026-11-15T00:00:00.000Z');
     put.run('sitebot1', JSON.stringify(save('SiteBot1', { Mining: [55, 166_636] })), '2026-11-15T00:00:00.000Z');
-    put.run('sitebot2', JSON.stringify(save('SiteBot2', { Mining: [20, 4_470], Agility: [99, 13_034_431] })), '2026-11-15T00:00:00.000Z');
+    put.run('sitebot2', JSON.stringify(save('SiteBot2', { Mining: [20, 4_470], Agility: [12, 1_623] })), '2026-11-15T00:00:00.000Z');
     put.run('sitebot3', JSON.stringify(save('SiteBot3', { Mining: [10, 1_154] })), '2026-11-15T00:00:00.000Z');
     put.run('broken', '{not json', '2026-11-15T00:00:00.000Z');
     const before = process.env.PLAYER_SAVE_DATABASE_PATH;
@@ -175,10 +175,10 @@ test('the plugin reads the save database, serves the tables and shows ::hiscores
             [6, generateBotName('SiteBot3'), 10, true],
         ], 'a bot shown by a name someone has is listed under another');
         assert.equal(get('list=unofficial').players, 6);
-        // The 99 Agility bots are given is not counted for them.
+        // A bot's skills are all its own, the Agility it trains on the courses too.
         const bot = get(`view=player&name=${generateBotName('SiteBot2')}&list=unofficial`);
-        assert.deepEqual(bot.overall, { rank: 5, level: 22 + 10 + 20, score: 1154 + 4_470 }, 'twenty-two skills at 1, Hitpoints at 10, Mining at 20');
-        assert.equal(bot.skills[SKILLS.indexOf('Agility')].rank, null);
+        assert.deepEqual(bot.overall, { rank: 5, level: 21 + 10 + 20 + 12, score: 1154 + 4_470 + 1_623 }, 'twenty-one skills at 1, Hitpoints 10, Mining 20, Agility 12');
+        assert.equal(bot.skills[SKILLS.indexOf('Agility')].rank, 1);
         assert.equal(get('list=unofficial').online, 1, 'bots are never counted as online');
         assert.equal(get('view=player&name=iron fisher&list=unofficial').skills[MINING].rank, 3);
         assert.equal(get('view=player&name=iron fisher'), undefined, 'a bot is not on the official list');

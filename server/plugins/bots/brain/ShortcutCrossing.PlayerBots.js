@@ -13,16 +13,19 @@
 
 const { MapObjects } = require("../../../src/main/typescript/elvarg/game/entity/impl/object/MapObjects");
 const { ObjectIds } = require("../../../src/main/typescript/elvarg/util/IdEnums");
+const { Skill } = require("../../../src/main/typescript/elvarg/game/model/Skill");
 const { routeDistance, sharedRouteFinder } = require("./DoorOpening.PlayerBots");
 
 /**
  * Agility shortcuts bots may detour through, with the walkable tile on each side
  * (matches plugins/skills/agility/shortcuts). The bot stands on the end nearer to
- * it; the click carries it to the other.
+ * it; the click carries it to the other. Ours: `level` is the Agility the shortcut asks for
+ * (bots earn their Agility now), so a bot short of it walks round instead of clicking in vain.
  */
 const SHORTCUTS = Object.freeze([
   Object.freeze({
     objectId: ObjectIds.CRUMBLING_WALL_3,
+    level: 5,
     ends: Object.freeze([
       Object.freeze([2934, 3355, 0]),
       Object.freeze([2936, 3355, 0]),
@@ -183,7 +186,12 @@ function maybeUseShortcut({ player, state, world, request, select = false }) {
       }
     }
   }
+  // A level that can't be read holds nobody back.
+  const agility = player.getSkillManager?.()?.getCurrentLevel?.(Skill.AGILITY) ?? 99;
   for (const entry of SHORTCUTS) {
+    if (agility < (entry.level ?? 1)) {
+      continue;
+    }
     const [near] = orderedEnds(player, entry.ends);
     const object = findShortcutObject(player, entry, near);
     if (!object) {

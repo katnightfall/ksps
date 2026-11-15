@@ -230,6 +230,11 @@ class BotBrain {
       return;
     }
     const frame = this.frames[0];
+    // Ours: an action may hold the change until it is somewhere a bot can walk away from
+    // (a lap of an Agility course ends on the ground, not on a roof).
+    if (frame.action()?.holdsRotation?.(this.context(frame, nowMs)) === true) {
+      return;
+    }
     const next = this.registry?.pickActivity?.(this.player, nowMs, {
       allowed: this.rotation.activityIds,
       weights: this.rotation.weights,

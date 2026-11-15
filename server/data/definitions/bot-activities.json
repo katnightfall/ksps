@@ -104,6 +104,17 @@
         }
       ]
     },
+    "run_course": {
+      "mode": "agility",
+      "repeat": true,
+      "failureCooldownSeconds": 180,
+      "requires": [{"skill":{"id":"agility","min":"$level"}}],
+      "setup": [],
+      "produces": ["agility"],
+      "actions": [
+        {"type":"runCourse","course":"$course","start":"$start","minHitpoints":"$minHitpoints"}
+      ]
+    },
     "catch_fish": {
       "mode": "fishing",
       "repeat": true,
@@ -235,6 +246,24 @@
         "dishes": ["tuna","swordfish"],
         "cooked": ["tuna","swordfish","burnt_fish_7","burnt_swordfish","raw_tuna","raw_swordfish"]
       }
+    },
+    {
+      "id": "draynor_rooftop",
+      "template": "run_course",
+      "capacity": 70,
+      "fields": { "level": 1, "course": "draynor", "start": [3104, 3279, 0], "minHitpoints": 0 }
+    },
+    {
+      "id": "varrock_rooftop",
+      "template": "run_course",
+      "capacity": 60,
+      "fields": { "level": 30, "course": "varrock", "start": [3222, 3414, 0], "minHitpoints": 9 }
+    },
+    {
+      "id": "falador_rooftop",
+      "template": "run_course",
+      "capacity": 60,
+      "fields": { "level": 50, "course": "falador", "start": [3036, 3341, 0], "minHitpoints": 9 }
     },
     {
       "id": "combat_training",

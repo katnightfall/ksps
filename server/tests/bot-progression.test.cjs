@@ -96,6 +96,38 @@ test('a pick for a progression bot is the best activity of a mode for its own le
   assert.ok(all.has('normal_trees') && all.has('yew_trees'));
 });
 
+test('Agility is a mode like the others: a rooftop course by level, started at 1', () => {
+  const registry = registryWith([{ ...NEWCOMERS, bots: { agility: 5 } }]);
+  const site = registry.getSite('testcrowd');
+  assert.deepEqual(site.activities.map((activity) => activity.id), ['draynor_rooftop', 'varrock_rooftop', 'falador_rooftop']);
+  assert.deepEqual(site.activities.map((activity) => registry.requiredLevel(activity)), [1, 30, 50]);
+  assert.equal(registry.bestForMode(playerWith({}), 'agility').id, 'draynor_rooftop', 'a new character has 1 Agility, not 99');
+  assert.equal(registry.bestForMode(playerWith({ agility: 30 }), 'agility').id, 'varrock_rooftop');
+  assert.equal(registry.bestForMode(playerWith({ agility: 99 }), 'agility').id, 'falador_rooftop');
+  const lap = registry.byId.get('draynor_rooftop').actions[0];
+  assert.equal(lap.id, 'runCourse');
+  assert.equal(typeof lap.holdsRotation, 'function');
+});
+
+test('a change of activity waits while the action holds it (a lap in progress on a roof)', () => {
+  const registry = registryWith([NEWCOMERS]);
+  const { rotation } = registry.getSite('testcrowd');
+  let onRoof = true;
+  const stopped = [];
+  const activity = { ...registry.byId.get('normal_trees'), id: 'normal_trees',
+    actions: [{ id: 'lap', update: () => 'running', holdsRotation: () => onRoof, stop: () => stopped.push('lap') }] };
+  const player = { ...playerWith({}), getCombat: () => ({ getTarget: () => null, getAttacker: () => null }) };
+  const brain = new BotBrain({ player, state: {}, registry, world: {}, activity, rotation, nowMs: 1000 });
+  const due = brain.switchAt + 1;
+  brain.maybeSwitchActivity(due);
+  assert.equal(brain.frames[0].behaviour.id, 'normal_trees', 'still on its lap');
+  assert.deepEqual(stopped, []);
+  onRoof = false;
+  brain.maybeSwitchActivity(due + 600);
+  assert.notEqual(brain.frames[0].behaviour.id, 'normal_trees', 'back on the ground: it moves on');
+  assert.deepEqual(stopped, ['lap']);
+});
+
 test('a full activity falls back to the next best of its mode', () => {
   const registry = registryWith([NEWCOMERS]);
   const yews = registry.byId.get('yew_trees');

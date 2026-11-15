@@ -129,9 +129,6 @@ function rank() {
   const taken = new Set(people.map((entry) => entry.name.toLowerCase()));
   const live = liveBotNames();
   rankedWithBots = botCount();
-  // Bots are given 99 Agility so their routes can use every shortcut (SiteSpawner). They did not
-  // earn it, so it is not counted for them.
-  const agility = skillNames.findIndex((skill) => skill.toLowerCase() === "agility");
   const isTaken = (name) => taken.has(name.toLowerCase());
   const bots = [];
   // The bots in the world first: theirs are the names people see, so they keep them.
@@ -142,14 +139,7 @@ function rank() {
     let name = live.get(entry.key.toLowerCase());
     if (!name || isTaken(name)) name = generateBotName(entry.name, isTaken) ?? entry.name;
     taken.add(name.toLowerCase());
-    const bot = { ...entry, name, levels: [...entry.levels], xp: [...entry.xp] };
-    if (agility >= 0) {
-      bot.levels[agility] = 1;
-      bot.xp[agility] = 0;
-      bot.totalLevel = bot.levels.reduce((sum, level) => sum + level, 0);
-      bot.totalXp = bot.xp.reduce((sum, xp) => sum + xp, 0);
-    }
-    bots.push(bot);
+    bots.push({ ...entry, name });
   }
   listedBots = new Map(bots.map((bot) => [bot.key.toLowerCase(), bot.name.toLowerCase()]));
   boards = { official: Ranking.buildBoard(people, skillNames), unofficial: Ranking.buildBoard([...people, ...bots], skillNames) };

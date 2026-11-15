@@ -22,6 +22,7 @@ const { createWanderAction } = require("./actions/Wander.PlayerBots");
 const { createFollowOwnerAction } = require("./actions/FollowOwner.PlayerBots");
 const { createFishAction } = require("./actions/Fish.PlayerBots");
 const { createCookAction } = require("./actions/Cook.PlayerBots");
+const { createRunCourseAction } = require("./actions/RunCourse.PlayerBots");
 
 const DEFAULT_DEFINITIONS_PATH = path.join(
   process.cwd(),
@@ -200,6 +201,10 @@ function createAction(spec, world) {
   }
   if (spec.type === "cook") {
     return createCookAction(spec, world);
+  }
+  // Ours: laps of an Agility course.
+  if (spec.type === "runCourse") {
+    return createRunCourseAction(spec, world);
   }
   throw new Error(`[bot activities] unknown action type '${spec.type}'`);
 }

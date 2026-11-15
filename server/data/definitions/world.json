@@ -7,7 +7,7 @@
     "WelcomeScreen:messageOfTheWeek": "Welcome to Kat-Net!<br>Edited and hosted for free by kat-net.us",
     "PlayerBots:sites": {
       "newcomers": { "enabled": true, "progression": true, "startOver": 1, "x": 3222, "y": 3219, "radius": 12, "switchMinutes": [20, 40],
-        "bots": { "woodcutting": 370, "mining": 265, "fishing": 200, "combat_training": 640 } }
+        "bots": { "woodcutting": 340, "mining": 245, "fishing": 180, "combat_training": 560, "agility": 150 } }
     }
   },
   "spawn": {
