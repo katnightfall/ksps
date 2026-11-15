@@ -61,6 +61,13 @@ test('a mode left at 0 is not one of the crowd\'s; a bad count or mode stops the
   assert.throws(() => registryWith([{ ...NEWCOMERS, switchMinutes: [0, 5] }]), /switchMinutes/);
 });
 
+test('startOver is the crowd\'s round: 0 unless set, and a whole number', () => {
+  assert.equal(registryWith([NEWCOMERS]).getSite('testcrowd').startOver, 0);
+  assert.equal(registryWith([{ ...NEWCOMERS, startOver: 3 }]).getSite('testcrowd').startOver, 3);
+  assert.throws(() => registryWith([{ ...NEWCOMERS, startOver: -1 }]), /startOver/);
+  assert.throws(() => registryWith([{ ...NEWCOMERS, startOver: 'again' }]), /startOver/);
+});
+
 test('an ordinary site next to it is untouched', () => {
   const registry = registryWith([NEWCOMERS, { id: 'draynor', enabled: true, x: 3093, y: 3244, bots: { fishing: { novices: 4 } } }]);
   const ordinary = registry.getSite('draynor_fishing_novices');

@@ -545,7 +545,9 @@ function createBotRegistry(options) {
       api: botApi,
       // The Wilderness roamers, hotspots and regional bots are the world's own population.
       activity: plan.activity ?? "world",
-      loadPersistence: persistent,
+      // Ours: `fresh` starts a persistent bot over, as a new character; its old save is
+      // not read and the next save replaces it.
+      loadPersistence: persistent && plan.fresh !== true,
       saveRandomizedAppearance: false,
     });
     if (!bot) {
@@ -1241,7 +1243,8 @@ function createBotRegistry(options) {
     spawnConfiguredBots,
     /**
      * `username` picks the bot's name (null when it is taken); `persistent` loads and keeps
-     * its save, so it carries its levels and items from one session to the next. `activity` is
+     * its save, so it carries its levels and items from one session to the next (`fresh` with
+     * it starts the bot over as a new character, whatever its save holds). `activity` is
      * what the bot is for ("PlayerBots:allowedActivities"); the world's population when unset.
      * `pvpMetadata` pins a profile, loadout and archetype before the initial kit is equipped.
      */
@@ -1259,6 +1262,7 @@ function createBotRegistry(options) {
         mode: options.mode ?? null,
         activity: options.activity,
         persistent: options.persistent === true,
+        fresh: options.fresh === true,
         pvpMetadata: options.pvpMetadata,
       });
     },

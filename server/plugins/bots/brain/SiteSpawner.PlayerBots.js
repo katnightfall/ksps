@@ -2,6 +2,7 @@
 
 const crypto = require("crypto");
 const { GameConstants } = require("../../../src/main/typescript/elvarg/game/GameConstants");
+const { PlayerSave } = require("../../../src/main/typescript/elvarg/game/entity/impl/player/persistence/PlayerSave");
 const { Location } = require("../../../src/main/typescript/elvarg/game/model/Location");
 const { attachBrain } = require("./AttachBrain.PlayerBots");
 const { runPaced } = require("../runtime/SpawnPacing.PlayerBots");
@@ -175,6 +176,14 @@ const SPAWN_ATTEMPTS = 16;
  */
 const PROGRESSION_BOT_NAME = "SiteBot";
 
+/**
+ * Ours: the round a progression bot's save belongs to (its site's `startOver` when it was made).
+ * A bot whose save is from another round starts over as a new character, so raising the site's
+ * number resets the whole crowd without touching the save database by hand.
+ */
+const START_OVER_ATTRIBUTE = "bots:start-over";
+PlayerSave.persistAttribute(START_OVER_ATTRIBUTE, 0);
+
 /** A password no one can log in with: these accounts are never playable by people. */
 function lockedPassword() {
   return `${crypto.randomBytes(16).toString("hex")}:${crypto.randomBytes(32).toString("hex")}`;
@@ -220,9 +229,12 @@ function startBotSites(options = {}) {
     if (!anchor || site.activities.length === 0) return false;
     const username = `${PROGRESSION_BOT_NAME}${index + 1}`;
     const persistence = GameConstants.PLAYER_PERSISTENCE ?? null;
+    const round = Number(site.startOver ?? 0);
     let saved = null;
     try {
-      saved = persistence?.exists?.(username) === true ? persistence.load(username)?.getPosition?.() ?? null : null;
+      const save = persistence?.exists?.(username) === true ? persistence.load(username) : null;
+      // A save from an earlier round is left unread: the bot starts over, and its next save replaces it.
+      if (save && Number(save.attributes?.[START_OVER_ATTRIBUTE] ?? 0) === round) saved = save.getPosition?.() ?? null;
     } catch {
       saved = null;
     }
@@ -231,10 +243,11 @@ function startBotSites(options = {}) {
     const location = returning ? saved.clone() : spawnTile(site, anchor);
     if (returning) RegionManager?.loadMapFiles?.(location.getX(), location.getY());
     // Any of the site's modes will do to start with: the real pick needs the bot and its levels.
-    const bot = runtime.spawnPvpBot(location, { username, mode: site.activities[0].mode, activity: "world", persistent: true });
+    const bot = runtime.spawnPvpBot(location, { username, mode: site.activities[0].mode, activity: "world", persistent: true, fresh: !returning });
     if (!bot) {
       return false;
     }
+    bot.setAttribute?.(START_OVER_ATTRIBUTE, round);
     bot.setPasswordHashWithSalt?.(lockedPassword());
     // New or not, Agility is 99: the routes bots are given use every shortcut (see applyLevels).
     applyLevels(bot, {});

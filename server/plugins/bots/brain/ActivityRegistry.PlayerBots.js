@@ -359,7 +359,9 @@ function createBotActivityRegistry(options = {}) {
    * weigh what a bot turns to next. Every bot may do any of the site's modes: every
    * `switchMinutes` (default [20, 40]) it changes mode, and in a mode it always does the best
    * activity its own levels allow, so a woodcutter moves from trees to oaks, willows and yews
-   * as it levels. SiteSpawner starts these bots fresh and keeps their saves.
+   * as it levels. SiteSpawner starts these bots fresh and keeps their saves. `startOver` (a
+   * whole number, default 0) is the crowd's round: raise it and every bot begins again as a
+   * new character at the next start.
    */
   function progressionSite(place) {
     const counts = new Map();
@@ -376,6 +378,10 @@ function createBotActivityRegistry(options = {}) {
     if (!(min > 0 && max >= min)) {
       throw new Error(`[bot sites] site '${place.id}' switchMinutes must be [min, max] minutes`);
     }
+    const startOver = place.startOver ?? 0;
+    if (!Number.isInteger(startOver) || startOver < 0) {
+      throw new Error(`[bot sites] site '${place.id}' startOver must be a whole number`);
+    }
     const candidates = siteCandidates.filter((activity) => counts.has(activity.mode));
     return {
       ...SITE_DEFAULTS,
@@ -383,6 +389,7 @@ function createBotActivityRegistry(options = {}) {
       id: place.id,
       tier: null,
       progression: true,
+      startOver,
       enabled: place.enabled === true,
       anchor: { x: place.x, y: place.y, z: place.z ?? 0 },
       count: [...counts.values()].reduce((sum, count) => sum + count, 0),
