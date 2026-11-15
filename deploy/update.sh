@@ -5,7 +5,7 @@
 #
 #   update <commit|full>   the new files arrive as a .tgz on stdin
 #   rebuild                build both halves again from what is installed
-#   version | check | status | logs [game|web] [lines] | restart [game|web] | rollback
+#   version | check | status | logs [game|web|update] [lines] | restart [game|web] | rollback
 #
 # How an update goes:
 #   - Only the files that changed since the version on the server are sent,
@@ -355,6 +355,8 @@ check() {
 
 if [ -z "$TEST" ] && [ "$(id -u)" -ne 0 ]; then fail "Run it as root."; fi
 if [ ! -d "$BASE" ]; then fail "This server isn't set up for deploys yet. Run npm run deploy:setup once."; fi
+cd /     # the login's home folder, where this starts, is closed to the tsps user
+UPDATE_LOG=/var/log/tsps-update.log
 
 args=("$@")
 if [ "${1:-}" = "--ssh" ]; then read -r -a args <<< "${2:-${SSH_ORIGINAL_COMMAND:-}}"; fi
@@ -367,7 +369,14 @@ case "${args[0]:-}" in
     if [ -n "$TEST" ]; then say "(status)"; else systemctl status tsps-game tsps-web --no-pager || true; fi
     exit ;;
   logs)
-    case "$which" in game|web) show_logs "$which" "${args[2]:-200}" ;; *) show_logs game "${args[1]:-200}" ;; esac
+    case "$which" in
+      game|web) show_logs "$which" "${args[2]:-200}" ;;
+      update)   # what the last updates printed, for when the connection dropped during one
+        n="${args[2]:-80}"
+        if [[ ! "$n" =~ ^[0-9]{1,5}$ ]]; then n=80; fi
+        tail -n "$n" "$UPDATE_LOG" 2>/dev/null || say "No update has been logged yet." ;;
+      *) show_logs game "${args[1]:-200}" ;;
+    esac
     exit ;;
   restart)
     case "$which" in
@@ -393,6 +402,12 @@ esac
 if [ -z "$TEST" ]; then
   exec 9> /run/tsps-update.lock
   if ! flock -n 9; then fail "Another update is running. Try again when it has finished."; fi
+  # An update that has started finishes even if the connection from the PC drops: hang-ups
+  # are ignored, and everything printed also goes to a log that outlives the connection
+  # (npm run remote -- logs update).
+  trap '' HUP PIPE
+  exec > >(tee --output-error=warn -a "$UPDATE_LOG") 2>&1
+  say "---- $(date '+%F %T') ${args[*]}"
 fi
 
 if [ "${args[0]}" = rebuild ]; then

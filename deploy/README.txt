@@ -39,6 +39,7 @@ Other commands
   npm run remote -- check             version, ports, saves, disk, memory
   npm run remote -- logs game 300     the game server's log (or: logs web)
   npm run remote -- status
+  npm run remote -- logs update       what the last updates printed (if the connection dropped mid-deploy)
   npm run remote -- restart game      or: restart web, or just restart for both
   npm run remote -- rollback          undo the last update (again for the one before; 3 are kept)
   npm run remote -- rebuild           build both halves again from what is installed
