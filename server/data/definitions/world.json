@@ -4,7 +4,22 @@
   "description": "10x custom, US/Dallas dedicated",
   "experienceMultiplier": 10,
   "pluginConfig": {
-    "WelcomeScreen:messageOfTheWeek": "Welcome to Kat-Net!<br>Edited and hosted for free by kat-net.us"
+    "WelcomeScreen:messageOfTheWeek": "Welcome to Kat-Net!<br>Edited and hosted for free by kat-net.us",
+    "PlayerBots:sites": {
+      "lumbridge": { "enabled": true, "bots": {
+        "woodcutting": { "novices": 70, "intermediates": 30 }, "mining": { "novices": 40 }, "fishing": { "novices": 50 },
+        "combat_training": { "novices": 130, "intermediates": 50 } } },
+      "varrock": { "enabled": true, "x": 3212, "y": 3424, "bots": {
+        "woodcutting": { "novices": 50, "intermediates": 40, "experts": 40 }, "mining": { "novices": 50, "intermediates": 50 },
+        "combat_training": { "novices": 40, "intermediates": 70, "advanced": 60 } } },
+      "falador": { "enabled": true, "x": 2965, "y": 3380, "bots": {
+        "woodcutting": { "novices": 40, "intermediates": 40, "experts": 40 }, "mining": { "intermediates": 40, "advanced": 50, "experts": 30 },
+        "combat_training": { "intermediates": 50, "advanced": 60 } } },
+      "draynor": { "enabled": true, "x": 3093, "y": 3244, "bots": {
+        "woodcutting": { "advanced": 80 }, "fishing": { "novices": 70 }, "combat_training": { "novices": 40 } } },
+      "barbarian_village": { "enabled": true, "x": 3082, "y": 3420, "bots": {
+        "fishing": { "intermediates": 80 }, "mining": { "advanced": 25 }, "combat_training": { "intermediates": 60 } } }
+    }
   },
   "spawn": {
     "x": 3089,
