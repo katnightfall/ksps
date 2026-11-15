@@ -76,7 +76,7 @@ export class ClientImpl implements Client {
             getInteractionKey: () => interactionKey,
             getComposition: (): NPCComposition | null => {
                 const type = this.npcType(serverId);
-                return type ? { getName: () => type.name, getActions: () => type.actions ?? [] } : null;
+                return type ? { getName: () => type.name, getActions: () => type.actions ?? [], getCombatLevel: () => type.combatLevel | 0 } : null;
             },
             getWorldLocation: () => {
                 const id = ecsId();
@@ -88,7 +88,7 @@ export class ClientImpl implements Client {
     }
 
     /** The NPC's type after transforms (RuneLite's NPC.getTransformedComposition). */
-    private npcType(serverId: number): { id: number; name: string; actions: string[] } | undefined {
+    private npcType(serverId: number): { id: number; name: string; actions: string[]; combatLevel: number } | undefined {
         const client = this.osrsClient;
         const ecsId = client.npcEcs?.getEcsIdForServer(serverId);
         if (ecsId === undefined) return undefined;
@@ -206,7 +206,7 @@ export class ClientImpl implements Client {
         if (!(id >= 0)) return null;
         let type = client.npcTypeLoader?.load(id | 0);
         if (type?.transforms && client.varManager) type = type.transform(client.varManager, client.npcTypeLoader) ?? type;
-        return type ? { getName: () => type.name, getActions: () => type.actions ?? [] } : null;
+        return type ? { getName: () => type.name, getActions: () => type.actions ?? [], getCombatLevel: () => type.combatLevel | 0 } : null;
     }
 
     getPlane(): number {

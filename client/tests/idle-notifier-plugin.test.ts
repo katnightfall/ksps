@@ -68,7 +68,7 @@ const npc = (key: number, name: string, actions: string[]): NPC => ({
     getIndex: () => key,
     getName: () => name,
     getInteractionKey: () => key,
-    getComposition: () => ({ getName: () => name, getActions: () => actions }),
+    getComposition: () => ({ getName: () => name, getActions: () => actions, getCombatLevel: () => 0 }),
 });
 
 const config = inject(ConfigManager);

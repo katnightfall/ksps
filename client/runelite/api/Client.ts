@@ -16,6 +16,8 @@ export type { Point };
 export interface NPCComposition {
     getName(): string;
     getActions(): ReadonlyArray<string | null | undefined>;
+    /** The combat level, or 0 or less for an NPC without one. */
+    getCombatLevel(): number;
 }
 
 /**
