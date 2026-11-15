@@ -124,7 +124,7 @@ function main() {
     const { archive, count } = packCommit(head, base);
     try {
       const size = fs.statSync(archive).size;
-      console.log(`Sending ${base ? `the ${count} changed files` : `all ${count} files`} (${size > 1048576 ? `${(size / 1048576).toFixed(1)} MB` : `${Math.ceil(size / 1024)} KB`}) to ${settings.host}: ${head.slice(0, 9)}${base ? ` on top of ${base.slice(0, 9)}` : ''}\n`);
+      console.log(`Sending ${base ? `the ${count} changed file${count === 1 ? '' : 's'}` : `all ${count} files`} (${size > 1048576 ? `${(size / 1048576).toFixed(1)} MB` : `${Math.ceil(size / 1024)} KB`}) to ${settings.host}: ${head.slice(0, 9)}${base ? ` on top of ${base.slice(0, 9)}` : ''}\n`);
       const input = fs.openSync(archive, 'r');
       const sent = ssh(`update ${base ?? 'full'}`, [input, 'inherit', 'inherit']);
       fs.closeSync(input);
