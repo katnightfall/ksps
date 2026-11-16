@@ -45,6 +45,26 @@ Other commands
   npm run remote -- rebuild           build both halves again from what is installed
   npm run deploy -- --full            send every file again
 
+The site and its worlds
+-----------------------
+  https://rs.kat-net.us/            the landing page: the way in, the worlds, the hiscores
+  https://rs.kat-net.us/play        the game (an old front-page link with a ?query still opens it)
+  https://rs.kat-net.us/hiscores    the hiscores
+
+The worlds the landing page and the game's world picker show are the ones in deploy/worlds.json,
+and nobody else's: to list a world, add it there, commit and deploy. The front door reads the
+file again when it changes, so no player is disconnected for it.
+
+  { "id": "second", "name": "Kat-Net Classic", "address": "classic.kat-net.us", "secure": true,
+    "description": "one line about it" }
+
+"address" is where that world answers (its site, its game connection and its /api on one
+address, as deploy/front.mjs or the Pterodactyl egg gives a world). The entry with "here": true
+is the world this server runs itself. Each world is asked /api/world-status for who is on it,
+at most every twenty seconds; one that does not answer shows as offline.
+
+A world started from the Pterodactyl egg has no list of ours: it shows itself alone.
+
 Keeping up with the original project
 ------------------------------------
   npm run sync                        fetch what is new in github.com/RSPSApp/tsps, merge it into

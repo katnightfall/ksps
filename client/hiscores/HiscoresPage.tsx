@@ -228,7 +228,7 @@ export default function HiscoresPage(): JSX.Element {
             <header className="hs-header">
                 <div className="hs-masthead">
                     <h1>{meta?.world ? `${meta.world} Hiscores` : "Hiscores"}</h1>
-                    <a href="/">Play now</a>
+                    <a href="/play">Play now</a>
                 </div>
                 <nav className="hs-lists" aria-label="Lists">
                     {(meta?.lists ?? [{ key: "official", name: "Official", players: 0 }, { key: "unofficial", name: "Unofficial", players: 0 }]).map((list) => (
@@ -412,7 +412,7 @@ export default function HiscoresPage(): JSX.Element {
                         <h3>{meta?.world || "Our world"}</h3>
                         <p>{meta ? `${number(meta.players)} ${meta.players === 1 ? "player" : "players"} ranked${unofficial ? ", bots included" : ""}` : " "}</p>
                         <p>{meta ? `${number(meta.online)} online now` : " "}</p>
-                        <a href="/">Play now</a>
+                        <a href="/play">Play now</a>
                     </div>
                 </aside>
             </div>

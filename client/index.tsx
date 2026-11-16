@@ -3,12 +3,15 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 
 import "./index.css";
+import { isLandingAddress } from "./landing/landingApi";
 import reportWebVitals from "./reportWebVitals";
 import { registerServiceWorker } from "./serviceWorkerRegistration";
 
 // /hiscores is a page of its own (our world's rankings): the game client is not loaded there.
 const isHiscores = /^\/(hiscores|highscores)\/?$/i.test(window.location.pathname);
-const Page = lazy(() => (isHiscores ? import("./hiscores/HiscoresPage") : import("./game/GamePage")));
+// Ours: the front page is the landing page (the worlds, the way in); the game is at /play.
+const isLanding = isLandingAddress(window.location.pathname, window.location.search);
+const Page = lazy(() => (isHiscores ? import("./hiscores/HiscoresPage") : isLanding ? import("./landing/LandingPage") : import("./game/GamePage")));
 
 const root = ReactDOM.createRoot(document.getElementById("root") as HTMLElement);
 root.render(

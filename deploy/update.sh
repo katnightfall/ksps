@@ -146,7 +146,7 @@ phase_stage() {   # <commit of the version the upload builds on> | full | rebuil
     || touched '^scripts/run-with-env\.mjs$'; then build_client=1; fi
   if [ "$build_server" = 1 ] || touched '^deploy/run\.sh$' \
     || touched_except '^server/' '^server/(tests|docs|scripts|deploy)/'; then restart_game=1; fi
-  if [ "$first" = 1 ] || touched '^(deploy/run\.sh|deploy/front\.mjs|client/scripts/serve-build\.mjs)$'; then restart_web=1; fi
+  if [ "$first" = 1 ] || touched '^(deploy/run\.sh|deploy/front\.mjs|deploy/worlds\.mjs|client/scripts/serve-build\.mjs)$'; then restart_web=1; fi
   # Our own settings file: the game reads it at start, the client build reads some of its lines.
   if touched '^deploy/settings\.env$'; then
     restart_game=1

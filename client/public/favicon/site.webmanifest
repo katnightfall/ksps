@@ -1,7 +1,7 @@
 {
   "name": "Kat-Net",
   "short_name": "Kat-Net",
-  "start_url": "/",
+  "start_url": "/play",
   "scope": "/",
   "display": "standalone",
   "orientation": "landscape",

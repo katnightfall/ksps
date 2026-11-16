@@ -1,0 +1,10 @@
+[
+    {
+        "id": "kat-net",
+        "name": "Kat-Net",
+        "address": "rs.kat-net.us",
+        "secure": true,
+        "here": true,
+        "description": "10x custom, US/Dallas dedicated"
+    }
+]

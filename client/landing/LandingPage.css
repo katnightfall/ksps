@@ -1,0 +1,294 @@
+/*
+ * Ours. The front page, in the hiscores page's family: dark cobbled stone, black plates with a
+ * bronze edge, gold headings, green links. Drawn with gradients and borders; no pictures.
+ */
+
+/* index.css locks the document for the game canvas; this page reads and scrolls like a website. */
+html.lp-document,
+html.lp-document body,
+html.lp-document #root {
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+    overflow-x: hidden;
+    user-select: text;
+    -webkit-user-select: text;
+    background-color: #0b0a08;
+}
+
+.lp-page {
+    --lp-gold: #e6d7a0;
+    --lp-green: #90c040;
+    --lp-edge: #3a3226;
+    --lp-edge-light: #5a4e3a;
+    min-height: 100vh;
+    padding: 0 16px 36px;
+    color: #f2ecdc;
+    font: 15px/1.45 Arial, Helvetica, sans-serif;
+    background-color: #0b0a08;
+    background-image:
+        radial-gradient(ellipse at 30% 30%, rgba(58, 52, 41, 0.42) 0 30%, transparent 68%),
+        radial-gradient(ellipse at 70% 65%, rgba(46, 41, 32, 0.4) 0 26%, transparent 66%),
+        linear-gradient(#141210, #0b0a08);
+    background-size: 118px 96px, 164px 128px, auto;
+    background-position: 0 0, 47px 38px, 0 0;
+}
+
+.lp-page a {
+    color: var(--lp-green);
+    text-decoration: none;
+}
+
+.lp-page a:hover {
+    text-decoration: underline;
+}
+
+/* ---- top: the name plate and the way in ---- */
+
+.lp-header {
+    max-width: 760px;
+    margin: 0 auto;
+    padding-top: 56px;
+    text-align: center;
+}
+
+.lp-masthead {
+    display: inline-block;
+    min-width: 260px;
+    max-width: 100%;
+    padding: 18px 40px 16px;
+    border: 3px solid var(--lp-edge);
+    outline: 1px solid #000;
+    background: #000;
+    box-shadow: 0 0 0 1px var(--lp-edge-light) inset, 0 8px 24px rgba(0, 0, 0, 0.7);
+}
+
+.lp-masthead h1 {
+    margin: 0;
+    color: var(--lp-gold);
+    font: 40px/1.1 "OSRS Bold", Georgia, "Times New Roman", serif;
+    letter-spacing: 1px;
+    text-shadow: 2px 2px 0 #000;
+}
+
+.lp-masthead p {
+    margin: 8px 0 0;
+    color: #cfc6ad;
+    font-size: 14px;
+}
+
+.lp-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+    margin: 28px 0 10px;
+}
+
+.lp-page a.lp-button {
+    display: inline-block;
+    padding: 11px 26px;
+    border: 2px solid var(--lp-edge);
+    outline: 1px solid #000;
+    background: linear-gradient(#17140f, #060606);
+    color: var(--lp-green);
+    font-weight: bold;
+    text-decoration: none;
+    box-shadow: 0 0 0 1px rgba(90, 78, 58, 0.5) inset;
+}
+
+.lp-page a.lp-button:hover,
+.lp-page a.lp-button:focus-visible {
+    background: #2a2419;
+    color: #fff;
+    text-decoration: none;
+}
+
+.lp-page a.lp-button-main {
+    padding: 13px 44px;
+    border-color: #6b5a2c;
+    background: linear-gradient(#4a3d1c, #2a2210);
+    color: var(--lp-gold);
+    font-size: 18px;
+}
+
+.lp-page a.lp-button-main:hover,
+.lp-page a.lp-button-main:focus-visible {
+    background: linear-gradient(#5c4c24, #382d15);
+    color: #fff;
+}
+
+.lp-page a.lp-button-small {
+    padding: 6px 18px;
+    font-size: 14px;
+}
+
+.lp-note {
+    margin: 0;
+    color: #9a927d;
+    font-size: 13px;
+}
+
+/* ---- the worlds ---- */
+
+.lp-main {
+    max-width: 760px;
+    margin: 34px auto 0;
+}
+
+.lp-panel {
+    border: 3px solid var(--lp-edge);
+    outline: 1px solid #000;
+    background: rgba(0, 0, 0, 0.82);
+    box-shadow: 0 0 0 1px var(--lp-edge-light) inset, 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+
+.lp-panel-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 6px 16px;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--lp-edge);
+    background: #17140f;
+}
+
+.lp-panel-head h2 {
+    margin: 0;
+    color: var(--lp-gold);
+    font-size: 17px;
+}
+
+.lp-panel-sum {
+    color: #b9b09a;
+    font-size: 13px;
+}
+
+.lp-worlds {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.lp-world {
+    display: grid;
+    grid-template-columns: 14px minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 6px 16px;
+    padding: 14px 18px;
+}
+
+.lp-world + .lp-world {
+    border-top: 1px solid #241f17;
+}
+
+.lp-world-off {
+    opacity: 0.62;
+}
+
+.lp-dot {
+    width: 10px;
+    height: 10px;
+    border: 1px solid #000;
+    border-radius: 50%;
+    background: #7a2a22;
+}
+
+.lp-dot-on {
+    background: #5fd04a;
+    box-shadow: 0 0 6px rgba(95, 208, 74, 0.7);
+}
+
+.lp-world-name {
+    color: #fff;
+    font-size: 16px;
+    font-weight: bold;
+    overflow-wrap: anywhere;
+}
+
+.lp-tag {
+    margin-left: 8px;
+    padding: 1px 7px;
+    border: 1px solid var(--lp-edge-light);
+    color: #b9b09a;
+    font-size: 11px;
+    font-weight: normal;
+    vertical-align: 2px;
+}
+
+.lp-world-about {
+    color: #cfc6ad;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+.lp-world-facts {
+    color: #9a927d;
+    font-size: 12px;
+}
+
+.lp-world-count {
+    color: var(--lp-gold);
+    font-weight: bold;
+    white-space: nowrap;
+}
+
+.lp-world-links {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    white-space: nowrap;
+}
+
+.lp-link {
+    font-size: 13px;
+}
+
+.lp-quiet {
+    margin: 0;
+    padding: 16px 18px;
+    color: #b9b09a;
+    font-size: 14px;
+}
+
+.lp-foot {
+    border-top: 1px solid #241f17;
+    font-size: 13px;
+}
+
+/* ---- bottom ---- */
+
+.lp-footer {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    max-width: 760px;
+    margin: 28px auto 0;
+    color: #6f6857;
+    font-size: 13px;
+}
+
+/* A phone: the count and the links drop under the world's name. */
+@media (max-width: 560px) {
+    .lp-header {
+        padding-top: 32px;
+    }
+
+    .lp-masthead {
+        padding: 14px 20px 12px;
+    }
+
+    .lp-masthead h1 {
+        font-size: 30px;
+    }
+
+    .lp-world {
+        grid-template-columns: 14px minmax(0, 1fr);
+    }
+
+    .lp-world-count,
+    .lp-world-links {
+        grid-column: 2;
+    }
+}

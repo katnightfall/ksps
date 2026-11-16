@@ -1046,6 +1046,7 @@ This table lists bundled plugins that have a description. The world config page 
 | `Vineyard` | Vineyard | world | yes | Aldarin's vineyard foreman hands out the grape barrel. (members only) |
 | `WarningScreens` | WarningScreens | world | yes | Warning screens before dangerous areas, counted per player and toggled off after enough showings, and the Lumbridge Doomsayer who turns them back on. |
 | `WaterSources` | WaterSources | world | yes | Using an empty jug, vial, bucket, bowl, cup, fishbowl or waterskin on a fountain, sink, well, pump or tap fills them one per tick. |
+| `WorldStatus` | WorldStatus | world | yes | Answers /api/world-status with the world's name, experience rate and how many players and bots are on it, for a landing page's world list. |
 <!-- world-config:generated:end -->
 
 These switches control whether a plugin is loaded; they are distinct from `pluginConfig`, which

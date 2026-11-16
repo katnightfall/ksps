@@ -41,6 +41,8 @@ case "${1:-}" in
     # left to itself the web server only looks for that folder once, when it starts, and on a
     # new server it starts before the game has downloaded anything.
     export CACHE_DIR="$ROOT/server/caches"
+    # The worlds our landing page and the game's world picker list (deploy/worlds.mjs).
+    export WORLDS_FILE="${WORLDS_FILE:-deploy/worlds.json}"
     # The front door: the website (client/scripts/serve-build.mjs, which it starts), and the game
     # connection and the game's /api addresses passed on to the game server, all on this one port.
     exec node "$ROOT/deploy/front.mjs"

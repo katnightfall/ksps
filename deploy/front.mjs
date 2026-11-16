@@ -6,6 +6,9 @@
  *
  *   a WebSocket                      -> the game server (the game connection)
  *   /api/..., /regions..., /gateway/ -> the game server (hiscores, world info, map data)
+ *   /worlds.json, /servers.json      -> answered here: the worlds we list and who is on them
+ *                                       (deploy/worlds.mjs), for the landing page and the
+ *                                       game's world picker
  *   anything else                    -> the website (client/scripts/serve-build.mjs, started
  *                                       here on a private port)
  *
@@ -17,20 +20,65 @@
  * machine only (BinaryChannel.ts), so IP bans keep working. That address is the caller's own,
  * or the one Cloudflare reports when the caller is Cloudflare (or its tunnel on this machine).
  *
- * Env: PORT (3000), HOST (0.0.0.0), GAME_PORT (43594), FRONT_STATIC_PORT (a website already
+ * Env: PORT (3000), HOST (0.0.0.0), GAME_PORT (43594), WORLDS_FILE (the list of worlds, from the
+ * project's folder; without it this world is the only one), FRONT_STATIC_PORT (a website already
  * running on that port, for tests; by default the website is started here).
  */
 import { spawn } from "node:child_process";
+import fs from "node:fs";
 import http from "node:http";
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { createStatusBoard, fetchJson, loadWorlds, serverList } from "./worlds.mjs";
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || "0.0.0.0";
 const GAME_PORT = Number(process.env.GAME_PORT) || 43594;
 const LOCAL = "127.0.0.1";
 const GAME_PATH = /^\/(api|regions|gateway)(\/|\?|$)/;
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+// The worlds we list. The file is read again when it changes, so a new world needs no restart
+// here (a restart of this front door drops every player's connection).
+const WORLDS_FILE = process.env.WORLDS_FILE ? path.resolve(ROOT, process.env.WORLDS_FILE) : "";
+/** With no list, this world alone: its name comes from the game server's own answer. */
+const THIS_WORLD = [{ id: "here", name: "", address: "localhost", secure: false, here: true, description: "" }];
+let listed = { worlds: loadWorlds(WORLDS_FILE), stamp: -1, checked: 0 };
+function listedWorlds() {
+    if (WORLDS_FILE && Date.now() - listed.checked > 5_000) {
+        let stamp = 0;
+        try { stamp = fs.statSync(WORLDS_FILE).mtimeMs; } catch {}
+        listed = stamp === listed.stamp ? { ...listed, checked: Date.now() } : { worlds: loadWorlds(WORLDS_FILE), stamp, checked: Date.now() };
+    }
+    return listed.worlds;
+}
+const worldBoard = createStatusBoard((world) => fetchJson(world.here
+    ? `http://${LOCAL}:${GAME_PORT}/api/world-status`
+    : `${world.secure ? "https" : "http"}://${world.address}/api/world-status`));
+
+/** /worlds.json and, when we list worlds, /servers.json. False when the request is not one of them. */
+function answerWorldList(request, response) {
+    if (request.method !== "GET" && request.method !== "HEAD") return false;
+    const pathname = String(request.url ?? "").split("?")[0];
+    if (pathname !== "/worlds.json" && pathname !== "/servers.json") return false;
+    const worlds = listedWorlds();
+    const send = (body) => {
+        const json = JSON.stringify(body);
+        response.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Content-Length": Buffer.byteLength(json),
+            "Cache-Control": "public, max-age=15", "Cross-Origin-Resource-Policy": "same-origin" });
+        response.end(request.method === "HEAD" ? undefined : json);
+    };
+    if (pathname === "/worlds.json") {
+        worldBoard(worlds.length > 0 ? worlds : THIS_WORLD).then(send, () => send({ worlds: [] }));
+        return true;
+    }
+    // Without a list of ours the website's own servers.json answers, as before.
+    if (worlds.length === 0) return false;
+    send(serverList(worlds));
+    return true;
+}
 
 // Cloudflare's published addresses (https://www.cloudflare.com/ips/): only they, and this
 // machine itself (a Cloudflare tunnel runs here), are believed about who the visitor is.
@@ -66,6 +114,7 @@ function forwardedHeaders(request) {
 
 function listen(staticPort) {
     const server = http.createServer((request, response) => {
+        if (answerWorldList(request, response)) return;
         const port = GAME_PATH.test(request.url ?? "") ? GAME_PORT : staticPort;
         const upstream = http.request({ host: LOCAL, port, method: request.method, path: request.url, headers: forwardedHeaders(request) }, (answer) => {
             response.writeHead(answer.statusCode ?? 502, answer.headers);
@@ -121,7 +170,7 @@ if (process.env.FRONT_STATIC_PORT) {
     listen(Number(process.env.FRONT_STATIC_PORT));
 } else {
     const staticPort = await freePort();
-    const client = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "client");
+    const client = path.join(ROOT, "client");
     const website = spawn(process.execPath, ["scripts/serve-build.mjs"], {
         cwd: client,
         env: { ...process.env, PORT: String(staticPort), HOST: LOCAL },
