@@ -160,6 +160,16 @@ module.exports = {
                 "@runelite": path.resolve(appRoot, "runelite"),
             };
 
+            // Ours: a tag in every script's name. A script's name only changes with its contents, and
+            // a CDN keeps a copy of a name for a year, headers included; raising the tag gives
+            // every script a new name, which is how copies kept with wrong headers are left behind
+            // without purging the CDN (v2: copies without the isolation header, serve-build.mjs).
+            if (webpackConfig.mode === "production") {
+                const SCRIPT_TAG = "v2";
+                webpackConfig.output.filename = `static/js/[name].[contenthash:8].${SCRIPT_TAG}.js`;
+                webpackConfig.output.chunkFilename = `static/js/[name].[contenthash:8].${SCRIPT_TAG}.chunk.js`;
+            }
+
             webpackConfig.optimization.minimizer.push(new JsonMinimizerPlugin());
             webpackConfig.ignoreWarnings = [
                 ...(webpackConfig.ignoreWarnings ?? []),

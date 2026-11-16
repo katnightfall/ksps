@@ -90,13 +90,27 @@ const CACHE_DIR = process.env.CACHE_DIR
       ? SERVER_CACHES
       : null;
 
-function isolationHeaders(userAgent) {
+/**
+ * Ours: only the page itself (`document`) is answered by browser. Whether a page is
+ * cross-origin isolated is decided by the page's own header, so that is where the browser
+ * matters (COEP for Chromium-family browsers only, as before).
+ *
+ * Every other file is answered the same for every browser, with the header. A CDN in front
+ * (Cloudflare) keeps one copy of a file and ignores "Vary: User-Agent", so a copy first fetched
+ * by a browser that got no header was handed to Chrome too, and Chrome refuses to start a worker
+ * whose script lacks the header its isolated page has: the render workers were blocked
+ * (net::ERR_BLOCKED_BY_RESPONSE) for whoever that copy reached. On a file that is not a page or
+ * a worker script the header means nothing; on a worker script under a page without it, it only
+ * makes the worker stricter than its page, which is allowed.
+ */
+function isolationHeaders(userAgent, document) {
     const headers = {
         "Cross-Origin-Opener-Policy": "same-origin",
         "Cross-Origin-Resource-Policy": "same-origin",
-        Vary: "User-Agent, Accept-Encoding",
+        Vary: document ? "User-Agent, Accept-Encoding" : "Accept-Encoding",
     };
-    if (/(Chrome|Chromium|Edg|OPR)\//.test(userAgent) && !/(CriOS|FxiOS|EdgiOS)/.test(userAgent)) {
+    const chromium = /(Chrome|Chromium|Edg|OPR)\//.test(userAgent) && !/(CriOS|FxiOS|EdgiOS)/.test(userAgent);
+    if (!document || chromium) {
         headers["Cross-Origin-Embedder-Policy"] = "require-corp";
     }
     return headers;
@@ -130,9 +144,15 @@ function resolveFile(urlPath) {
     return file;
 }
 
+/** Ours: pictures, fonts and sounds outside /static/ (the game frame, icons, water maps). */
+const MEDIA = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".svg", ".woff", ".woff2", ".ttf", ".mp3", ".ogg"]);
+
 function cacheControl(urlPath) {
     if (urlPath.startsWith("/static/")) return "public, max-age=31536000, immutable";
     if (urlPath.startsWith("/caches/")) return "public, max-age=86400";
+    // Ours: these have no hash in their names, so not for ever, but a day spares a question to
+    // this server for each of them (some forty) on every visit; a changed picture shows within a day.
+    if (MEDIA.has(path.extname(urlPath).toLowerCase())) return "public, max-age=86400";
     return "no-cache"; // index.html and friends: always revalidate (cheap 304 via ETag)
 }
 
@@ -164,7 +184,7 @@ function acceptedEncodings(header) {
 function sendFile(req, res, urlPath, file, stat) {
     const ext = path.extname(file).toLowerCase();
     const headers = {
-        ...isolationHeaders(req.headers["user-agent"] || ""),
+        ...isolationHeaders(req.headers["user-agent"] || "", ext === ".html"),
         "Content-Type": MIME[ext] || "application/octet-stream",
         "Accept-Ranges": "bytes",
         "Cache-Control": cacheControl(urlPath),
@@ -228,7 +248,7 @@ const server = http.createServer((req, res) => {
     const urlPath = new URL(req.url || "/", "http://localhost").pathname;
     const notFound = () =>
         respond(req, res, 404, {
-            ...isolationHeaders(req.headers["user-agent"] || ""),
+            ...isolationHeaders(req.headers["user-agent"] || "", false),
             "Content-Type": "text/plain; charset=utf-8",
         }, "Not found");
 
