@@ -6,7 +6,8 @@
  *   ::quest <name> complete    complete it as the quest itself does (rewards, points, scroll)
  *   ::quest <name> reset       back to not started
  *   ::quest <name> <stage>     set the stage
- *   ::quest all complete       (ours) complete every quest; ::allquests is the same
+ *   ::quest all complete       (ours) complete every quest, their reward items to the bank;
+ *                              ::allquests is the same
  *   ::quest all reset          (ours) every quest back to not started
  *
  * <name> is a quest's name or key, any case; part of a name works when only one quest matches
@@ -25,25 +26,94 @@ const USAGE = "Usage: ::quest <name> [complete|reset|<stage>], or ::quest all co
  */
 const UNPLAYED = { experience: false, scroll: false, announce: false };
 
-/** Ours: ::quest all complete. A quest whose reward throws is still complete (its stage and points come first), is named, and does not stop the rest. */
+/** Set in register: the core API, for the bank. Without it (a bare test stand-in) rewards stay where the quests put them. */
+let core = null;
+
+/**
+ * Ours: everything in the backpack goes to the bank, as a deposit does (notes unnoted, the item's
+ * own tab). Returns what the bank took (a count of items) and what it would not take (left in the
+ * backpack: a full bank, an item that may not be banked).
+ */
+function bankBackpack(player) {
+  const { Bank, PluginManager } = core;
+  const inventory = player.getInventory();
+  let banked = 0;
+  inventory.getItems().forEach((item, slot) => {
+    if (!item || item.getId() < 0 || item.getAmount() <= 0) return;
+    if (PluginManager.emitCanBankItem?.(player, item) === false) return;
+    const amount = item.getAmount();
+    inventory.switchItem(player.getBank(Bank.getTabForItem(player, item.getId())), item.clone(), false, slot, false);
+    const left = inventory.getItems()[slot];
+    banked += amount - (left && left.getId() === item.getId() ? left.getAmount() : 0);
+  });
+  return banked;
+}
+
+/**
+ * Ours: ::quest all complete. A quest whose reward throws is still complete (its stage and points
+ * come first), is named, and does not stop the rest.
+ *
+ * The reward items go to the bank, not the backpack (the user's wish, 2026-11-16: two hundred
+ * quests' rewards filled it and the rest fell on the floor). The player's own things are set aside
+ * first, so each quest finds an empty backpack and nothing overflows; what a quest puts there is
+ * banked before the next one, and their own things come back at the end.
+ */
 function completeAll(player) {
+  const inventory = player.getInventory();
+  const toBank = core?.Bank && typeof inventory.switchItem === "function" && typeof inventory.setItems === "function";
+  const own = toBank ? inventory.getItems().map((item) => item) : null;
+  if (toBank) inventory.resetItems();
+
   let completed = 0;
+  let banked = 0;
   const failed = [];
-  for (const quest of QuestRuntime.getRegisteredQuests()) {
-    try {
-      if (quest.complete(player, UNPLAYED)) completed++;
-    } catch (error) {
-      failed.push(quest.name);
-      if (quest.isComplete(player)) completed++;
-      console.error(`[QuestCommand] completing ${quest.name} failed`, error);
+  const kept = [];
+  try {
+    for (const quest of QuestRuntime.getRegisteredQuests()) {
+      try {
+        if (quest.complete(player, UNPLAYED)) completed++;
+      } catch (error) {
+        failed.push(quest.name);
+        if (quest.isComplete(player)) completed++;
+        console.error(`[QuestCommand] completing ${quest.name} failed`, error);
+      }
+      if (!toBank) continue;
+      banked += bankBackpack(player);
+      // What the bank would not take waits beside the player's own things.
+      for (const item of inventory.getItems()) if (item && item.getId() >= 0 && item.getAmount() > 0) kept.push(item);
+      inventory.resetItems();
+    }
+  } finally {
+    if (toBank) {
+      inventory.setItems(own);
+      // forceAdd: what fits goes in the backpack, the rest on the floor under the player.
+      for (const item of kept) inventory.forceAdd(player, item);
+      inventory.refreshItems();
     }
   }
+
   const total = QuestRuntime.getRegisteredQuests().length;
   const points = Number(player.getAttribute(QuestRuntime.QUEST_POINTS_ATTRIBUTE)) || 0;
-  player.sendMessage(completed === 0 && failed.length === 0
+  const lines = [completed === 0 && failed.length === 0
     ? `All ${total} quests were already complete (${points} quest points).`
-    : `Completed ${completed} of ${total} quests; you have ${points} quest points.`);
-  if (failed.length > 0) player.sendMessage(`The rewards of ${failed.length} failed (see the server log): ${failed.slice(0, 5).join(", ")}${failed.length > 5 ? ", ..." : ""}.`);
+    : `Completed ${completed} of ${total} quests; you have ${points} quest points.`];
+  if (banked > 0) lines.push(`The reward items are in your bank (${banked.toLocaleString("en-US")} items).`);
+  if (kept.length > 0) lines.push(`Your bank would not take ${kept.length} of them: they are in your backpack or at your feet.`);
+  if (failed.length > 0) lines.push(`The rewards of ${failed.length} failed (see the server log): ${failed.slice(0, 5).join(", ")}${failed.length > 5 ? ", ..." : ""}.`);
+  tellAfterwards(player, lines);
+}
+
+/**
+ * Ours: the summary goes out two ticks on, under the level-up lines the rewards' experience
+ * prints, so it is what the player is left reading. At once without the core API (a test stand-in).
+ */
+function tellAfterwards(player, lines) {
+  const send = () => { for (const line of lines) player.sendMessage(line); };
+  if (!core?.Task || !core?.TaskManager) return send();
+  core.TaskManager.submit(new (class extends core.Task {
+    constructor() { super(2, player, false); }
+    execute() { send(); this.stop(); }
+  })());
 }
 
 /** Ours: ::quest all reset. Stages and points only: rewards already given stay. */
@@ -128,6 +198,7 @@ module.exports = {
   name: "QuestCommand",
   description: "Adds the admin ::quest command to show, set, complete or reset a player's quest stage, for testing quest-gated content.",
   register(api) {
+    core = api.core ?? null; // Ours: for the bank (completeAll).
     api.registerCommand("quest", questCommand, PlayerRights.ADMINISTRATOR, "Show or set a quest's progress: ::quest <name> [complete|reset|<stage>]");
     // Ours: the short way to complete every quest.
     api.registerCommand("allquests", ({ player }) => { completeAll(player); return true; }, PlayerRights.ADMINISTRATOR, "Complete every quest (the same as ::quest all complete)");

@@ -91,3 +91,53 @@ test("'all' needs complete or reset, and a quest's own name still works", () => 
   run(player, "quest grand tree complete");
   assert.ok(grandTree.isComplete(player) && !gnomeVillage.isComplete(player));
 });
+
+// The user's wish (2026-11-16): the reward items go to the bank, not the backpack and the floor.
+test("::allquests banks the reward items and leaves the player's own backpack as it was", async (t) => {
+  const path = require("node:path");
+  const { CachePipeline } = require("../dist/game/cache/CachePipeline");
+  const { PluginManager } = require("../dist/plugins/PluginManager");
+  const { Player } = require("../dist/game/entity/impl/player/Player");
+  await CachePipeline.initialize(path.resolve(__dirname, ".."));
+  const real = PluginManager.getCoreApi();
+  const SHARK = 385, RUNE_PLATEBODY = 1127, RUNE_PLATEBODY_NOTE = 1128, COINS = 995, WHIP = 4151;
+
+  // The summary is sent two ticks on: here, at once.
+  const core = { ...real, TaskManager: { ...real.TaskManager, submit: (task) => task.execute() } };
+  QuestCommand.register({ core, registerCommand() {} });
+  t.after(() => QuestCommand.register({ registerCommand() {} }));
+
+  const p = new Player(null);
+  p.getSession = () => ({ sendClientPacket: () => true, write: () => true });
+  p.setUsername("allqueststest");
+  const messages = [];
+  p.sendMessage = (text) => messages.push(text);
+  const inventory = p.getInventory();
+  // A full backpack of the player's own: 27 sharks and a whip.
+  inventory.adds(SHARK, 27);
+  inventory.adds(WHIP, 1);
+  assert.equal(inventory.getFreeSlots(), 0);
+  const own = inventory.getItems().map((item) => [item.getId(), item.getAmount()]);
+
+  // Three quests that pay in items: more than a backpack holds between them, one in notes.
+  const paying = [
+    QuestRuntime.registerQuest(api, { key: "pays_bodies", name: "Pays Bodies", varpId: 2001, questPoints: 1,
+      onReward: (player) => player.getInventory().adds(RUNE_PLATEBODY, 20) }),
+    QuestRuntime.registerQuest(api, { key: "pays_more", name: "Pays More", varpId: 2002, questPoints: 1,
+      onReward: (player) => { player.getInventory().adds(RUNE_PLATEBODY, 15); player.getInventory().adds(COINS, 1000); } }),
+    QuestRuntime.registerQuest(api, { key: "pays_notes", name: "Pays Notes", varpId: 2003, questPoints: 1,
+      onReward: (player) => player.getInventory().adds(RUNE_PLATEBODY_NOTE, 7) }),
+  ];
+
+  quietly(() => QuestCommand._test.completeAll(p));
+
+  for (const quest of paying) assert.ok(quest.isComplete(p), quest.name);
+  assert.deepEqual(inventory.getItems().map((item) => [item.getId(), item.getAmount()]), own, "their own backpack, slot for slot");
+  const banked = (id) => p.getBanks().reduce((sum, tab) => sum + (tab ? tab.getAmount(id) : 0), 0);
+  assert.equal(banked(RUNE_PLATEBODY), 20 + 15 + 7, "every platebody, the noted ones unnoted");
+  assert.equal(banked(RUNE_PLATEBODY_NOTE), 0);
+  assert.equal(banked(COINS), 1000);
+  assert.equal(banked(SHARK), 0, "nothing of the player's own is banked");
+  assert.ok(messages.includes("The reward items are in your bank (1,042 items)."), messages.join(" | "));
+  assert.ok(!messages.some((line) => line.startsWith("Your bank would not take")));
+});
