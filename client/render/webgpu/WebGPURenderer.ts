@@ -25,6 +25,7 @@ import type { MinimapIcon } from "../loader/SdMapData";
 import { SdMapData } from "../loader/SdMapData";
 import { SdMapDataLoader } from "../loader/SdMapDataLoader";
 import { SdMapLoaderInput, snapshotMapInput } from "../loader/SdMapLoaderInput";
+import { isMapProfileEnabled, markMapWorkerReady } from "../render/mapLoadProfile";
 import type { WorldEntityAnimator } from "../WorldEntityAnimator";
 import { pickSeaPoint, projectDeckToWorld, updateWorldEntityMotion } from "../render/worldEntityMotion";
 import { getServerTickPhaseNow } from "../../network/serverConnection/timing";
@@ -478,7 +479,10 @@ export class WebGPURenderer extends GameRenderer<WebGPUMapSquare> {
         const epoch = this.mapLoadEpoch;
         this.locUpdates.applyGamemode();
         const locVersion = this.locUpdates.version(mapX, mapY);
+        // Ours: `?map-profile=1` times this renderer's map builds too (it was WebGL's only).
+        const queuedAt = performance.now();
         const input: SdMapLoaderInput = snapshotMapInput({
+            mapProfileEnabled: isMapProfileEnabled(),
             persistentCache: true,
             minimapLevel: this.getPlayerRawPlane(),
             mapX,
@@ -498,6 +502,7 @@ export class WebGPURenderer extends GameRenderer<WebGPUMapSquare> {
             locOnly: partial === "loc",
         });
         try {
+            if (input.mapProfileEnabled) console.info(`[map-profile] ${mapX},${mapY} queued for region build`);
             const mapData = await this.loadSceneData(input, () => epoch === this.mapLoadEpoch &&
                 !this.instanceActive && this.locUpdates.version(mapX, mapY) === locVersion &&
                 (streamGeneration === undefined || this.mapManager.isMapInTargetGrid(mapX, mapY)));
@@ -511,6 +516,7 @@ export class WebGPURenderer extends GameRenderer<WebGPUMapSquare> {
                 return;
             }
             mapData.minimapInput = input;
+            markMapWorkerReady(mapData, queuedAt);
             const queued = { mapData, streamGeneration, locVersion };
             if (batch) batch.ready.push(queued);
             else this.mapsToLoad.push(queued);

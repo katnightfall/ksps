@@ -61,6 +61,8 @@ export class MapManager<T extends MapSquare> {
     /** Low-end devices only build squares within render distance + margin (tests flip this). */
     static lowEnd: boolean = isLowEndDevice;
     static readonly LOW_END_RANGE_MARGIN_TILES = 16;
+    /** Ours: a pool of at least this many builders builds two out-of-view squares at a time. */
+    static readonly BUILDERS_FOR_TWO_BACKGROUND_BUILDS = 4;
     // Re-evaluate the in-range set once the player has walked this far since the last grid build.
     static readonly LOW_END_REBUILD_MOVE_TILES = 8;
 
@@ -801,20 +803,20 @@ export class MapManager<T extends MapSquare> {
         }
 
         if (foregroundReady) {
-            let backgroundLoading = false;
+            // Ours: with four builders (a desktop) two squares outside the view build at a time, not
+            // one: the builders were idle while a new area's surroundings arrived one by one (some
+            // 0.5 s each). Two still leaves two builders free for what comes into view. A smaller
+            // pool keeps to one, as before.
+            const most = this.maxQueuedTasks >= MapManager.BUILDERS_FOR_TWO_BACKGROUND_BUILDS ? 2 : 1;
+            let backgroundLoading = 0;
             for (const mapId of this.loadingMapIds) {
-                if (this.gridMapIdSet.has(mapId) && !this.isMapInView(mapId)) {
-                    backgroundLoading = true;
-                    break;
-                }
+                if (this.gridMapIdSet.has(mapId) && !this.isMapInView(mapId)) backgroundLoading++;
             }
-            if (!backgroundLoading) {
-                for (let i = 0; i < this.gridMapCount; i++) {
-                    const mapId = this.gridMapIds[i];
-                    if (this.isMapInView(mapId) || this.mapSquares.has(mapId)) continue;
-                    this.loadMap(mapId >> 8, mapId & 0xff, false, this.gridRevision);
-                    if (this.loadingMapIds.has(mapId) || this.mapSquares.has(mapId)) break;
-                }
+            for (let i = 0; i < this.gridMapCount && backgroundLoading < most; i++) {
+                const mapId = this.gridMapIds[i];
+                if (this.isMapInView(mapId) || this.mapSquares.has(mapId) || this.loadingMapIds.has(mapId)) continue;
+                this.loadMap(mapId >> 8, mapId & 0xff, false, this.gridRevision);
+                if (this.loadingMapIds.has(mapId) || this.mapSquares.has(mapId)) backgroundLoading++;
             }
         }
 

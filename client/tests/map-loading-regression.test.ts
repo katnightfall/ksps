@@ -366,7 +366,9 @@ function instanceReadinessExcludesThePreviousWorldAndBoatOverlays(): void {
 
 function foregroundLoadsBeforeBackgroundAndPublishesTogether(): void {
     const queued: number[] = [];
-    const manager = new MapManager(4, (x, y) => { queued.push(getMapSquareId(x, y)); });
+    // Ours: three builders. A pool of four builds two out-of-view squares at a time (MapManager,
+    // tests/map-manager-background.test.ts); this test is about the one-at-a-time rule of a smaller pool.
+    const manager = new MapManager(3, (x, y) => { queued.push(getMapSquareId(x, y)); });
     let cameraX = 3250;
     const camera = { getPosX: () => cameraX, getPosZ: () => 3250 } as any;
     const update = (frame: number, x = 3250) => manager.update(x, 3250, camera, frame, 1, 3224, 3200, 2, 25);
