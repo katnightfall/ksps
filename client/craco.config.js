@@ -170,6 +170,26 @@ module.exports = {
                 webpackConfig.output.chunkFilename = `static/js/[name].[contenthash:8].${SCRIPT_TAG}.chunk.js`;
             }
 
+            // Ours: a build in a small container (the Pterodactyl egg sets these, see
+            // deploy/pterodactyl/launch.mjs). Left alone, a build peaks near 7 GB over all its
+            // processes: the type checker runs beside it in a process of its own, and the
+            // minifiers start a helper per processor of the machine, however little memory the
+            // container has. Neither changes what is built.
+            if (process.env.TSPS_BUILD_SKIP_TYPECHECK === "1") {
+                webpackConfig.plugins = webpackConfig.plugins.filter(
+                    (plugin) => plugin.constructor.name !== "ForkTsCheckerWebpackPlugin",
+                );
+            }
+            if (process.env.TSPS_BUILD_WORKERS !== undefined) {
+                // How many helper processes the minifiers may start; 0 keeps them in this process.
+                const workers = Math.max(0, Number(process.env.TSPS_BUILD_WORKERS) | 0);
+                for (const minimizer of webpackConfig.optimization.minimizer) {
+                    if (minimizer?.options && "parallel" in minimizer.options) {
+                        minimizer.options.parallel = workers > 0 ? workers : false;
+                    }
+                }
+            }
+
             webpackConfig.optimization.minimizer.push(new JsonMinimizerPlugin());
             webpackConfig.ignoreWarnings = [
                 ...(webpackConfig.ignoreWarnings ?? []),

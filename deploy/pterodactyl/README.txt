@@ -6,8 +6,8 @@ its website in one server, on one port. Players open the server's address in a b
 
 What a server needs
 -------------------
-  Memory   6 GB or more (the website's build is the heavy part; the game itself runs in less
-           with few bots, and wants more with many).
+  Memory   4 GB or more (the website's build peaks a little over 2 GB; the game takes 70% of
+           the server's memory as its limit, and wants more the more bots there are).
   Disk     5 GB or more (the project, its packages, the built website and the game cache).
   Ports    one. The website, the game connection and the game's data all answer on it.
   Image    Node.js 22 (ghcr.io/parkervcp/yolks:nodejs_22), set by the egg.

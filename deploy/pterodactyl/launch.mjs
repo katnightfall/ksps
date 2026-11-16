@@ -151,6 +151,20 @@ export function clientBuildEnv(env) {
     return build;
 }
 
+/**
+ * A website build that fits a container (client/craco.config.js reads the first two). Left
+ * alone a build peaks near 7 GB over all its processes, and the more processors the node has
+ * the more it takes: the type checker runs in a process of its own and the minifiers start a
+ * helper per processor. With these it is one process peaking a little over 2 GB (both measured
+ * on a cold build), and what is built is the same. Types and lint are checked where the project
+ * is developed, not on every server that runs it.
+ */
+export const FRUGAL_BUILD = {
+    TSPS_BUILD_SKIP_TYPECHECK: "1",
+    TSPS_BUILD_WORKERS: "0",
+    DISABLE_ESLINT_PLUGIN: "true",
+};
+
 // ---- what needs building ---------------------------------------------------------------------------
 
 function fileHash(...files) {
@@ -197,6 +211,9 @@ function prepare(env) {
     const all = text(env.REBUILD) === "1";
     const save = (key) => { state[key] = now[key]; fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2)); };
     const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+    // What a build may take: 70% of the server's memory, between 1 and 4 GB (4 GB on a server with no limit).
+    const serverMb = Number(text(env.SERVER_MEMORY));
+    const buildHeap = Number.isInteger(serverMb) && serverMb > 0 ? Math.max(1024, Math.min(4096, Math.floor(serverMb * 0.7))) : 4096;
 
     for (const pkg of ["server", "client"]) {
         const key = `${pkg}Packages`;
@@ -210,14 +227,11 @@ function prepare(env) {
         delete state[`${pkg}Build`];
     }
     if (all || state.serverBuild !== now.serverBuild || !fs.existsSync(path.join(ROOT, "server/dist/Server.js"))) {
-        run("Building the game server", path.join(ROOT, "server"), process.execPath, ["node_modules/typescript/bin/tsc", "--build"]);
+        run("Building the game server", path.join(ROOT, "server"), process.execPath, [`--max-old-space-size=${buildHeap}`, "node_modules/typescript/bin/tsc", "--build"]);
         save("serverBuild");
     }
     if (all || state.clientBuild !== now.clientBuild || !fs.existsSync(path.join(ROOT, "client/build/index.html"))) {
-        // The build is the heaviest thing here: give it what the server has, up to 4 GB.
-        const server = Number(text(env.SERVER_MEMORY));
-        const heap = Number.isInteger(server) && server > 0 ? Math.max(1024, Math.min(4096, Math.floor(server * 0.7))) : 4096;
-        const buildEnv = { ...env, ...clientBuildEnv(env), NODE_OPTIONS: `--max-old-space-size=${heap}` };
+        const buildEnv = { ...env, ...clientBuildEnv(env), ...FRUGAL_BUILD, NODE_OPTIONS: `--max-old-space-size=${buildHeap}` };
         run("Building the website (several minutes)", path.join(ROOT, "client"), process.execPath,
             ["../scripts/run-with-env.mjs", "production", "./node_modules/@craco/craco/dist/bin/craco.js", "build"], buildEnv);
         run("Compressing the website's files", path.join(ROOT, "client"), process.execPath, ["scripts/serve-build.mjs", "--precompress"]);

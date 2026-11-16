@@ -28,7 +28,7 @@ export function makeEgg() {
         name: "Kat-Net TSPS",
         author: "noreply@kat-net.us",
         description: "A browser RuneScape private server (TSPS, the Kat-Net edition): the game server and its website on one port. " +
-            "Players open the server's address in a browser; nothing to download. Needs Node.js 22, one port, about 6 GB of memory and 5 GB of disk.",
+            "Players open the server's address in a browser; nothing to download. Needs Node.js 22, one port, 4 GB of memory or more and 5 GB of disk.",
         features: null,
         docker_images: { "Node.js 22": "ghcr.io/parkervcp/yolks:nodejs_22" },
         file_denylist: [],

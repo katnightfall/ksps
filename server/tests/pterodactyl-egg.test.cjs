@@ -188,6 +188,16 @@ test('temporary files go on the disk of the server, not the small /tmp of its co
   try { fs.rmSync(root, { recursive: true, force: true }); } catch { /* left for the system to clear */ }
 });
 
+test('the website is built to fit a container: one process, no type-check pass', async () => {
+  const { FRUGAL_BUILD } = await load('launch.mjs');
+  assert.deepEqual(FRUGAL_BUILD, { TSPS_BUILD_SKIP_TYPECHECK: '1', TSPS_BUILD_WORKERS: '0', DISABLE_ESLINT_PLUGIN: 'true' });
+  const launcher = fs.readFileSync(path.join(dir, 'launch.mjs'), 'utf8');
+  assert.ok(launcher.includes('...FRUGAL_BUILD,'), 'the build is started with them');
+  // The build's own configuration is what acts on the two that are ours.
+  const craco = fs.readFileSync(path.resolve(__dirname, '../../client/craco.config.js'), 'utf8');
+  for (const name of ['TSPS_BUILD_SKIP_TYPECHECK', 'TSPS_BUILD_WORKERS']) assert.ok(craco.includes(`process.env.${name}`), name);
+});
+
 test('the egg file is the one make-egg.mjs writes, and fits what the launcher reads', async () => {
   const { makeEgg, EGG_FILE } = await load('make-egg.mjs');
   const { READY_LINE } = await load('launch.mjs');
