@@ -27,6 +27,7 @@ import {
   CREATION_MENU_GROUP_ID,
   CREATION_MENU_FIRST_ITEM_COMPONENT,
   CREATION_MENU_MAX_QUANTITY,
+  CREATION_MENU_LARGE_MAX_QUANTITY,
   CREATION_MENU_LAST_ITEM_ATTRIBUTE,
 } from "./packet/PacketSender";
 import { Equipment } from "../game/model/container/impl/Equipment";
@@ -926,9 +927,11 @@ export class ClientConnection {
           ) {
             const itemId = creationMenu.getItems()[creationChildId - CREATION_MENU_FIRST_ITEM_COMPONENT];
             if (Number.isInteger(itemId)) {
-              const limit = creationMenu.getOptions?.()?.maxAmount;
+              const menuOptions = creationMenu.getOptions?.();
+              const limit = menuOptions?.maxAmount;
+              const mostAllowed = menuOptions?.largeAmounts === true ? CREATION_MENU_LARGE_MAX_QUANTITY : Number.MAX_SAFE_INTEGER;
               const amount = Number.isInteger(packet.childIndex) && packet.childIndex > 0
-                ? Math.min(packet.childIndex, Number.isInteger(limit) ? limit : CREATION_MENU_MAX_QUANTITY)
+                ? Math.min(packet.childIndex, Number.isInteger(limit) ? limit : CREATION_MENU_MAX_QUANTITY, mostAllowed)
                 : 1;
               // Remembered for the space key next time (CREATION_MENU_LAST_ITEM_VARP).
               this.player.setAttribute(CREATION_MENU_LAST_ITEM_ATTRIBUTE, creationChildId - CREATION_MENU_FIRST_ITEM_COMPONENT);

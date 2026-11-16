@@ -396,6 +396,7 @@ After changing a plugin's `description` or `config`, run `yarn --cwd server worl
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `Farming:growthMultiplier` | number (> 0) | `1` | **Crop growth speed.** Makes crops and seedlings grow this many times faster. 1 is the normal speed. Weeds, compost bins and Tithe Farm keep theirs. Crops already planted keep the growth they have done and continue at the new speed. |
+| `Fletching:maxSets` | number (integer, >= 0, <= 10000) | `0` | **Most sets of arrows, bolts, darts and javelins from one choice.** 0 is OSRS: up to 10 sets. Above 0, that many sets can be made from one choice, as long as the materials last; above 28 the menu's All is every set that can be made, and a 100 button shows when more than 100 can. |
 | `Prayer:sequentialBurying` | boolean | `false` | **Bury all bones with one click.** By default Bury buries one bone per click, as in OSRS. On, one click continues through the eligible unnoted bones in the inventory. |
 | `ShootingStars:announce` | boolean | `false` | **Announce landings.** Tells everyone online where a star landed. Useful on small worlds; OSRS has no such message. |
 | `ShootingStars:intervalMinutes` | number (> 0) | *90* | **Minutes between shooting stars.** Time between stars; a random 15 minutes either way is added on top. |

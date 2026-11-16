@@ -2,12 +2,18 @@
  * How the skillmulti menu shows: per-item labels (default: the item names), the most that can be
  * chosen and the amount it opens on (default: the menu maximum), and clientscript 2046's first
  * argument (default 0: Make; callers override it for Cook, Smelt, String, etc.).
+ *
+ * Ours: `largeAmounts` is for something that stacks (sets of arrows): the most that can be chosen
+ * is then not held to an inventory's 28 but to CREATION_MENU_LARGE_MAX_QUANTITY, and the amount
+ * chosen is the amount meant (28 is no longer "all"). The client shows a 100 button on such a
+ * menu when more than 100 can be made (client/rs/cs2/makeAmounts.ts).
  */
 export interface CreationMenuOptions {
     labels?: string[];
     maxAmount?: number;
     lastAmount?: number;
     mode?: number;
+    largeAmounts?: boolean;
 }
 
 export class CreationMenu {

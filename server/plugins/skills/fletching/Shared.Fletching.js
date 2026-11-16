@@ -22,6 +22,9 @@ const DATA = require("../data/fletching.json");
 const SkillActions = require("../SkillActions");
 
 const CREATION_ALL_SENTINEL = 28;
+const MAX_SETS_CONFIG = "Fletching:maxSets";
+/** The most a menu can offer (PacketSender's CREATION_MENU_LARGE_MAX_QUANTITY). */
+const MOST_SETS = 10000;
 const DEFAULT_MENU = "make";
 const DEFAULT_ANIMATION = "human_fletching";
 
@@ -50,6 +53,19 @@ function init(pluginApi) {
   jewellersChiselId = itemId("JEWELLERS_CHISEL");
   recipes = DATA.recipes.map(resolveRecipe);
   indexRecipes();
+  setMaxSets(Number(pluginApi.getPluginConfig?.(MAX_SETS_CONFIG, 0)));
+}
+
+/**
+ * Ours: the world may let more sets be made from one choice than OSRS's 10
+ * ("Fletching:maxSets"); 0 leaves each recipe its own. Only recipes made in sets are changed.
+ * Above 28 their menu offers the amounts as they are (see openMenu).
+ */
+function setMaxSets(sets) {
+  const most = Number.isInteger(sets) && sets > 0 ? Math.min(sets, MOST_SETS) : 0;
+  for (const recipe of recipes) {
+    if (recipe.ownMaxSets != null) recipe.maxSets = most > 0 ? most : recipe.ownMaxSets;
+  }
 }
 
 function getApi() {
@@ -143,6 +159,9 @@ function resolveRecipe(entry) {
     missingTool: recipe.missingTool ?? null,
     instantVarbit: recipe.instantVarbit ?? null,
     maxSets: recipe.maxSets ?? CREATION_ALL_SENTINEL,
+    // Made in sets from things that stack (arrows, bolts, darts, javelins): the recipes the
+    // world's own limit applies to (setMaxSets).
+    ownMaxSets: recipe.maxSets ?? null,
     quest: recipe.quest ? { key: recipe.quest[0], state: recipe.quest[1] } : null,
     unlock: recipe.unlock ?? null,
     menu,
@@ -518,15 +537,19 @@ function createTask(player, recipe, batches, via, provenance) {
   return new FletchingTask();
 }
 
-/** Starts making up to `requested` batches (28 = all), the first on the recipe's first tick. */
-function startFletching(player, recipe, requested, via, provenance) {
+/**
+ * Starts making up to `requested` batches, the first on the recipe's first tick. 28 is "all",
+ * unless the menu offered the amounts as they are (`exact`: a menu of more than 28 sets).
+ */
+function startFletching(player, recipe, requested, via, provenance, exact = false) {
   if (fletchingLevel(player) < recipe.level) {
     player.sendMessage(`You need a Fletching level of at least ${recipe.level} to do this.`);
     return;
   }
   const available = batchesAvailable(player, recipe);
   if (available <= 0 || !Number.isInteger(requested) || requested <= 0) return;
-  const batches = Math.min(requested === CREATION_ALL_SENTINEL ? available : Math.min(requested, available), recipe.maxSets);
+  const all = !exact && requested === CREATION_ALL_SENTINEL;
+  const batches = Math.min(all ? available : Math.min(requested, available), recipe.maxSets);
   stopFletching(player);
   if (recipe.ticks === 0) {
     makeBatch(player, recipe, via, provenance);
@@ -544,16 +567,19 @@ function openMenu(player, choices, via, provenance) {
   const byOutput = new Map(choices.map((recipe) => [recipe.outputId, recipe]));
   const maxAmount = Math.max(...choices.map((recipe) => Math.min(batchesAvailable(player, recipe), recipe.maxSets)), 1);
   const { title, mode } = choices[0].menu;
+  // Ours: with a world limit above 28 sets the menu offers the amounts as they are (and the
+  // client its 100 button, when more than 100 sets can be made).
+  const large = choices.some((recipe) => recipe.maxSets > CREATION_ALL_SENTINEL);
   player.getPacketSender().sendCreationMenu(new core.CreationMenu(
     formatMessage(title, choices[0].amount),
     choices.map((recipe) => recipe.outputId),
     {
       execute: (outputId, amount) => {
         const recipe = byOutput.get(outputId);
-        if (recipe) startFletching(player, recipe, amount, via, provenance);
+        if (recipe) startFletching(player, recipe, amount, via, provenance, large);
       },
     },
-    { maxAmount: Math.min(maxAmount, CREATION_ALL_SENTINEL), ...(mode != null ? { mode } : {}) }
+    { maxAmount: large ? Math.min(maxAmount, MOST_SETS) : Math.min(maxAmount, CREATION_ALL_SENTINEL), ...(large ? { largeAmounts: true } : {}), ...(mode != null ? { mode } : {}) }
   ));
 }
 
@@ -641,4 +667,5 @@ module.exports = {
   registerVirtualMaterial,
   addTriggerAlias,
   unlocked,
+  setMaxSets,
 };

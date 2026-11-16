@@ -159,6 +159,9 @@ const SPELL_UNLOCK_VARBITS: ReadonlyArray<readonly [number, number]> = [
 export const CREATION_MENU_GROUP_ID = 270;
 export const CREATION_MENU_FIRST_ITEM_COMPONENT = 15;
 export const CREATION_MENU_MAX_QUANTITY = 28;
+// Ours: the most a menu of something that stacks may offer (CreationMenuOptions.largeAmounts);
+// the client's limit too (client/rs/cs2/makeAmounts.ts, MAKE_AMOUNT_LIMIT).
+export const CREATION_MENU_LARGE_MAX_QUANTITY = 10000;
 // The menu's script gives the space key to the item at this varp's position: the one chosen
 // last (clientscript 2046 reads it for every menu whose enum 3623 entry is 1, the default).
 export const CREATION_MENU_LAST_ITEM_VARP = 2673;
@@ -1387,8 +1390,9 @@ export class PacketSender {
     const options = menu.getOptions?.() ?? {};
     const names = items.map((id: number, index: number) => options.labels?.[index]
       ?? (CacheDefinitions.hasItem(id) ? CacheDefinitions.getItem(id).name : "null"));
+    const mostAllowed = options.largeAmounts === true ? CREATION_MENU_LARGE_MAX_QUANTITY : CREATION_MENU_MAX_QUANTITY;
     const maxAmount = Number.isInteger(options.maxAmount)
-      ? Math.max(0, Math.min(options.maxAmount, CREATION_MENU_MAX_QUANTITY))
+      ? Math.max(0, Math.min(options.maxAmount, mostAllowed))
       : CREATION_MENU_MAX_QUANTITY;
     const lastAmount = Number.isInteger(options.lastAmount) ? Math.max(0, Math.min(options.lastAmount, maxAmount)) : maxAmount;
     const paddedIds = [...items];
