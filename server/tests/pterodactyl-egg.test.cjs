@@ -171,7 +171,7 @@ test('an update keeps the owner\'s edits, and never leaves a file half-merged', 
   try { fs.rmSync(base, { recursive: true, force: true }); } catch { /* left for the system to clear */ }
 });
 
-test('temporary files go on the server's disk, not the container's small /tmp', async () => {
+test('temporary files go on the disk of the server, not the small /tmp of its container', async () => {
   const { useDiskForTemporaryFiles } = await load('launch.mjs');
   const os = require('node:os');
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'egg-tmp-'));
@@ -184,7 +184,7 @@ test('temporary files go on the server's disk, not the container's small /tmp', 
   assert.deepEqual(fs.readdirSync(folder), [], 'emptied at every start');
   // Everything the launcher starts takes its environment from process.env, where this is set.
   const source = fs.readFileSync(path.join(dir, 'launch.mjs'), 'utf8');
-  assert.match(source, /const env = process.env;[sS]*useDiskForTemporaryFiles(env);/);
+  assert.ok(source.includes('const env = process.env;') && source.includes('useDiskForTemporaryFiles(env);'));
   try { fs.rmSync(root, { recursive: true, force: true }); } catch { /* left for the system to clear */ }
 });
 
