@@ -399,6 +399,7 @@ After changing a plugin's `description` or `config`, run `yarn --cwd server worl
 | `Prayer:sequentialBurying` | boolean | `false` | **Bury all bones with one click.** By default Bury buries one bone per click, as in OSRS. On, one click continues through the eligible unnoted bones in the inventory. |
 | `ShootingStars:announce` | boolean | `false` | **Announce landings.** Tells everyone online where a star landed. Useful on small worlds; OSRS has no such message. |
 | `ShootingStars:intervalMinutes` | number (> 0) | *90* | **Minutes between shooting stars.** Time between stars; a random 15 minutes either way is added on top. |
+| `Woodcutting:regularTreeTicks` | number (integer, >= 0, <= 1000) | `0` | **Regular trees stand for (ticks of chopping).** 0 is OSRS: a regular tree falls with its first log. Above 0, regular trees give several logs like oaks: the tree stands for that many ticks of chopping (an oak has 45, about 27 seconds), then falls with the next log. The time comes back while nobody chops it. |
 
 #### Plugin area `world` (`pluginConfig`)
 

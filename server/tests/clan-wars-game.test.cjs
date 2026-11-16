@@ -77,6 +77,8 @@ before(async () => {
     ['objects/Ladders.plugin','Ladders'],['skills/Smithing.plugin','Smithing']]) {
     require(`../plugins/${file}`).register(PM.createApi(`ClanWars${name}Test`));
   }
+  // Ours: these tests chop regular trees as OSRS has them (one log, then the stump), whatever this world's rule.
+  require('../plugins/skills/Woodcutting.plugin')._test.setRegularTreeTicks(0);
   for(const file of ['npcs/NpcDrops.plugin','skills/Prayer.plugin','items/Bonecrusher.plugin']) {
     require(`../plugins/${file}`).register(PM.createApi(`ClanWarsGhast${file}Test`));
   }

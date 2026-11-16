@@ -315,6 +315,7 @@ const TREES = [
     respawnTicks: 59,
     respawnTicksMax: 98,
     stumpId: ObjectIds.TREE_STUMP_2,
+    // Falls with its first log, unless the world says otherwise (Woodcutting:regularTreeTicks).
     multi: false,
     // Regular and achey trees give clue nests, never the other kinds of bird nest (Wiki: Tree).
     birdNests: false,
@@ -965,6 +966,19 @@ function sendRespawnTimer(player, stump, ticks) {
   }
 }
 
+/**
+ * Ours: the world may let regular trees stand through several logs, as oaks do
+ * ("Woodcutting:regularTreeTicks"). `ticks` is the Forestry timer a regular tree gets: how long
+ * it can be chopped before the next log fells it; 0 is OSRS, where its first log does.
+ */
+function setRegularTreeTicks(ticks) {
+  const tree = TREES.find((entry) => entry.name === "normal tree");
+  const standing = Number.isInteger(ticks) && ticks > 0;
+  tree.multi = standing;
+  if (standing) tree.despawnTicks = ticks;
+  else delete tree.despawnTicks;
+}
+
 function treeTimerKey(objectId, location) {
   return `${objectId}:${location.getX()},${location.getY()},${location.getZ()}`;
 }
@@ -1551,8 +1565,15 @@ function interruptForEmote({ player }) {
 module.exports = {
   name: "Woodcutting",
   description: "Woodcutting: chopping trees with the Forestry despawn timer, stump respawns, the logs-chopped tracker, and bird's nest and ring drops.",
+  config: {
+    "Woodcutting:regularTreeTicks": {
+      type: "number", label: "Regular trees stand for (ticks of chopping)", default: 0, integer: true, min: 0, max: 1000,
+      help: "0 is OSRS: a regular tree falls with its first log. Above 0, regular trees give several logs like oaks: the tree stands for that many ticks of chopping (an oak has 45, about 27 seconds), then falls with the next log. The time comes back while nobody chops it.",
+    },
+  },
   register(api) {
     pluginApi = api;
+    setRegularTreeTicks(Number(api.getPluginConfig?.("Woodcutting:regularTreeTicks", 0)));
     api.onCustomEvent("woodcutting:chop", requestedChop);
     api.onCustomEvent("woodcutting:axe", requestedAxe);
     api.onCustomEvent("woodcutting:group-bonus", answerGroupBonus);
@@ -1617,5 +1638,5 @@ module.exports = {
   calculateCutChance,
   /** Stops the player's chopping (a Forestry event spawning beside them). */
   stopWoodcutting: (player) => activeSessionsRef && stopWoodcutting(activeSessionsRef, player),
-  _test: { addLumberjackSetText, maybeDropBirdNest, groupBonus, answerGroupBonus, sessions: () => activeSessionsRef, setApi: (api) => { pluginApi = api; ItemOnGroundManager = api.getItemOnGroundManager(); } },
+  _test: { setRegularTreeTicks, addLumberjackSetText, maybeDropBirdNest, groupBonus, answerGroupBonus, sessions: () => activeSessionsRef, setApi: (api) => { pluginApi = api; ItemOnGroundManager = api.getItemOnGroundManager(); } },
 };

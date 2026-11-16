@@ -8,7 +8,9 @@ const {PlayerSession} = require('../dist/net/PlayerSession');
 const {ClientConnection} = require('../dist/net/NetworkBuilder');
 let core, PlayerSave, next = 1250;
 const previousPlayerBots = process.env.DISABLE_PLAYER_BOTS;
-before(async () => { process.env.DISABLE_PLAYER_BOTS='1'; await CachePipeline.initialize(path.resolve(__dirname,'..')); PM.loadFromDirectory(path.resolve(__dirname,'../plugins')); core=PM.getCoreApi(); ({PlayerSave}=require('../dist/game/entity/impl/player/persistence/PlayerSave')); core.RegionManager.init(); core.RegionManager.loadMapFiles(3222,3218); core.RegionManager.loadMapFiles(2611,3295); PM.emitServerStartup({}); });
+before(async () => { process.env.DISABLE_PLAYER_BOTS='1'; await CachePipeline.initialize(path.resolve(__dirname,'..')); PM.loadFromDirectory(path.resolve(__dirname,'../plugins')); core=PM.getCoreApi(); ({PlayerSave}=require('../dist/game/entity/impl/player/persistence/PlayerSave')); core.RegionManager.init(); core.RegionManager.loadMapFiles(3222,3218); core.RegionManager.loadMapFiles(2611,3295); PM.emitServerStartup({});
+  // Ours: these tests chop regular trees as OSRS has them (one log, then the stump), whatever this world's rule.
+  require('../plugins/skills/Woodcutting.plugin')._test.setRegularTreeTicks(0); });
 after(() => { try { PM.emitServerShutdown({}); } finally { if(previousPlayerBots===undefined) delete process.env.DISABLE_PLAYER_BOTS; else process.env.DISABLE_PLAYER_BOTS=previousPlayerBots; } });
 const item = name => core.CacheDefinitions.getObjId(name);
 const npcId = name => core.CacheDefinitions.getNpcId(name);

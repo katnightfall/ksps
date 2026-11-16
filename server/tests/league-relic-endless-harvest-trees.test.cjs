@@ -20,6 +20,8 @@ before(async () => {
   await CachePipeline.initialize(path.resolve(__dirname, ".."));
   GameConstants.setWorldProfile("league");
   PM.loadFromDirectory(path.resolve(__dirname, "../plugins"));
+  // Ours: these tests chop a regular tree as OSRS has it (one log, then the stump), whatever this world's rule.
+  require("../plugins/skills/Woodcutting.plugin")._test.setRegularTreeTicks(0);
   core = PM.getCoreApi();
   core.RegionManager.init();
   PM.emitServerStartup({});
