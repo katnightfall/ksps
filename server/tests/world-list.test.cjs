@@ -10,16 +10,27 @@ const { pathToFileURL } = require("node:url");
 
 const worlds = import(pathToFileURL(path.join(__dirname, "../../deploy/worlds.mjs")).href);
 
-test("our own list names Kat-Net, the world this server runs", async () => {
-  const { loadWorlds, serverList, worldUrls } = await worlds;
+test("our own list: each world finds itself on it by its own name, and shows the others", async () => {
+  const { loadWorlds, listFor, serverList, worldUrls } = await worlds;
   const list = loadWorlds(path.join(__dirname, "../../deploy/worlds.json"));
-  assert.ok(list.length >= 1);
-  const here = list.filter((world) => world.here);
-  assert.equal(here.length, 1, "one world is this server's own");
-  assert.equal(here[0].name, "Kat-Net");
-  assert.deepEqual(worldUrls(here[0]), { home: "/", play: "/play", hiscores: "/hiscores" }, "its links stay on this site");
+  assert.deepEqual(list.map((world) => world.id), ["kat-net", "new-york"]);
+  assert.ok(list.every((world) => world.here === false), "the file marks nobody: a world knows itself by name");
+  // The world this project's own world.json names is on the list.
+  const ownName = JSON.parse(fs.readFileSync(path.join(__dirname, "../data/definitions/world.json"), "utf8")).name;
+  const dallas = listFor(list, ownName);
+  assert.deepEqual(dallas.map((world) => [world.id, world.here]), [["kat-net", true], ["new-york", false]]);
+  assert.deepEqual(worldUrls(dallas[0]), { home: "/", play: "/play", hiscores: "/hiscores" }, "its own links stay on its site");
+  assert.equal(worldUrls(dallas[1]).play, "http://104.194.10.100:5000/play");
+  // The same file on the New York server: the other way round.
+  const newYork = listFor(list, "Kat-Net NYC location");
+  assert.deepEqual(newYork.map((world) => [world.id, world.here]), [["kat-net", false], ["new-york", true]]);
+  assert.equal(worldUrls(newYork[0]).play, "https://rs.kat-net.us/play");
+  // Somebody else's world, or a world that has not said its name yet: nothing of ours.
+  assert.deepEqual(listFor(list, "My World"), []);
+  assert.deepEqual(listFor(list, ""), []);
+  assert.deepEqual(listFor(list, null), []);
   // What the game's world picker reads (client/game/login/renderer/serverList.ts).
-  assert.deepEqual(serverList(list)[0], { name: "Kat-Net", address: "rs.kat-net.us", secure: true, maxPlayers: 2047 });
+  assert.deepEqual(serverList(list)[0], { name: "Kat-Net Dallas", address: "rs.kat-net.us", secure: true, maxPlayers: 2047 });
 });
 
 test("a list is only what it safely says: bad entries are dropped, the rest cleaned", async (t) => {
@@ -39,8 +50,8 @@ test("a list is only what it safely says: bad entries are dropped, the rest clea
   ]));
   const list = loadWorlds(file);
   assert.deepEqual(list, [
-    { id: "one", name: "World One", address: "one.example.com", secure: true, here: false, description: "first" },
-    { id: "two-example-com-3000", name: "Two", address: "two.example.com:3000", secure: false, here: false, description: "" },
+    { id: "one", name: "World One", world: "World One", address: "one.example.com", secure: true, here: false, description: "first" },
+    { id: "two-example-com-3000", name: "Two", world: "Two", address: "two.example.com:3000", secure: false, here: false, description: "" },
   ]);
   assert.deepEqual(worldUrls(list[1]), { home: "http://two.example.com:3000/", play: "http://two.example.com:3000/play", hiscores: "http://two.example.com:3000/hiscores" });
   assert.equal(cleanWorld({ name: "x".repeat(100), address: "a.example.com" }).name.length, 40);

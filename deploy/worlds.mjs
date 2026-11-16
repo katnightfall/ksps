@@ -2,20 +2,23 @@
  * The list of worlds this server shows: on its landing page (/worlds.json, with who is online)
  * and in the game's own world picker on the login screen (/servers.json).
  *
- * The list is a file we control (deploy/worlds.json for our server, named by WORLDS_FILE in
- * deploy/settings.env): nobody lists a world but us. Without a file the only world is this one,
- * so a world started from the Pterodactyl egg shows itself and nothing of ours.
+ * The list is a file we control (deploy/worlds.json): nobody lists a world but us. Every world
+ * started from this project reads the same file and looks for itself in it by its own name (the
+ * "name" in its world.json or world.local.json, or the egg's World name). A world that is on the
+ * list shows the whole list, with itself marked; one that is not (somebody else's world from the
+ * Pterodactyl egg) shows itself alone and nothing of ours.
  *
  *   [
- *     { "id": "kat-net", "name": "Kat-Net", "address": "rs.kat-net.us", "secure": true,
- *       "description": "...", "here": true }
+ *     { "id": "kat-net", "name": "Kat-Net", "world": "Kat-Net", "address": "rs.kat-net.us",
+ *       "secure": true, "description": "..." }
  *   ]
  *
+ *   name     what the list calls the world
+ *   world    the world's own name, as its game server reports it: how a world knows itself
  *   address  where the world answers: its website, its game connection and its /api, as one
  *            address (what deploy/front.mjs gives a world)
- *   secure   true for https/wss
- *   here     true for the world this server runs itself: its status is asked of the game
- *            server beside us, and its Play link stays on this site
+ *   secure   true for https/wss. A page on https cannot open a game connection to a world
+ *            without it, so such a world is left out of an https page's world picker.
  */
 import fs from "node:fs";
 
@@ -34,7 +37,7 @@ export function cleanWorld(entry) {
     const name = text(entry.name, 40);
     if (!name) return null;
     const id = text(entry.id, 40).toLowerCase().replace(/[^a-z0-9-]+/g, "-") || address.replace(/[^a-z0-9]+/g, "-");
-    return { id, name, address, secure: entry.secure !== false, here: entry.here === true, description: text(entry.description, 160) };
+    return { id, name, world: text(entry.world, 40) || name, address, secure: entry.secure !== false, here: false, description: text(entry.description, 160) };
 }
 
 /** The worlds in `file`, or [] when there is no file or it cannot be read as a list. */
@@ -48,6 +51,15 @@ export function loadWorlds(file) {
     } catch {
         return [];
     }
+}
+
+/**
+ * The list as the world named `ownName` shows it: itself marked "here" (its status is asked of
+ * the game server beside it, its links stay on its own site). [] when that world is not listed.
+ */
+export function listFor(worlds, ownName) {
+    const mine = ownName ? worlds.find((world) => world.world === ownName) : undefined;
+    return mine ? worlds.map((world) => ({ ...world, here: world === mine })) : [];
 }
 
 /** /servers.json: the list as the game's world picker reads it (client/game/login/renderer/serverList.ts). */

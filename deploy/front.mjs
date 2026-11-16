@@ -21,7 +21,7 @@
  * or the one Cloudflare reports when the caller is Cloudflare (or its tunnel on this machine).
  *
  * Env: PORT (3000), HOST (0.0.0.0), GAME_PORT (43594), WORLDS_FILE (the list of worlds, from the
- * project's folder; without it this world is the only one), FRONT_STATIC_PORT (a website already
+ * project's folder: deploy/worlds.json unless set), FRONT_STATIC_PORT (a website already
  * running on that port, for tests; by default the website is started here).
  */
 import { spawn } from "node:child_process";
@@ -31,7 +31,7 @@ import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createStatusBoard, fetchJson, loadWorlds, serverList } from "./worlds.mjs";
+import { createStatusBoard, fetchJson, listFor, loadWorlds, serverList } from "./worlds.mjs";
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || "0.0.0.0";
@@ -40,30 +40,53 @@ const LOCAL = "127.0.0.1";
 const GAME_PATH = /^\/(api|regions|gateway)(\/|\?|$)/;
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-// The worlds we list. The file is read again when it changes, so a new world needs no restart
-// here (a restart of this front door drops every player's connection).
-const WORLDS_FILE = process.env.WORLDS_FILE ? path.resolve(ROOT, process.env.WORLDS_FILE) : "";
+// The worlds we list (deploy/worlds.json). The file is read again when it changes, so a new world
+// needs no restart here (a restart of this front door drops every player's connection).
+const WORLDS_FILE = path.resolve(ROOT, process.env.WORLDS_FILE || "deploy/worlds.json");
+const LOCAL_STATUS = `http://${LOCAL}:${GAME_PORT}/api/world-status`;
 /** With no list, this world alone: its name comes from the game server's own answer. */
 const THIS_WORLD = [{ id: "here", name: "", address: "localhost", secure: false, here: true, description: "" }];
 let listed = { worlds: loadWorlds(WORLDS_FILE), stamp: -1, checked: 0 };
-function listedWorlds() {
-    if (WORLDS_FILE && Date.now() - listed.checked > 5_000) {
+function everyWorld() {
+    if (Date.now() - listed.checked > 5_000) {
         let stamp = 0;
         try { stamp = fs.statSync(WORLDS_FILE).mtimeMs; } catch {}
         listed = stamp === listed.stamp ? { ...listed, checked: Date.now() } : { worlds: loadWorlds(WORLDS_FILE), stamp, checked: Date.now() };
     }
     return listed.worlds;
 }
-const worldBoard = createStatusBoard((world) => fetchJson(world.here
-    ? `http://${LOCAL}:${GAME_PORT}/api/world-status`
-    : `${world.secure ? "https" : "http"}://${world.address}/api/world-status`));
 
-/** /worlds.json and, when we list worlds, /servers.json. False when the request is not one of them. */
-function answerWorldList(request, response) {
-    if (request.method !== "GET" && request.method !== "HEAD") return false;
-    const pathname = String(request.url ?? "").split("?")[0];
-    if (pathname !== "/worlds.json" && pathname !== "/servers.json") return false;
-    const worlds = listedWorlds();
+// Which world is this one: the game server beside us says its name, kept a minute (and kept on
+// while it restarts).
+let own = { name: null, at: 0 };
+async function ownWorldName() {
+    if (own.name !== null && Date.now() - own.at < 60_000) return own.name;
+    try {
+        own = { name: String((await fetchJson(LOCAL_STATUS, 2_000))?.name ?? ""), at: Date.now() };
+    } catch {
+        // Not answering (starting, restarting): what it last said still stands.
+    }
+    return own.name;
+}
+
+/** The list as this world shows it (itself marked), or [] when this world is not on it. */
+async function listedWorlds() {
+    return listFor(everyWorld(), await ownWorldName());
+}
+
+const worldBoard = createStatusBoard((world) => fetchJson(world.here ? LOCAL_STATUS : `${world.secure ? "https" : "http"}://${world.address}/api/world-status`));
+
+/** Whether the visitor's page is https: an https page may not open an insecure game connection. */
+function secureVisitor(request) {
+    return request.headers["x-forwarded-proto"] === "https" || String(request.headers["cf-visitor"] ?? "").includes('"scheme":"https"');
+}
+
+/**
+ * /worlds.json and, when this world is on our list, /servers.json. Resolves to false when the
+ * request is for the website (no list of ours: its own servers.json answers, as before).
+ */
+async function answerWorldList(request, response, pathname) {
+    const worlds = await listedWorlds();
     const send = (body) => {
         const json = JSON.stringify(body);
         response.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Content-Length": Buffer.byteLength(json),
@@ -71,12 +94,12 @@ function answerWorldList(request, response) {
         response.end(request.method === "HEAD" ? undefined : json);
     };
     if (pathname === "/worlds.json") {
-        worldBoard(worlds.length > 0 ? worlds : THIS_WORLD).then(send, () => send({ worlds: [] }));
+        send(await worldBoard(worlds.length > 0 ? worlds : THIS_WORLD).catch(() => ({ worlds: [] })));
         return true;
     }
-    // Without a list of ours the website's own servers.json answers, as before.
     if (worlds.length === 0) return false;
-    send(serverList(worlds));
+    // The world picker of a page on https cannot reach a world without https: it is left out there.
+    send(serverList(secureVisitor(request) ? worlds.filter((world) => world.secure) : worlds));
     return true;
 }
 
@@ -113,8 +136,8 @@ function forwardedHeaders(request) {
 }
 
 function listen(staticPort) {
-    const server = http.createServer((request, response) => {
-        if (answerWorldList(request, response)) return;
+    /** Hands the request to the game server or the website behind us. */
+    const pass = (request, response) => {
         const port = GAME_PATH.test(request.url ?? "") ? GAME_PORT : staticPort;
         const upstream = http.request({ host: LOCAL, port, method: request.method, path: request.url, headers: forwardedHeaders(request) }, (answer) => {
             response.writeHead(answer.statusCode ?? 502, answer.headers);
@@ -126,6 +149,18 @@ function listen(staticPort) {
         });
         response.on("close", () => upstream.destroy());
         request.pipe(upstream);
+    };
+    const server = http.createServer((request, response) => {
+        const pathname = String(request.url ?? "").split("?")[0];
+        if ((request.method === "GET" || request.method === "HEAD") && (pathname === "/worlds.json" || pathname === "/servers.json")) {
+            // The world list: ours to answer, unless this world is on no list (then the website's own file).
+            answerWorldList(request, response, pathname).then(
+                (answered) => { if (!answered) pass(request, response); },
+                () => { if (!response.headersSent) pass(request, response); },
+            );
+            return;
+        }
+        pass(request, response);
     });
 
     // The game connection: hand the request to the game server as it came and join the two sockets.

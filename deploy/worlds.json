@@ -1,10 +1,18 @@
 [
     {
         "id": "kat-net",
-        "name": "Kat-Net",
+        "name": "Kat-Net Dallas",
+        "world": "Kat-Net",
         "address": "rs.kat-net.us",
         "secure": true,
-        "here": true,
         "description": "10x custom, US/Dallas dedicated"
+    },
+    {
+        "id": "new-york",
+        "name": "Kat-Net New York",
+        "world": "Kat-Net NYC location",
+        "address": "104.194.10.100:5000",
+        "secure": false,
+        "description": "10x custom, US/New York"
     }
 ]
