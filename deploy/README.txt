@@ -88,3 +88,9 @@ Taking in upstream's changes
   npm run deploy
 Don't run the "git config merge.ours.driver true" that .gitattributes mentions: it is for
 upstream's own merges and would silently keep our side of every conflict under server/.
+
+Running it on a Pterodactyl panel
+---------------------------------
+A different way to host a world, unrelated to "npm run deploy": deploy/pterodactyl holds an egg
+(egg-kat-net-tsps.json) that installs, builds and runs the game and its website as one panel
+server on one port. See deploy/pterodactyl/README.txt.

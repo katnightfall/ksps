@@ -1,0 +1,142 @@
+{
+    "_comment": "DO NOT EDIT: FILE GENERATED AUTOMATICALLY BY PTERODACTYL PANEL - PTERODACTYL.IO",
+    "meta": {
+        "version": "PTDL_v2",
+        "update_url": null
+    },
+    "exported_at": "2026-11-15T00:00:00+00:00",
+    "name": "Kat-Net TSPS",
+    "author": "noreply@kat-net.us",
+    "description": "A browser RuneScape private server (TSPS, the Kat-Net edition): the game server and its website on one port. Players open the server's address in a browser; nothing to download. Needs Node.js 22, one port, about 6 GB of memory and 5 GB of disk.",
+    "features": null,
+    "docker_images": {
+        "Node.js 22": "ghcr.io/parkervcp/yolks:nodejs_22"
+    },
+    "file_denylist": [],
+    "startup": "node deploy/pterodactyl/launch.mjs",
+    "config": {
+        "files": "{}",
+        "startup": "{\"done\":\"[egg] The world is online\"}",
+        "logs": "{}",
+        "stop": "stop"
+    },
+    "scripts": {
+        "installation": {
+            "script": "#!/bin/bash\n# The egg's install script (it is copied into egg-kat-net-tsps.json by make-egg.mjs).\n# Runs once, as root, in the install container (node:22-bookworm), with the server's files at\n# /mnt/server and the egg's variables in the environment. Running it again (\"Reinstall\" in the\n# panel) fetches the project afresh and keeps everything that is not the project's: player\n# saves, the game cache, .env and world.local.json.\nset -e\ncd /mnt/server\n\nREPO=\"${GIT_REPO:-https://github.com/katnightfall/ksps.git}\"\nBRANCH=\"${GIT_BRANCH:-main}\"\ngit config --global --add safe.directory '*'\n\necho \"[egg] Fetching $REPO ($BRANCH)...\"\nif [ ! -d .git ]; then\n    git init -q .\n    git remote add origin \"$REPO\"\nelse\n    git remote set-url origin \"$REPO\"\nfi\ngit fetch --depth 1 origin \"$BRANCH\"\ngit checkout -q -f -B \"$BRANCH\" FETCH_HEAD\ngit branch -q --set-upstream-to=\"origin/$BRANCH\" \"$BRANCH\" || true\n\n# Packages, the game server and the website: the same steps a start runs when something changed.\nnode deploy/pterodactyl/launch.mjs --prepare\n\necho \"[egg] Installed. Start the server: its first start downloads the game cache.\"\n",
+            "container": "node:22-bookworm",
+            "entrypoint": "bash"
+        }
+    },
+    "variables": [
+        {
+            "name": "World name",
+            "description": "The world's name, also shown on the login screen's server button. Changing it rebuilds the website on the next start (several minutes).",
+            "env_variable": "WORLD_NAME",
+            "default_value": "My World",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:40",
+            "field_type": "text"
+        },
+        {
+            "name": "World description",
+            "description": "A line about the world, shown with its name.",
+            "env_variable": "WORLD_DESCRIPTION",
+            "default_value": "A new world.",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:120",
+            "field_type": "text"
+        },
+        {
+            "name": "XP rate",
+            "description": "Experience multiplier: 1 is as the original game, 10 is ten times as fast.",
+            "env_variable": "XP_RATE",
+            "default_value": "10",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|numeric|min:1|max:1000",
+            "field_type": "text"
+        },
+        {
+            "name": "Bots",
+            "description": "How many levelling bots walk the world (they start as new characters and train like players). 0 turns every bot off. More bots need more memory and processor.",
+            "env_variable": "BOT_COUNT",
+            "default_value": "100",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer|min:0|max:2000",
+            "field_type": "text"
+        },
+        {
+            "name": "Developer accounts",
+            "description": "Account names that are developers (the highest rank) each time they log in, comma-separated. Create the account in game first: a name listed here that nobody has registered yet belongs to whoever logs in with it first.",
+            "env_variable": "DEV_USERNAME",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:200",
+            "field_type": "text"
+        },
+        {
+            "name": "Public game address",
+            "description": "Only for a world list: where players reach the game from outside, for example wss://play.example.com. Leave empty otherwise.",
+            "env_variable": "PUBLIC_WS_URL",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:255",
+            "field_type": "text"
+        },
+        {
+            "name": "Update on start",
+            "description": "1: fetch the newest version of the project each time the server starts, and rebuild what changed. 0: stay on the version installed.",
+            "env_variable": "AUTO_UPDATE",
+            "default_value": "1",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|boolean",
+            "field_type": "text"
+        },
+        {
+            "name": "Rebuild on start",
+            "description": "1: build everything again on the next start, whatever changed (after editing the project's source by hand). Set it back to 0 afterwards.",
+            "env_variable": "REBUILD",
+            "default_value": "0",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|boolean",
+            "field_type": "text"
+        },
+        {
+            "name": "Game memory (MB)",
+            "description": "Memory for the game server in MB. Empty: 70% of the server's memory.",
+            "env_variable": "GAME_HEAP_MB",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|integer|min:512",
+            "field_type": "text"
+        },
+        {
+            "name": "Project address",
+            "description": "The git address the project is installed and updated from.",
+            "env_variable": "GIT_REPO",
+            "default_value": "https://github.com/katnightfall/ksps.git",
+            "user_viewable": true,
+            "user_editable": false,
+            "rules": "required|string|max:255",
+            "field_type": "text"
+        },
+        {
+            "name": "Project branch",
+            "description": "The branch of the project to install.",
+            "env_variable": "GIT_BRANCH",
+            "default_value": "main",
+            "user_viewable": true,
+            "user_editable": false,
+            "rules": "required|string|max:100",
+            "field_type": "text"
+        }
+    ]
+}

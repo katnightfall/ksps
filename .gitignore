@@ -107,3 +107,5 @@ server/data/definitions/world-admin.token
 
 # This PC's deploy target and key path (deploy/README.txt)
 /deploy.local.json
+# What the Pterodactyl launcher last built (deploy/pterodactyl/launch.mjs)
+.egg-state.json
