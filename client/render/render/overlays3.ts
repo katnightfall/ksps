@@ -246,6 +246,9 @@ export function makeActorGroupKey(host: WebGLOsrsRendererHost, isNpc: boolean, s
     
 }
 
+/** Ours: how far above the top of a player's model their overhead chat is anchored, in model units. */
+export const PLAYER_OVERHEAD_TEXT_LIFT_UNITS = 15;
+
 export function appendPlayerOverheadText(host: WebGLOsrsRendererHost, 
         index: number,
         output: OverheadTextEntry[],
@@ -300,10 +303,12 @@ export function appendPlayerOverheadText(host: WebGLOsrsRendererHost,
         overhead.duration = duration;
         overhead.remaining = remaining;
         overhead.life = host.computeOverheadAlpha(overhead);
+        // Ours: a player's chat stands clear of the head, not on it: 15 units above the model's
+        // top, where the head icons and an NPC's chat are measured from too.
         overhead.heightOffsetTiles = host.resolvePlayerLogicalHeightTiles(
             index,
             playerDefaultHeightTiles,
-        );
+        ) + PLAYER_OVERHEAD_TEXT_LIFT_UNITS / 128;
         output.push(overhead);
     
 }

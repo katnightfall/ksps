@@ -82,3 +82,33 @@ test("two speakers side by side: the second is pushed above the first by the enl
         assert.equal(baselineOf(quads[0], scale) - baselineOf(quads[1], scale), ASCENT * scale, `one line apart at ${scale}`);
     }
 });
+
+// The user's ask (2026-11-16): a player's chat a little higher, clear of the head, not on it.
+test("a player's chat is anchored 15 units above the top of their model, as head icons are", async () => {
+    const { appendPlayerOverheadText, PLAYER_OVERHEAD_TEXT_LIFT_UNITS, resolvePlayerHeadIconOffset } = await import("../render/render/overlays3");
+    assert.equal(PLAYER_OVERHEAD_TEXT_LIFT_UNITS, 15);
+    const chat = { text: "hello", color: 0, effect: 0, duration: 150, remaining: 150 };
+    const host: any = {
+        shouldRenderPlayerIndex: () => true,
+        osrsClient: {
+            varManager: { getVarp: () => 0 },
+            playerEcs: {
+                getOverheadChat: () => chat,
+                getX: () => 3200 * 128, getY: () => 3200 * 128, getLevel: () => 0, getWorldViewId: () => -1,
+                getServerIdForIndex: () => 1,
+            },
+        },
+        acquireOverheadTextEntry: () => ({}),
+        makeActorGroupKey: () => 1,
+        mapOverheadColor: () => 0xffff00,
+        resolveModIcon: () => undefined,
+        computeOverheadAlpha: () => 1,
+        // A model 200 units tall.
+        resolvePlayerLogicalHeightTiles: () => 200 / 128,
+    };
+    const out: any[] = [];
+    appendPlayerOverheadText(host, 0, out, 10, 1);
+    assert.equal(out.length, 1);
+    assert.equal(out[0].heightOffsetTiles, (200 + 15) / 128);
+    assert.equal(out[0].heightOffsetTiles, resolvePlayerHeadIconOffset(host, 0), "the head icons' own anchor");
+});
