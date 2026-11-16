@@ -98,6 +98,8 @@ export class OverheadTextLayer {
         const stacks = args.state.actor2dStacks;
         this.ensureFont();
         const fontAscent = this.font ? this.font.maxAscent || this.font.ascent || 12 : 12;
+        const scale = Number.isFinite(this.scale) && this.scale > 0 ? this.scale : 1;
+        const gap = 2 * scale;
 
         const layouts = this.layoutScratch;
         layouts.length = 0;
@@ -125,11 +127,14 @@ export class OverheadTextLayer {
             }
 
             const groupKey = typeof entry.groupKey === "number" ? entry.groupKey | 0 : undefined;
-            const var18 = (groupKey !== undefined ? stacks?.get(groupKey) : undefined) ?? -2;
+            // Ours: every offset here is in the overlay's scale, as the head icons count theirs.
+            // The text is drawn enlarged on a display scaled above 100%, and placed as if it
+            // were not, it hung lower by the difference and sank into the head.
+            const var18 = (groupKey !== undefined ? stacks?.get(groupKey) : undefined) ?? -2 * scale;
             const centerX = Math.round(screenPos[0]);
-            const baseline = Math.round(screenPos[1]) - var18;
+            const baseline = Math.round(screenPos[1] - var18);
             if (groupKey !== undefined) {
-                stacks?.set(groupKey, var18 + 12);
+                stacks?.set(groupKey, var18 + 12 * scale);
             }
             layouts.push({
                 entry,
@@ -137,8 +142,8 @@ export class OverheadTextLayer {
                 alpha,
                 centerX,
                 baseline,
-                halfWidth: Math.floor(Math.max(0, tex.w - H_PADDING * 2) / 2),
-                ascent: fontAscent,
+                halfWidth: Math.floor((Math.max(0, tex.w - H_PADDING * 2) * scale) / 2),
+                ascent: Math.round(fontAscent * scale),
             });
         }
 
@@ -151,8 +156,8 @@ export class OverheadTextLayer {
                 for (let j = 0; j < i; j++) {
                     const other = layouts[j];
                     if (
-                        y + 2 > other.baseline - other.ascent &&
-                        y - current.ascent < other.baseline + 2 &&
+                        y + gap > other.baseline - other.ascent &&
+                        y - current.ascent < other.baseline + gap &&
                         current.centerX - current.halfWidth < other.centerX + other.halfWidth &&
                         current.centerX + current.halfWidth > other.centerX - other.halfWidth &&
                         other.baseline - other.ascent < y
@@ -174,21 +179,22 @@ export class OverheadTextLayer {
             const heightPx = Math.max(1, Math.round(tex.h * this.scale));
             const cyclesRemaining = this.toCyclesRemaining150(entry);
             const progress = 150 - cyclesRemaining;
-            const offsetY = Math.round(this.computeEffectOffset(entry.effect, progress));
+            const offsetY = Math.round(this.computeEffectOffset(entry.effect, progress) * scale);
 
             let left = centerX - Math.round(width / 2);
-            const top = layout.baseline - V_PADDING - layout.ascent + offsetY;
+            // The texture's own baseline is V_PADDING + ascent from its top, enlarged with it.
+            const top = Math.round(layout.baseline - (V_PADDING + fontAscent) * scale) + offsetY;
             let quadClip: QuadClip | undefined;
 
             if ((entry.effect | 0) === 4) {
-                const textWidth = Math.max(0, tex.w - H_PADDING * 2);
-                const scroll = (progress * (textWidth + 100)) / 150;
-                const drawX = centerX + 50 - scroll;
-                left = Math.round(drawX - H_PADDING);
+                const textWidth = Math.max(0, tex.w - H_PADDING * 2) * scale;
+                const scroll = (progress * (textWidth + 100 * scale)) / 150;
+                const drawX = centerX + 50 * scale - scroll;
+                left = Math.round(drawX - H_PADDING * scale);
                 quadClip = {
-                    x: Math.round(centerX - 50),
+                    x: Math.round(centerX - 50 * scale),
                     y: top,
-                    width: Math.round(100),
+                    width: Math.round(100 * scale),
                     height: heightPx,
                 };
             } else if ((entry.effect | 0) === 5) {
