@@ -2802,6 +2802,8 @@ export class PluginManager {
       Music: require("../game/Music").Music,
       // world.json accessors (isMembersWorld, isMembersArea, WORLD_SPAWN, zone boundaries).
       WorldDefinition: require("../game/definition/WorldDefinition"),
+      // examineItem(player, itemId, amount): an item's examine line and its price, as the bank says them.
+      ExaminePrice: require("../game/content/ExaminePrice"),
       TeleportHandler: require(`${model}/teleportation/TeleportHandler`).TeleportHandler,
       TeleportType: require(`${model}/teleportation/TeleportType`).TeleportType,
       DialogueChainBuilder: require(`${model}/dialogues/builders/DialogueChainBuilder`).DialogueChainBuilder,
@@ -2811,6 +2813,7 @@ export class PluginManager {
       StatementDialogue: require(`${model}/dialogues/entries/impl/StatementDialogue`).StatementDialogue,
       ItemStatementDialogue: require(`${model}/dialogues/entries/impl/ItemStatementDialogue`).ItemStatementDialogue,
       DoubleItemStatementDialogue: require(`${model}/dialogues/entries/impl/DoubleItemStatementDialogue`).DoubleItemStatementDialogue,
+      GraphicStatementDialogue: require(`${model}/dialogues/entries/impl/GraphicStatementDialogue`).GraphicStatementDialogue,
       ActionDialogue: require(`${model}/dialogues/entries/impl/ActionDialogue`).ActionDialogue,
       EndDialogue: require(`${model}/dialogues/entries/impl/EndDialogue`).EndDialogue,
       CreationMenu: require(`${model}/menu/CreationMenu`).CreationMenu,

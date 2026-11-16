@@ -151,6 +151,8 @@ yarn sync:npc-spawns --box 1216,9344,1727,9855 --tag Neypotzli --write
 - **Left out:** the Perilous Moons bosses (Blood, Blue and Eclipse Moon) and Amoxliatl, since no plugin gives them their fights yet. Araxxor is in the same decision ahead of the dungeon batch.
 - **Not yet:** the Frost Nagua have no stats until the monster database update.
 
+- **Colosseum lobby Mezan (13396):** the stationary spawn uses the post-fight tile (1804, 9520), facing southeast as in RSProx recording `rsprox_transcripts/226/01695.txt` (tick 1698). Recording `242/900261.txt` uses the same tile with south facing, and `241/911577.txt` places Mezan at (1803, 9522). All three return the player to (1803, 9521).
+
 ## Open monster dungeons
 
 1,163 spawns in 80 map squares of open monster dungeons, from an allowlist of areas in the gap report rather than everything below ground: the Black Knight Catacombs, Underground Pass, Morytania Spider Cave (araxytes), Charred Dungeon, the Sophanem and Scabaras dungeons, Tarn's Lair, Zemouregal's Base and Fort, the God Wars Dungeon's spirituals and blood reavers, the Gryphons' cave, Ynysdail Cavern, Deepfin Mine, the Buccaneers' Laboratory, Grimstone Dungeon (frost dragons), Waterbirth, Pandemonium Cave, Brimhaven Dungeon, the Ancient Guthixian Temple (tormented demons), the Stronghold of Security's minotaurs, the Vampyrium and its realm, and smaller slayer caves.
@@ -215,6 +217,32 @@ Lady Keli, Prince Ali and Joe were spawned as their visible ids (11578, 11579, 1
 - **Lady Keli** `lady_keli` (11643): shows as 11578 at varp 273 values 0-40, then nothing, so she's gone from stage 50, when she's tied up and put in a cupboard.
 - **Prince Ali** `prince_ali_prison` (11644): 11579 at 0-90, then gone once he's freed (100).
 - **Joe** (11642): 11577 at 0-101.
+
+## Fairy Resistance Hideout (Fairytale II)
+
+Fairy Very Wise and the awake Fairy Queen are nameless multinpc parents on Fairytale II's stage
+(varbit 2326), which the client and `NPC.getContentId` resolve per player. The user's whole-quest
+rsprox capture `FairyTale2` (revision 242.1) adds each on one tile and neither ever walks, so both
+rows were set from it with `wanderRadius` 0 (the rows keep no facing):
+- **Fairy Very Wise** `fairyliquid_multi` (2970) at 2353,4458: shows as 1847 from stage
+  45 (her arrival in Fairy Nuff's welcome) through 90. Added at tick 976 facing east, and on the
+  same tile at 1102, 1865 (facing west) and 2352. It was at 2353,4446.
+- **Fairy Queen** `fairy_queen_multi2` (2971) at 2354,4455: shows as 1842 at stages 80
+  and 90 (awake after the magic essence). Added at tick 2419 facing south, four ticks after the
+  pour. It was at 2352,4457.
+
+The hideout's other fairies keep their rows. `fairytale-ii-capture.test.cjs` covers the stages they
+appear at; the in-game check on RSPSApp/tsps#5958 saw both on these tiles.
+
+## Tree Gnome Village chanters
+
+The four Local Gnomes (4979, `chantergnome`) round King Bolren chant at the end of Tree Gnome Village. In
+the user's three whole-quest rsprox captures (local 1001800, 1001802, 1002235; revision 242) they are
+added on their rows' tiles, (2541, 3168), (2541, 3171), (2542, 3167) and (2542, 3172), and stay within one
+tile of them: chanter 14480 walks 33 times between x 2540-2542, y 3170-3172 around (2541, 3171) over ticks
+10209-11600 of rsprox transcript 242/912220, and chanter 14399 between x 2540-2541, y 3167-3168 around
+(2541, 3168) over ticks 6958-6966 of 237/03998. So the rows have `wanderRadius` 1. The northern pair says "Su tana." and the southern pair "En tania."
+(TreeGnomeVillage.Quest.js binds them by their spawn tile).
 
 ## Emir's Arena guides (PvP Arena)
 

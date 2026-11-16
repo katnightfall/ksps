@@ -1759,6 +1759,7 @@ export interface PluginCoreApi {
   GameConstants: any;
   Music: any;
   WorldDefinition: any;
+  ExaminePrice: typeof import("../game/content/ExaminePrice");
   TeleportHandler: any;
   TeleportType: any;
   DialogueChainBuilder: any;
@@ -1768,6 +1769,7 @@ export interface PluginCoreApi {
   StatementDialogue: any;
   ItemStatementDialogue: any;
   DoubleItemStatementDialogue: any;
+  GraphicStatementDialogue: any;
   ActionDialogue: any;
   EndDialogue: any;
   CreationMenu: any;
@@ -1781,7 +1783,7 @@ export interface PluginCoreApi {
   /** Public chat as a client sends it (filter, mute, broadcast): bots speak through it too. */
   ChatPacketListener: any;
   TradeState: any;
-  controlPlayer: (owner: any, target: any, released: () => void) => boolean;
+  controlPlayer: (owner: any, target: any, released: () => void, options?: { readOnly?: boolean }) => boolean;
   releasePlayerControl: (player: any) => boolean;
   /** The parked owner left the world: release the controlled player and close the owner's connection. */
   endPlayerControl: (controlled: any) => boolean;
