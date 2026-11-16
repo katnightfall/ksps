@@ -45,6 +45,30 @@ Other commands
   npm run remote -- rebuild           build both halves again from what is installed
   npm run deploy -- --full            send every file again
 
+Keeping up with the original project
+------------------------------------
+  npm run sync                        fetch what is new in github.com/RSPSApp/tsps, merge it into
+                                      ours, check it, then commit, push to the fork and deploy
+  npm run sync -- --check             only say how many commits behind we are
+  npm run sync -- --no-deploy         stop after the push
+  npm run sync -- --verify            only run the checks on the folder as it is
+  npm run sync -- --schedule 05:00    do it every day at that time on this PC (a Windows scheduled
+                                      task, "Kat-Net TSPS upstream sync"; it runs while you are
+                                      signed in, or as soon as the PC is on after that time)
+  npm run sync -- --unschedule        stop the daily run
+
+Before anything leaves this PC the merged folder must: build, pass our own tests (the ones the
+original project does not have), type-check the web client, and start as a server for a minute
+on a scratch save file without printing an error. If any of that fails, or both sides changed
+the same lines of a file, the folder is put back exactly as it was, nothing is pushed or
+deployed, and the reason is printed. A daily run writes what it did to deploy/sync.log and puts
+a message on the screen when it needs a hand.
+
+It only starts from the main branch with nothing uncommitted, so it never touches work in
+progress. Two kinds of file are settled without asking: docs/world-configuration.md (made again
+from the code) and our own icons (ours are kept). A deploy of a merge restarts the game when
+game files changed: players are saved and disconnected, as with any deploy.
+
 One-time setup (yours to run: it asks for the server's password)
 ----------------------------------------------------------------
   deploy.local.json in the project folder says where the server is:
