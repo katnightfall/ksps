@@ -109,6 +109,8 @@ server/data/definitions/bot-activities.local.json.tmp
 
 # This PC's deploy target and key path (deploy/README.txt)
 /deploy.local.json
+# What the daily update did (deploy/sync-upstream.mjs --scheduled)
+/deploy/sync.log
 # What the Pterodactyl launcher last built (deploy/pterodactyl/launch.mjs)
 .egg-state.json
 .egg-tmp/

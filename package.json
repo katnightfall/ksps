@@ -17,7 +17,8 @@
     "docs:quests": "node scripts/quest-docs.mjs",
     "deploy": "node deploy/remote.mjs update",
     "remote": "node deploy/remote.mjs",
-    "deploy:setup": "node deploy/setup-remote.mjs"
+    "deploy:setup": "node deploy/setup-remote.mjs",
+    "sync": "node deploy/sync-upstream.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
