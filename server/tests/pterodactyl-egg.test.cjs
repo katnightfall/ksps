@@ -171,6 +171,23 @@ test('an update keeps the owner\'s edits, and never leaves a file half-merged', 
   try { fs.rmSync(base, { recursive: true, force: true }); } catch { /* left for the system to clear */ }
 });
 
+test('temporary files go on the server's disk, not the container's small /tmp', async () => {
+  const { useDiskForTemporaryFiles } = await load('launch.mjs');
+  const os = require('node:os');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'egg-tmp-'));
+  fs.mkdirSync(path.join(root, '.egg-tmp'));
+  fs.writeFileSync(path.join(root, '.egg-tmp', 'left-over'), 'from the last start');
+  const env = { TMPDIR: '/tmp', PATH: '/bin' };
+  const folder = useDiskForTemporaryFiles(env, root);
+  assert.equal(folder, path.join(root, '.egg-tmp'));
+  assert.deepEqual(env, { TMPDIR: folder, TMP: folder, TEMP: folder, PATH: '/bin' });
+  assert.deepEqual(fs.readdirSync(folder), [], 'emptied at every start');
+  // Everything the launcher starts takes its environment from process.env, where this is set.
+  const source = fs.readFileSync(path.join(dir, 'launch.mjs'), 'utf8');
+  assert.match(source, /const env = process.env;[sS]*useDiskForTemporaryFiles(env);/);
+  try { fs.rmSync(root, { recursive: true, force: true }); } catch { /* left for the system to clear */ }
+});
+
 test('the egg file is the one make-egg.mjs writes, and fits what the launcher reads', async () => {
   const { makeEgg, EGG_FILE } = await load('make-egg.mjs');
   const { READY_LINE } = await load('launch.mjs');

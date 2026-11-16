@@ -109,3 +109,4 @@ server/data/definitions/world-admin.token
 /deploy.local.json
 # What the Pterodactyl launcher last built (deploy/pterodactyl/launch.mjs)
 .egg-state.json
+.egg-tmp/

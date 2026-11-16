@@ -274,8 +274,24 @@ export function updateProject(root, log = say) {
     return result;
 }
 
+/** Whether the update brought a new version (and so, perhaps, a new launcher). */
 function update(env) {
-    if (text(env.AUTO_UPDATE) === "1") updateProject(ROOT);
+    if (text(env.AUTO_UPDATE) !== "1" || env.EGG_UPDATED === "1") return false;
+    return updateProject(ROOT).startsWith("updated");
+}
+
+/**
+ * Temporary files go on the server's own disk. A panel container's /tmp is a small memory disk
+ * (100 MB by default, in the install container too), and installing the packages unpacks far
+ * more than that through the temporary folder: "ENOSPC: no space left on device" with the
+ * server's disk nearly empty. The folder is emptied at every start.
+ */
+export function useDiskForTemporaryFiles(env, root = ROOT) {
+    const folder = path.join(root, ".egg-tmp");
+    fs.rmSync(folder, { recursive: true, force: true });
+    fs.mkdirSync(folder, { recursive: true });
+    for (const name of ["TMPDIR", "TMP", "TEMP"]) env[name] = folder;
+    return folder;
 }
 
 function writeWorld(env) {
@@ -344,13 +360,20 @@ function start(env) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-    const env = { ...process.env };
+    // process.env itself: everything started from here (packages, builds, the game) takes it.
+    const env = process.env;
     try {
+        useDiskForTemporaryFiles(env);
         if (process.argv.includes("--prepare")) {
             prepare(env);
             say("Packages and builds are ready.");
+        } else if (update(env)) {
+            // The update may have changed this file: the rest of the start is the new version's.
+            say("Starting with the updated version...");
+            const again = spawn(process.execPath, process.argv.slice(1), { stdio: "inherit", env: { ...env, EGG_UPDATED: "1" } });
+            for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => again.kill(signal));
+            again.on("exit", (code) => process.exit(code ?? 1));
         } else {
-            update(env);
             prepare(env);
             writeWorld(env);
             start(env);
