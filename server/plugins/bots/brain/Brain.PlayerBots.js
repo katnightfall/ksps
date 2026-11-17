@@ -28,6 +28,10 @@ const FRAME_STATE = Object.freeze({
 // Last-resort watchdog: an action that reports no progress this long fails the
 // frame (and is logged), so a stuck bot cannot occupy a slot silently forever.
 const FRAME_STALL_MS = 180000;
+// Ours: a movement queue the bot has stood still on this long, over this many of its own ticks
+// (a far bot ticks every 7-18 s), is one it cannot walk: see clearStaleQueue.
+const STALE_QUEUE_MS = 9000;
+const STALE_QUEUE_TICKS = 3;
 // A due rotation with nothing else free keeps the current activity and asks again later.
 const SWITCH_RETRY_MS = 30000;
 // Failed dispatches in a row before a pending walk is dropped.
@@ -415,6 +419,33 @@ class BotBrain {
     return nowMs < this.walkGapUntil;
   }
 
+  /**
+   * Ours: a queued step the bot can no longer take (the door it planned through has shut, a
+   * tile has filled) is never dropped by the queue, and everything here waits for the queue to
+   * empty before it walks again: one such step held a bot on its tile for good, whatever it was
+   * given to do next (one stood beside Draynor Manor in every trial). A queue the bot has not
+   * moved on for a while, with nothing holding it there (an obstacle's own walk, a freeze, its
+   * death), is cleared, and the next dispatch plans afresh from where it stands.
+   */
+  clearStaleQueue(player, nowMs) {
+    const at = player.getLocation?.();
+    if (!at) return;
+    const key = `${at.getX()},${at.getY()},${at.getZ()}`;
+    if (this.queueHeld?.key !== key) {
+      this.queueHeld = { key, since: nowMs, ticks: 0 };
+      return;
+    }
+    this.queueHeld.ticks += 1;
+    if (nowMs - this.queueHeld.since < STALE_QUEUE_MS || this.queueHeld.ticks < STALE_QUEUE_TICKS) return;
+    const queue = player.getMovementQueue();
+    const held = queue.isMovementBlocked?.() === true || player.getHitpoints?.() <= 0
+      || player.getCombat?.()?.getFreezeTimer?.()?.finished?.() === false;
+    this.queueHeld = null;
+    if (held) return;
+    queue.reset();
+    this.world?.log?.("bot_brain_stale_queue", { username: player.getUsername?.() ?? null, at: key });
+  }
+
   /** Dispatches the bot's pending movement request (ditch crossings and doors included). */
   dispatchMovement(nowMs = Date.now()) {
     const player = this.player;
@@ -422,8 +453,10 @@ class BotBrain {
       return;
     }
     if (player.getMovementQueue?.()?.size?.() > 0) {
+      this.clearStaleQueue(player, nowMs);
       return;
     }
+    this.queueHeld = null;
     const request = peekMovementRequest(player);
     if (!request) {
       return;

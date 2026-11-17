@@ -374,23 +374,35 @@ function maybeOpenDoor({ player, state, world, request, select = false }) {
   let targetX = Number.isFinite(request.lastSegmentX) ? request.lastSegmentX : request.x;
   let targetY = Number.isFinite(request.lastSegmentY) ? request.lastSegmentY : request.y;
   const botLoc = player.getLocation();
+  const routeFinder = sharedRouteFinder(core);
+  let picked = null;
   if (
     Number.isFinite(targetX) && Number.isFinite(targetY) &&
     Math.max(Math.abs(botLoc.getX() - targetX), Math.abs(botLoc.getY() - targetY)) <= 1 &&
     Number.isFinite(request.x) && Number.isFinite(request.y)
   ) {
+    // Ours: a segment that ends one step away, on a tile the bot cannot step to, is the tile
+    // just across a gate (the Al Kharid toll gate's own leaf tile, from either side), and it
+    // is the yardstick that shows the gate helps. The real destination, tried next, is often
+    // beyond the route finder's window (the Al Kharid mine from the gate), where no door ever
+    // looks like progress: bots stood at the toll gate by the dozen and never clicked it.
+    if (botLoc.getX() !== targetX || botLoc.getY() !== targetY) {
+      const beside = findDoorCandidates(player, state, targetX, targetY, nowMs);
+      if (beside.length) picked = findUnblockingDoor(core, routeFinder, player, beside, targetX, targetY);
+    }
     targetX = request.x;
     targetY = request.y;
   }
   if (!Number.isFinite(targetX) || !Number.isFinite(targetY)) {
     return false;
   }
-  const candidates = findDoorCandidates(player, state, targetX, targetY, nowMs);
-  if (!candidates.length) {
-    return false;
+  if (!picked) {
+    const candidates = findDoorCandidates(player, state, targetX, targetY, nowMs);
+    if (!candidates.length) {
+      return false;
+    }
+    picked = findUnblockingDoor(core, routeFinder, player, candidates, targetX, targetY);
   }
-  const routeFinder = sharedRouteFinder(core);
-  const picked = findUnblockingDoor(core, routeFinder, player, candidates, targetX, targetY);
   if (!picked) {
     return false;
   }
