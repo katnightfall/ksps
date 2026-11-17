@@ -71,6 +71,24 @@ lists are read again when they change, so no player is disconnected for a new wo
 
 A world that is not on the list (somebody else's, from the Pterodactyl egg) shows itself alone.
 
+The master hosts no world of its own
+------------------------------------
+MASTER_ONLY=1 in deploy/settings.env (since 2026-11-17). This server is the website, the admin
+page and the carrying of the worlds' connections; the worlds themselves run on the panel's
+nodes, made on the admin page.
+
+  * The game service still shows as running, and "npm run remote -- check" still says the game
+    port answers: it holds the port and runs nothing (deploy/master/parked.mjs), because the
+    updater takes an open port as "the game came back" after a deploy.
+  * The bare address (rs.kat-net.us/play, /hiscores, /api) is the default world's: the first on
+    the list, or the one given "Make default" on the admin page. With no world listed and
+    running, nobody can play.
+  * The world that ran here is not deleted: its accounts and saves are on the server, untouched
+    (/opt/tsps/server/data/saves). To run it here again: MASTER_ONLY=0, put it back in
+    deploy/worlds.json ("kat-net", address rs.kat-net.us, world "Kat-Net"), commit, deploy, and
+    "npm run remote -- restart web".
+  * The website hands players the game cache; the parked service keeps it up to date.
+
 The admin page (/admin)
 -----------------------
 Makes worlds on our Pterodactyl panel from the project's egg, starts, restarts and stops them,

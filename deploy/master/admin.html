@@ -190,6 +190,7 @@ function worldRow(world) {
     act("Stop", () => power(world, "stop"));
     actions.append(el("a", { href: server.url, target: "_blank", rel: "noopener", textContent: "Panel", className: "quiet" }));
   }
+  if (state.masterOnly && world.listed && state.defaultId !== world.id) act("Make default", () => makeDefault(world));
   if (world.source !== "project") {
     act("Edit listing", () => { editing = editing === world.id ? null : world.id; render(); });
     act(world.source === "panel" ? "Delete" : "Remove", () => remove(world), "small danger");
@@ -197,7 +198,8 @@ function worldRow(world) {
   const row = el("div", { className: "world" }, [
     el("span", { className: "dot" + (world.online ? " on" : starting ? " busy" : "") }),
     el("div", {}, [
-      el("div", { className: "name" }, [world.name, el("span", { className: "tag", textContent: SOURCE[world.source] }), world.listed ? null : el("span", { className: "tag", textContent: "not listed" })]),
+      el("div", { className: "name" }, [world.name, el("span", { className: "tag", textContent: SOURCE[world.source] }), world.listed ? null : el("span", { className: "tag", textContent: "not listed" }),
+        state.defaultId === world.id ? el("span", { className: "tag", textContent: "default: plays at /play" }) : null]),
       world.description ? el("div", { className: "facts", textContent: world.description }) : null,
       el("div", { className: "facts", textContent: facts.join(" · ") }),
       links,
@@ -243,7 +245,7 @@ function render() {
   const worlds = state.worlds;
   $("worlds").replaceChildren(...(worlds.length ? worlds.map(worldRow) : [el("p", { className: "body quiet", textContent: "No worlds yet." })]));
   const online = worlds.filter((world) => world.online).length;
-  $("summary").textContent = online + " of " + worlds.length + " online";
+  $("summary").textContent = online + " of " + worlds.length + " online" + (state.masterOnly ? " · this server hosts no world of its own" : "");
   const panel = state.panel;
   const select = $("create-form").elements.place;
   const ready = panel.configured && panel.ready === true;
@@ -292,6 +294,14 @@ async function power(world, signal) {
     await api("POST", "worlds/" + world.id + "/power", { signal });
     say("Sent " + signal + " to " + world.name + ".");
     setTimeout(() => load(true), 3000);
+  } catch (error) { if (error.message !== "signed-out") say(error.message, true); }
+}
+
+async function makeDefault(world) {
+  try {
+    await api("POST", "default", { id: world.id });
+    say(world.name + " is now the world that plays at /play.");
+    await load();
   } catch (error) { if (error.message !== "signed-out") say(error.message, true); }
 }
 

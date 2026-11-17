@@ -63,12 +63,26 @@ const LOCAL_STATUS = `http://${LOCAL}:${GAME_PORT}/api/world-status`;
 /** With no list, this world alone: its name comes from the game server's own answer. */
 const THIS_WORLD = [{ id: "here", name: "", address: "localhost", secure: false, here: true, description: "" }];
 
+/**
+ * A master that runs no world of its own (MASTER_ONLY=1 in deploy/settings.env): the website,
+ * the admin page and the carrying of every world's connections, and nothing else. Its bare
+ * address (/play, /hiscores, /api) is then the default world's: the one picked on the admin
+ * page, or the first on the list. The game server beside us is parked (deploy/run.sh).
+ */
+const MASTER_ONLY = IS_MASTER && process.env.MASTER_ONLY === "1";
+
 const stampOf = (file) => { try { return fs.statSync(file).mtimeMs; } catch { return 0; } };
-function managedWorlds() {
-    if (!IS_MASTER) return [];
-    try { return listedFrom(JSON.parse(fs.readFileSync(REGISTRY_FILE, "utf8")).worlds ?? []); } catch { return []; }
+/** The admin page's file: its worlds, and the default world picked there. */
+function adminList() {
+    if (!IS_MASTER) return { worlds: [], defaultId: "" };
+    try {
+        const kept = JSON.parse(fs.readFileSync(REGISTRY_FILE, "utf8"));
+        return { worlds: listedFrom(kept.worlds ?? []), defaultId: typeof kept.default === "string" ? kept.default : "" };
+    } catch {
+        return { worlds: [], defaultId: "" };
+    }
 }
-let listed = { worlds: [], stamp: "", checked: 0 };
+let listed = { worlds: [], defaultId: "", stamp: "", checked: 0 };
 /** The project's list and, on the master, the admin page's: a world of the same id is listed once. */
 function localWorlds() {
     if (Date.now() - listed.checked > 5_000) {
@@ -76,12 +90,20 @@ function localWorlds() {
         if (stamp !== listed.stamp) {
             const project = loadWorlds(WORLDS_FILE);
             const ids = new Set(project.map((world) => world.id));
-            listed = { worlds: [...project, ...managedWorlds().filter((world) => !ids.has(world.id))], stamp, checked: Date.now() };
+            const admin = adminList();
+            listed = { worlds: [...project, ...admin.worlds.filter((world) => !ids.has(world.id))], defaultId: admin.defaultId, stamp, checked: Date.now() };
         } else {
             listed.checked = Date.now();
         }
     }
     return listed.worlds;
+}
+
+/** On a master with no world of its own: the world its bare address plays, or null when none is listed. */
+function defaultWorld() {
+    if (!MASTER_ONLY) return null;
+    const worlds = localWorlds();
+    return worlds.find((world) => world.id === listed.defaultId) ?? worlds[0] ?? null;
 }
 
 // What the master last said, kept a minute; while it does not answer, what it said before, and
@@ -113,6 +135,8 @@ async function ownWorldName() {
 
 /** The list as this world shows it (itself marked), or [] when this world is not on it. */
 async function listedWorlds() {
+    // A master with no world of its own lists every world, and none of them is "here".
+    if (MASTER_ONLY) return localWorlds();
     return listFor(await everyWorld(), await ownWorldName());
 }
 
@@ -161,8 +185,12 @@ async function answerWorldList(request, response, pathname) {
         return true;
     }
     const worlds = await listedWorlds();
+    const standard = defaultWorld();
     if (pathname === "/worlds.json") {
-        send(await worldBoard(worlds.length > 0 ? worlds : THIS_WORLD).catch(() => ({ worlds: [] })));
+        const board = await worldBoard(worlds.length > 0 ? worlds : MASTER_ONLY ? [] : THIS_WORLD).catch(() => ({ worlds: [] }));
+        // The default world of a master with none of its own is played at the bare /play.
+        if (standard) board.worlds = board.worlds.map((world) => (world.id === standard.id ? { ...world, home: "/play", play: "/play", hiscores: "/hiscores", default: true } : world));
+        send(board);
         return true;
     }
     if (worlds.length === 0) return false;
@@ -170,7 +198,9 @@ async function answerWorldList(request, response, pathname) {
     // carries it (/w/<id>). Elsewhere, a page on https cannot reach such a world: it is left out.
     const site = IS_MASTER ? { host: String(request.headers.host ?? ""), secure: secureVisitor(request) } : null;
     const reachable = secureVisitor(request) ? worlds.filter((world) => world.secure || (site && throughMaster(world))) : worlds;
-    send(serverList(reachable, site));
+    // The default world is listed at the bare address, which is also where the game client looks
+    // before a world is picked: one entry for it, not two.
+    send(serverList(reachable, site).map((entry, index) => (standard && reachable[index].id === standard.id ? { ...entry, address: site.host, secure: site.secure } : entry)));
     return true;
 }
 
@@ -337,6 +367,11 @@ function listen(staticPort) {
             );
             return;
         }
+        if (MASTER_ONLY && GAME_PATH.test(request.url ?? "")) {
+            // No world of our own: the bare address's /api is the default world's.
+            const world = defaultWorld();
+            return world ? carry(request, response, { world, rest: request.url }) : refuse(response, 503, "No world is running yet.");
+        }
         pass(request, response);
     });
 
@@ -364,17 +399,29 @@ function listen(staticPort) {
     // sockets. On the master, /w/<id> is the game connection of that world, wherever it runs.
     server.on("upgrade", (request, socket, head) => {
         const local = (url = request.url) => join(request, socket, head, net.connect(GAME_PORT, LOCAL), url, forwardedHeaders(request));
-        if (!IS_MASTER || !String(request.url ?? "").startsWith("/w/")) return local();
-        socket.on("error", () => socket.destroy());
-        carried(request.url).then((route) => {
-            if (socket.destroyed) return;
-            if (!route) return local();
-            if (!route.world) return socket.destroy();
-            if (route.world.here) return local(route.rest);
-            const target = worldTarget(route.world);
-            if (route.world.secure) join(request, socket, head, tls.connect({ ...target, servername: target.host }), route.rest, carriedHeaders(request, route.world), "secureConnect");
-            else join(request, socket, head, net.connect(target), route.rest, carriedHeaders(request, route.world));
-        }, () => socket.destroy());
+        const remote = (world, url) => {
+            const target = worldTarget(world);
+            if (world.secure) join(request, socket, head, tls.connect({ ...target, servername: target.host }), url, carriedHeaders(request, world), "secureConnect");
+            else join(request, socket, head, net.connect(target), url, carriedHeaders(request, world));
+        };
+        if (IS_MASTER && String(request.url ?? "").startsWith("/w/")) {
+            socket.on("error", () => socket.destroy());
+            carried(request.url).then((route) => {
+                if (socket.destroyed) return;
+                if (!route) return MASTER_ONLY ? socket.destroy() : local();
+                if (!route.world) return socket.destroy();
+                if (route.world.here) return local(route.rest);
+                remote(route.world, route.rest);
+            }, () => socket.destroy());
+            return;
+        }
+        if (MASTER_ONLY) {
+            // No world of our own: the bare address's game connection is the default world's.
+            const world = defaultWorld();
+            if (!world) return socket.destroy();
+            return remote(world, request.url);
+        }
+        local();
     });
 
     if (certificate) {

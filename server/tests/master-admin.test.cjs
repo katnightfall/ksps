@@ -100,7 +100,7 @@ async function fakePanel(t) {
   return { url, calls, servers, allocations, limits };
 }
 
-async function master(t, { password = PASSWORD, panelEnv } = {}) {
+async function master(t, { password = PASSWORD, panelEnv, masterOnly = false } = {}) {
   const [{ createAdmin }, { createPanel, panelSettings }, { createRegistry }, { loadWorlds }] = await Promise.all([
     load("master/admin.mjs"), load("master/panel.mjs"), load("master/registry.mjs"), load("worlds.mjs")]);
   const panelStub = await fakePanel(t);
@@ -108,12 +108,18 @@ async function master(t, { password = PASSWORD, panelEnv } = {}) {
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const settings = panelSettings(panelEnv ?? { PTERO_URL: panelStub.url, PTERO_APP_KEY: "app-key", PTERO_CLIENT_KEY: "client-key" });
   const registry = createRegistry(path.join(dir, "saves", "master-worlds.json"));
+  // The project's own list, as it was with a world on the master itself.
+  const projectList = path.join(dir, "worlds.json");
+  fs.writeFileSync(projectList, JSON.stringify([
+    { id: "kat-net", name: "Kat-Net Dallas", world: "Kat-Net", address: "rs.kat-net.us", secure: true, description: "10x custom, US/Dallas dedicated" },
+    { id: "new-york", name: "Kat-Net New York", world: "Kat-Net NYC location", address: "104.194.10.100:5000", secure: false, description: "10x custom, US/New York" },
+  ]));
   const https = new Set();
   const online = new Map([["kat-net", { online: true, players: 3, bots: 1500, experienceRate: 10 }]]);
   let clock = Date.UTC(2026, 10, 16, 12);
   const handle = createAdmin({
     password, secret: "test-secret", registry, settings, panel: createPanel(settings),
-    projectWorlds: () => loadWorlds(path.join(__dirname, "../../deploy/worlds.json")),
+    projectWorlds: () => loadWorlds(projectList), masterOnly,
     publicUrl: "https://rs.kat-net.us", proxyKey: "test-proxy-key", answersHttps: async (address) => https.has(address),
     statusOf: async (worlds) => ({ worlds: worlds.map((world) => ({ id: world.id, ...(online.get(world.id) ?? { online: false, players: null, bots: null }) })) }),
     page: path.join(__dirname, "../../deploy/master/admin.html"),
@@ -393,4 +399,32 @@ test("a key that is short of permissions: the locations still show, by node, and
   assert.equal(made.status, 502);
   assert.match(made.body.error, /the application key may not read/);
   assert.equal(m.registry.all().length, 0);
+});
+
+// The user's ask (2026-11-17): the master hosts no world of its own; the egg does the hosting on the nodes.
+test("a master with no world of its own: its bare address plays the default world, which the page can change", async (t) => {
+  const m = await master(t, { masterOnly: true });
+  await m.signIn();
+  let { body } = await m.call("GET", "state");
+  assert.deepEqual([body.masterOnly, body.defaultId], [true, "kat-net"], "the first listed world until one is picked");
+  await m.call("POST", "worlds", { name: "Chicago", place: "location-1" });
+  assert.equal((await m.call("POST", "default", { id: "nowhere" })).status, 404);
+  assert.deepEqual((await m.call("POST", "default", { id: "chicago" })).body, { ok: true, defaultId: "chicago" });
+  ({ body } = await m.call("GET", "state"));
+  assert.equal(body.defaultId, "chicago");
+  // The choice is kept in the page's own file, beside its worlds, and outlives changes to them.
+  await m.call("PATCH", "worlds/chicago", { description: "moved" });
+  await m.call("POST", "worlds/external", { name: "Friends", address: "friends.example.com", secure: true });
+  assert.equal(m.registry.getDefault(), "chicago");
+  assert.equal(JSON.parse(fs.readFileSync(m.registry.file, "utf8")).default, "chicago");
+  // A default that is unlisted or deleted falls back to the first listed world.
+  await m.call("PATCH", "worlds/chicago", { listed: false });
+  assert.equal((await m.call("GET", "state")).body.defaultId, "kat-net");
+});
+
+test("a master that runs a world itself has no default world to pick", async (t) => {
+  const m = await master(t);
+  await m.signIn();
+  const { body } = await m.call("GET", "state");
+  assert.deepEqual([body.masterOnly, body.defaultId], [false, ""]);
 });

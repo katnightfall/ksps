@@ -113,6 +113,7 @@ setInterval(async () => {
 
 const handle = createAdmin({
     answersHttps,
+    masterOnly: process.env.MASTER_ONLY === "1",
     password,
     secret: sessionSecret(),
     registry,

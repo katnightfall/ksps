@@ -18,6 +18,11 @@ CONF="${TSPS_CONF:-/etc/tsps-deploy.conf}"
 # shellcheck disable=SC1090
 if [ -f "$CONF" ]; then . "$CONF"; fi
 
+# MASTER_ONLY=1 in deploy/settings.env: this server is the master and hosts no world of its own.
+# The worlds run on the panel's nodes; here are the website, the admin page and the carrying of
+# their connections (deploy/front.mjs). Set it to 0 and deploy to run a world here again.
+MASTER_ONLY="$(sed -n 's/^MASTER_ONLY=\([01]\)[[:space:]]*$/\1/p' "$ROOT/deploy/settings.env" 2>/dev/null | tail -n 1)"
+
 case "${1:-}" in
   game)
     cd "$ROOT/server"
@@ -25,6 +30,14 @@ case "${1:-}" in
     # made here, by the service that may make it.
     mkdir -p "$ROOT/server/data/saves/master"
     export WEBSOCKET_PORT="$GAME_PORT"
+    if [ "$MASTER_ONLY" = 1 ]; then
+      # No world here. The website still hands players the game cache, which the game server
+      # used to fetch when it started: fetched here instead, beside the parked port, so a
+      # slow download cannot keep the port shut (the updater waits on it).
+      (TS_NODE_COMPILER_OPTIONS='{"target":"es2020"}' node node_modules/ts-node/dist/bin.js ./scripts/ensure-cache.ts \
+        || echo "[parked] the game cache could not be checked; the website serves the one it has") &
+      exec node "$ROOT/deploy/master/parked.mjs"
+    fi
     # The world config page saves, then exits with code 75 for systemd to start it again.
     export TSPS_SUPERVISED=1
     # The same switches as start:prod. Keep the two in step when upstream changes them.
@@ -47,7 +60,7 @@ case "${1:-}" in
     # The worlds our landing page and the game's world picker list (deploy/worlds.mjs).
     export WORLDS_FILE="${WORLDS_FILE:-deploy/worlds.json}"
     # This server is the master: the admin page (/admin) and the worlds made there (deploy/master/).
-    export MASTER_ADMIN=1
+    export MASTER_ADMIN=1 MASTER_ONLY="${MASTER_ONLY:-0}"
     # The front door: the website (client/scripts/serve-build.mjs, which it starts), and the game
     # connection and the game's /api addresses passed on to the game server, all on this one port.
     exec node "$ROOT/deploy/front.mjs"

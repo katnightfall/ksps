@@ -17,24 +17,28 @@ import path from "node:path";
 import { cleanWorld } from "../worlds.mjs";
 
 export function createRegistry(file) {
-    function read() {
+    function readFile() {
         try {
             const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
-            return Array.isArray(parsed?.worlds) ? parsed.worlds : [];
+            return { worlds: Array.isArray(parsed?.worlds) ? parsed.worlds : [], default: typeof parsed?.default === "string" ? parsed.default : "" };
         } catch {
-            return [];
+            return { worlds: [], default: "" };
         }
     }
+    const read = () => readFile().worlds;
     /** Written whole, to a file beside it first: a crash mid-write leaves the old list. */
-    function write(worlds) {
+    function write(worlds, standard = readFile().default) {
         fs.mkdirSync(path.dirname(file), { recursive: true });
         const temporary = `${file}.${process.pid}.tmp`;
-        fs.writeFileSync(temporary, `${JSON.stringify({ worlds }, null, 2)}\n`);
+        fs.writeFileSync(temporary, `${JSON.stringify({ default: standard, worlds }, null, 2)}\n`);
         fs.renameSync(temporary, file);
     }
     return {
         file,
         all: read,
+        /** The default world's id: the one the master's bare address plays when it hosts none itself. "" for the first listed. */
+        getDefault: () => readFile().default,
+        setDefault(id) { write(read(), id); },
         get: (id) => read().find((world) => world.id === id) ?? null,
         add(world) {
             const worlds = read();

@@ -6,6 +6,7 @@
  *   POST   /admin/api/login               { password }
  *   POST   /admin/api/logout
  *   GET    /admin/api/state               the panel (egg, nodes) and every world with how it is
+ *   POST   /admin/api/default             { id }: the world the master's bare address plays
  *   POST   /admin/api/worlds              make a world on the panel
  *   POST   /admin/api/worlds/external     add a world that already runs somewhere, by its address
  *   PATCH  /admin/api/worlds/<id>         its listing: name, address, secure, description, listed
@@ -188,8 +189,14 @@ export function createAdmin(options) {
             Promise.all(worlds.map((world) => (world.panel && settings.configured ? panel.state(world.panel.identifier) : null))),
         ]);
         const statuses = new Map(board.worlds.map((world) => [world.id, world]));
+        // On a master with no world of its own, the world its bare address plays: the one picked
+        // here, else the first listed (deploy/front.mjs defaultWorld).
+        const listedIds = usable.filter((world, index) => world && worlds[index].listed !== false).map((world) => world.id);
+        const picked = registry.getDefault();
         return {
             site: publicUrl,
+            masterOnly: options.masterOnly === true,
+            defaultId: options.masterOnly === true ? (listedIds.includes(picked) ? picked : listedIds[0] ?? "") : "",
             storage,
             defaults: DEFAULTS,
             panel: panelInfo,
@@ -352,6 +359,13 @@ export function createAdmin(options) {
             if (action === "state" && method === "GET") return send(response, 200, await state());
             // For a world set up by hand (its egg's "Master proxy key"): asked for, never sent with the state.
             if (action === "proxy-key" && method === "GET") return send(response, 200, { key: options.proxyKey ?? "" });
+            if (action === "default" && method === "POST") {
+                if (storage) throw new Refusal(503, storage);
+                const id = text((await readBody(request)).id, 40);
+                if (![...options.projectWorlds(), ...registry.all()].some((world) => world.id === id)) throw new Refusal(404, "There is no such world.");
+                registry.setDefault(id);
+                return send(response, 200, { ok: true, defaultId: id });
+            }
             if (action === "worlds" && method === "POST") return send(response, 201, await createWorld(await readBody(request)));
             if (action === "worlds/external" && method === "POST") return send(response, 201, addExternal(await readBody(request)));
             const world = /^worlds\/([a-z0-9-]{1,40})(\/power)?$/.exec(action);
