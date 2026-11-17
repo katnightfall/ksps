@@ -176,9 +176,12 @@ are each world's own too, so a character levels faster on a world with a higher 
 
 Area loot
 ---------
-A player picks up what lies around them without walking to each pile: the Area Loot panel in
-the client's sidebar lists the drops in reach (name, amount, guide value) with a Take all
-button, and a click on a row takes that pile; typing ::loot does the same. The distance is
+A player picks up what lies around them without walking to each pile. A small window opens in
+the game when something they can take drops in reach: the items as pictures with their amounts,
+their guide value in all, and a Take all button; a click on an item takes that pile. The
+window drags by its title, its cross closes it until something new drops, ::lootwindow opens
+or closes it by hand (and the Area Loot plugin's "Open by itself" setting stops it opening
+alone). Typing ::loot takes everything without the window. The distance is
 the world's (world setting AreaLoot:radius, 1 to 30 tiles, default 10). The game's own
 pick-up rules decide what comes: the player's floor, what they can see and may take (another
 player's fresh drop is not theirs), room in the backpack. Items the world itself puts out

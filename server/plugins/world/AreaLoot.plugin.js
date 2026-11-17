@@ -4,8 +4,9 @@
  *   ::loot                     everything they may take within the world's loot distance
  *   ::loot <item> <x> <y>      one pile: that item on that tile
  *
- * The client's Area Loot panel (client/game/plugins/arealoot) lists what is in range and sends
- * these; typed in chat they work the same. GET /api/area-loot tells the panel the distance.
+ * The client's Area Loot window (client/game/plugins/arealoot) pops up in the game with what
+ * is in range and sends these; typed in chat they work the same. GET /api/area-loot tells the
+ * window the distance.
  *
  * What may be taken is what the player could take by walking there, decided by the game's own
  * rules for ground items (ItemOnGroundManager): it is on their floor, they can see it, the
@@ -135,7 +136,7 @@ function lootCommand({ player, parts }) {
   return true;
 }
 
-/** GET /api/area-loot: what the client's panel needs to list the same piles. */
+/** GET /api/area-loot: what the client's window needs to list the same piles. */
 function settings(query, segments) {
   if (segments.length) return undefined;
   return { enabled: enabled(), radius: radius(), wilderness: wildernessAllowed() };
@@ -143,11 +144,11 @@ function settings(query, segments) {
 
 module.exports = {
   name: "AreaLoot",
-  description: "Area loot: ::loot picks up everything a player may take within the world's loot distance, by the game's own pick-up rules, without walking to each pile. The client's Area Loot panel lists what is in range.",
+  description: "Area loot: ::loot picks up everything a player may take within the world's loot distance, by the game's own pick-up rules, without walking to each pile. The client's Area Loot window lists what is in range.",
   config: {
     [ENABLED_CONFIG]: {
       type: "boolean", label: "Area loot", default: true,
-      help: "Players may pick up what lies around them with ::loot or the client's Area Loot panel, without walking to each pile.",
+      help: "Players may pick up what lies around them with ::loot or the client's Area Loot window, without walking to each pile.",
     },
     [RADIUS_CONFIG]: {
       type: "number", label: "Area loot distance (tiles)", default: DEFAULT_RADIUS, integer: true, min: 1, max: MAX_RADIUS,

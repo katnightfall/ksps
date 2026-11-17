@@ -413,7 +413,7 @@ After changing a plugin's `description` or `config`, run `yarn --cwd server worl
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
-| `AreaLoot:enabled` | boolean | `true` | **Area loot.** Players may pick up what lies around them with ::loot or the client's Area Loot panel, without walking to each pile. |
+| `AreaLoot:enabled` | boolean | `true` | **Area loot.** Players may pick up what lies around them with ::loot or the client's Area Loot window, without walking to each pile. |
 | `AreaLoot:radius` | number (integer, >= 1, <= 30) | `10` | **Area loot distance (tiles).** How far from the player area loot reaches, in tiles (1 to 30). |
 | `AreaLoot:wilderness` | boolean | `false` | **Area loot in the Wilderness.** Off (recommended): in the Wilderness loot is picked up on foot, so a kill's loot can be fought over. |
 | `CrossFloor:combat` | boolean | *Off unless enabled by a legacy environment flag* | **Cross-floor combat.** Allows ranged and magic attacks between floors while CrossFloor is enabled. |
@@ -1003,7 +1003,7 @@ This table lists bundled plugins that have a description. The world config page 
 | `RewardCaskets` | RewardCaskets | treasuretrails | yes | Rolls the reward items for a treasure trail casket by tier when the trails plugin asks, applying the player's unique-roll multiplier. (members only) |
 | `TreasureTrails` | TreasureTrails | treasuretrails | yes | Clue scroll treasure trails: clue steps, caskets, STASH units, puzzle boxes, skill and light clues, Falo, hot-cold devices and Watson. (members only) |
 | `ArceuusLibrary` | ArceuusLibrary | world | yes | Arceuus Library: customers Sam, Professor Gracklebone and Villia request books, shelves are searched for the rotating layout, and the book is handed in. (members only) |
-| `AreaLoot` | AreaLoot | world | yes | Area loot: ::loot picks up everything a player may take within the world's loot distance, by the game's own pick-up rules, without walking to each pile. The client's Area Loot panel lists what is in range. |
+| `AreaLoot` | AreaLoot | world | yes | Area loot: ::loot picks up everything a player may take within the world's loot distance, by the game's own pick-up rules, without walking to each pile. The client's Area Loot window lists what is in range. |
 | `AttackDummies` | AttackDummies | world | yes | Lets players Attack training dummies: plays the hit and defend animations and gives Attack XP up to level 7, with a message on ranged attacks. |
 | `BalloonTransport` | BalloonTransport | world | yes | Balloon transport after Enlightened Journey: Auguste's balloon map, trips between Entrana, Taverley, Varrock, Castle Wars and others, and shared log storage. (members only) |
 | `BarnabyFerry` | BarnabyFerry | world | yes | Captain Barnaby's ferry from the Ardougne, Brimhaven and Rimmington docks, with his dialogue and a fade between ports. (members only) |

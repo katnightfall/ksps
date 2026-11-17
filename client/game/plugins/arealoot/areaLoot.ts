@@ -1,7 +1,7 @@
 /**
  * Ours. Area loot: which ground items are in reach of the server's ::loot, and what to send.
  * The server decides what is actually taken (server/plugins/world/AreaLoot.plugin.js); this
- * lists the same piles so the panel shows what a click will bring.
+ * lists the same piles so the window shows what a click will bring.
  */
 export type AreaLootStack = {
     id: number;
@@ -83,4 +83,34 @@ export function sameRows(a: ReadonlyArray<AreaLootRow>, b: ReadonlyArray<AreaLoo
         const other = b[index];
         return row.id === other.id && row.quantity === other.quantity && row.distance === other.distance && row.value === other.value;
     });
+}
+
+export type AreaLootPosition = { x: number; y: number };
+
+/** The window's place as it is kept in the settings ("x,y"); anything else gives `fallback`. */
+export function parsePosition(raw: string, fallback: AreaLootPosition): AreaLootPosition {
+    const [x, y] = String(raw ?? "").split(",").map((part) => Number(part.trim()));
+    return Number.isFinite(x) && Number.isFinite(y) ? { x: Math.max(0, Math.round(x)), y: Math.max(0, Math.round(y)) } : fallback;
+}
+
+/** A dragged window stays whole inside the game view (when the view's and its own size are known). */
+export function clampPosition(
+    at: AreaLootPosition,
+    view?: { width: number; height: number },
+    size?: { width: number; height: number },
+): AreaLootPosition {
+    const maxX = view && size ? Math.max(0, view.width - size.width) : Infinity;
+    const maxY = view && size ? Math.max(0, view.height - size.height) : Infinity;
+    return { x: Math.round(Math.max(0, Math.min(maxX, at.x))), y: Math.round(Math.max(0, Math.min(maxY, at.y))) };
+}
+
+/**
+ * Whether the window shows. Opened by hand it shows while there is anything to list. Left to
+ * open by itself, it shows when a pile is listed that was not there when the player last
+ * closed it: closing it means "not these", not "never again".
+ */
+export function windowOpen(rows: ReadonlyArray<Pick<AreaLootRow, "id">>, dismissed: ReadonlySet<number>, autoOpen: boolean, forced: boolean): boolean {
+    if (rows.length === 0) return false;
+    if (forced) return true;
+    return autoOpen && rows.some((row) => !dismissed.has(row.id));
 }
