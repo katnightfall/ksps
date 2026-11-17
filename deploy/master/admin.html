@@ -258,7 +258,8 @@ function render() {
   const worlds = state.worlds;
   $("worlds").replaceChildren(...(worlds.length ? worlds.map(worldRow) : [el("p", { className: "body quiet", textContent: "No worlds yet." })]));
   const online = worlds.filter((world) => world.online).length;
-  $("summary").textContent = online + " of " + worlds.length + " online" + (state.masterOnly ? " · this server hosts no world of its own" : "");
+  $("summary").textContent = online + " of " + worlds.length + " online" + (state.masterOnly ? " · this server hosts no world of its own" : "") +
+    (state.characters ? " · " + state.characters.characters + " shared character" + (state.characters.characters === 1 ? "" : "s") + ", " + state.characters.online + " in a world" : "");
   // One click for every world made here: shown once there is more than nothing to click.
   const run = worlds.filter((world) => world.server).length;
   for (const id of ["restart-all", "start-all", "stop-all"]) $(id).hidden = run === 0;

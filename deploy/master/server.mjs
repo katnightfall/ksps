@@ -18,7 +18,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createStatusBoard, fetchJson, loadWorlds } from "../worlds.mjs";
+import { masterResetId } from "../reset-accounts.mjs";
 import { createAdmin, MIN_PASSWORD } from "./admin.mjs";
+import { createCharacterStore, createSyncApi } from "./characters.mjs";
 import { createPanel, panelSettings } from "./panel.mjs";
 import { createRegistry } from "./registry.mjs";
 
@@ -101,6 +103,12 @@ async function answersHttps(address) {
     return ok;
 }
 
+// One set of characters for every world (deploy/master/characters.mjs): the worlds made here
+// hold the proxy key, and hand their saves in under it at /sync/...
+const sharedKey = proxyKey();
+const characters = createCharacterStore(path.join(DATA_DIR, "characters.sqlite"), () => masterResetId(ROOT));
+const sync = createSyncApi({ store: characters, key: () => sharedKey });
+
 const registry = createRegistry(REGISTRY_FILE);
 // A world made here that has started answering on https at its node's name is listed there from
 // then on, whether or not anyone has the admin page open.
@@ -118,7 +126,8 @@ const handle = createAdmin({
     secret: sessionSecret(),
     registry,
     storage,
-    proxyKey: proxyKey(),
+    proxyKey: sharedKey,
+    characters: () => { try { return characters.counts(); } catch { return null; } },
     projectWorlds: () => loadWorlds(worldsFile),
     panel: createPanel(settings),
     settings,
@@ -127,7 +136,10 @@ const handle = createAdmin({
     page: path.join(HERE, "admin.html"),
 });
 
-http.createServer((request, response) => { handle(request, response); }).listen(PORT, LOCAL, function listening() {
+http.createServer(async (request, response) => {
+    if (await sync(request, response)) return;
+    handle(request, response);
+}).listen(PORT, LOCAL, function listening() {
     const notes = [
         password.length >= MIN_PASSWORD ? null : `off until MASTER_ADMIN_PASSWORD (${MIN_PASSWORD}+ characters) is set`,
         settings.configured ? null : `the panel is not set up (${settings.missing.join(", ")})`,

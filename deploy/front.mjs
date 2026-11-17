@@ -11,6 +11,8 @@
  *                                       world picker and the other worlds
  *   /admin...                        -> the master's admin page (deploy/master/), on our own
  *                                       server only: worlds made and run through the panel
+ *   /sync/...                        -> the same process: its worlds' shared characters
+ *                                       (deploy/master/characters.mjs), for worlds with its key
  *   anything else                    -> the website (client/scripts/serve-build.mjs, started
  *                                       here on a private port)
  *
@@ -286,7 +288,9 @@ function worldTarget(world) {
     return { host, port: Number(port) || (world.secure ? 443 : 80) };
 }
 
-const ADMIN_PATH = /^\/admin(\/|\?|$)/;
+// /admin is the admin page; /sync/ is where the master's worlds hand in and fetch their
+// characters (deploy/master/characters.mjs). Both are the master's own process.
+const ADMIN_PATH = /^\/(admin(\/|\?|$)|sync\/)/;
 // The master's admin page (deploy/master/server.mjs), on our own server only: a process of its
 // own on a private port, started again by itself if it stops. Nothing of a player's is in it.
 let masterPort = 0;

@@ -1479,6 +1479,20 @@ export class ClientConnection {
     }
     this.reservePendingName(accountKey);
 
+    // Ours: a plugin may have work to do before the account's saves are read (a world of a
+    // master fetches them from it: plugins/world/MasterSync), and may refuse the login.
+    const preparing = { names: [...new Set([primaryName, ...accountNames])], refuse: null as string | null };
+    await PluginManager.prepareLogin(preparing);
+    if (this.closed) {
+      this.releasePendingName();
+      return;
+    }
+    if (preparing.refuse) {
+      this.releasePendingName();
+      this.failLogin(5, preparing.refuse);
+      return;
+    }
+
     // `save` is the primary character's save for this world: it holds the remembered logins.
     let save: any | null = null;
     // The account's credential is its main character's save; another character's own hash (a

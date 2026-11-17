@@ -132,10 +132,57 @@ world is stopped. Only the master calls a reset, and only worlds told about it b
 apply it, so a world of somebody else's started from the public egg is never touched. A world
 that joins the master later is not wiped by resets called before it joined.
 
+The master's own copy of the characters (below) is set aside the same way, at once:
+characters-<date>-<time>.sqlite beside it. A world that has not restarted since still has the
+old characters and plays on by itself, sharing nothing, until it has.
+
+One set of characters for every world
+-------------------------------------
+A character is the same on every world made on the admin page, and an account can be in one
+world at a time ("Your account is logged in on <world>"). The master keeps the latest save of
+every character (server/data/saves/master/characters.sqlite; deploy/master/characters.mjs), and
+each world (server/plugins/world/MasterSync.plugin.js):
+
+  at a login     fetches the account's saves from the master and plays from them
+  while played   hands in each save the game makes (autosaves within seconds, the logout save
+                 at once), and says every half minute who is on it
+  all the time   copies the saves the other worlds handed in, so its hiscores rank every
+                 character, whichever world it plays on: the hiscores are the same everywhere
+
+A world shares when it has the master's address and key (the egg's WORLDS_MASTER_URL and
+MASTER_PROXY_KEY, which the admin page fills in). With the master out of reach a login waits
+("The account server can't be reached"): playing on from an old copy would undo what was done
+on another world (world setting MasterSync:offlineLogins allows it; MasterSync:enabled false
+keeps a world's characters to itself). A world that stops without a word lets its characters
+go after two and a half minutes.
+
+Not shared, still each world's own: bans and mutes, extra characters under one account,
+changed display names, clans, and the bots (a bot's save is never handed in). Experience rates
+are each world's own too, so a character levels faster on a world with a higher rate.
+
 New characters and bots
 -----------------------
 A new character starts with OSRS's Tutorial Island kit and 25 coins in the bank
 (server/plugins/world/StarterKit.plugin.js; world setting StarterKit:enabled).
+
+The levelling bots start the same way, with that kit, and are handed nothing after it
+(server/plugins/bots/brain/OwnItems.PlayerBots.js; world setting PlayerBots:earnOwnItems). A
+tool, bait, arrows, runes, food or armour is something a bot carries, has in its bank, bought
+in a shop with coins it earned (it sells what it gathers when it is saving for something), or
+picked up from its own kill. With no axe and no coins for one, it does something else until it
+can pay. In a fight it wears the best of what it has, keeps to its own style (bow or spells)
+while its arrows or runes last, eats what it cooked and banked, and stops when it is hurt with
+nothing left to eat. Bots of other kinds (the Wilderness, mini-games) are outfitted as before.
+
+They trade on the Grand Exchange too (server/plugins/bots/brain/BotExchange.PlayerBots.js; the
+"trading" share of the crowd in world.json). The exchange here is a market that fills every
+offer by itself after a wait, at the going price, so it never runs dry. The bots' offers are
+real ones on top of that, and are met first: a bot walks to Varrock, puts up the logs, ore, bars
+and fish it banked (it no longer drops them), and bids for what it is saving for. A player's buy
+offer at a bot's price or better is filled from the bots at once, and a player selling what a
+bot bids for sells to the bot. What no player took after 20 minutes the market buys, and a bid
+no player met after 10 the market fills, so a bot is always paid in the end. The bots' book is
+server/data/saves/bot-exchange.json.
 
 Worlds played on the master's site
 ----------------------------------

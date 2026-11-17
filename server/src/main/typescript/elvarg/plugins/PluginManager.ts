@@ -837,6 +837,28 @@ export class PluginManager {
     }
   }
 
+  /**
+   * Ours: work to be done before a login reads the account's saves (world/MasterSync fetches
+   * them from the world's master). A handler may wait (it is awaited) and may refuse the login
+   * by setting `refuse` to what the player is told. `names` are the account's login names.
+   */
+  private static loginPreparers: Array<(request: { names: string[]; refuse: string | null }) => unknown> = [];
+
+  public static onLoginPrepare(handler: (request: { names: string[]; refuse: string | null }) => unknown): void {
+    if (typeof handler === "function") PluginManager.loginPreparers.push(handler);
+  }
+
+  public static async prepareLogin(request: { names: string[]; refuse: string | null }): Promise<void> {
+    for (const handler of PluginManager.loginPreparers) {
+      if (request.refuse) return;
+      try {
+        await handler(request);
+      } catch (error) {
+        console.error("[plugins] a login preparer failed", error);
+      }
+    }
+  }
+
   public static emitPlayerLogout(event: PluginPlayerLogoutEvent): void {
     if (PluginManager.logoutHooks.length === 0) {
       return;

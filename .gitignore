@@ -114,3 +114,7 @@ server/data/definitions/bot-activities.local.json.tmp
 # What the Pterodactyl launcher last built (deploy/pterodactyl/launch.mjs)
 .egg-state.json
 .egg-tmp/
+
+# Ours: what the bots have up on the Grand Exchange, and a world's syncing state with its master.
+/server/data/saves/bot-exchange.json
+/server/data/saves/master-sync.json

@@ -198,6 +198,8 @@ export function createAdmin(options) {
         return {
             site: publicUrl,
             masterOnly: options.masterOnly === true,
+            // The characters every world shares (deploy/master/characters.mjs): how many, and how many are in a world.
+            characters: options.characters?.() ?? null,
             defaultId: options.masterOnly === true ? (listedIds.includes(picked) ? picked : listedIds[0] ?? "") : "",
             storage,
             defaults: DEFAULTS,
