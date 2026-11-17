@@ -93,7 +93,20 @@ test("the master's id is its settings' part and its admin page's part; either ch
 
 test("the egg's launcher asks its master before the game starts, and only a world with a master does", () => {
   const launcher = fs.readFileSync(path.join(__dirname, "../../deploy/pterodactyl/launch.mjs"), "utf8");
-  assert.match(launcher, /if \(text\(env\.WORLDS_MASTER_URL\)\) \{\s*spawnSync\(process\.execPath, \[path\.join\(ROOT, "deploy\/reset-accounts\.mjs"\), "--from-master"/);
+  assert.match(launcher, /if \(text\(env\.WORLDS_MASTER_URL\)\) \{\s*spawnSync\(process\.execPath, \[path\.join\(ROOT, "deploy\/reset-accounts\.mjs"\), "--from-master", text\(env\.WORLDS_MASTER_URL\), "--world", text\(env\.WORLD_NAME\)\]/);
   const run = fs.readFileSync(path.join(__dirname, "../../deploy/run.sh"), "utf8");
   assert.ok(run.indexOf('node "$ROOT/deploy/reset-accounts.mjs" || true') < run.indexOf("./dist/Server.js"), "the master's own world: before the game opens its saves");
+});
+
+test("a world the master made applies the first reset it hears of; one joined by hand only notes it", async () => {
+  const { bornUnderMaster } = await reset;
+  const worlds = [
+    { id: "1", name: "1 - Kat-Net - US Dallas", world: "1", address: "node.example.com:5000", secure: false, headless: true },
+    { id: "friends", name: "Friends", world: "Friends World", address: "friends.example.com", secure: true },
+  ];
+  assert.equal(bornUnderMaster(worlds, "1"), true, "made on the admin page");
+  assert.equal(bornUnderMaster(worlds, "Friends World"), false, "added by its address");
+  assert.equal(bornUnderMaster(worlds, "Somebody else"), false, "not on the list at all");
+  for (const name of ["", undefined, null]) assert.equal(bornUnderMaster(worlds, name), false);
+  assert.equal(bornUnderMaster(null, "1"), false);
 });

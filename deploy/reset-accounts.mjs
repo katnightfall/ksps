@@ -11,11 +11,12 @@
  * (server/data/saves/.accounts-reset), before its game server starts:
  *   the master's own world    node deploy/reset-accounts.mjs            (deploy/run.sh)
  *   a world made by the master node deploy/reset-accounts.mjs --from-master <address>
- *                             (deploy/pterodactyl/launch.mjs; the id comes with the world list)
+ *                             --world <its name>   (deploy/pterodactyl/launch.mjs; the id
+ *                             comes with the world list)
  *
- * A world that has never heard of a reset (no marker) only notes the id it is first given: an
- * existing world newly joined to a master is not wiped by a reset called before it joined. The
- * master's own saves have no such doubt and are reset. A world with no master is never reset:
+ * A world joined to a master by hand that has never heard of a reset (no marker) only notes the
+ * id it is first given: it is not wiped by a reset called before it joined. A world the master
+ * made (on its admin page) and the master's own saves have no such doubt and are reset. A world with no master is never reset:
  * nothing in this project's own files can wipe somebody else's world.
  *
  * Kept in place: bans and mutes, the bank PIN key, and the master's own folder.
@@ -82,6 +83,17 @@ export function applyReset(savesDir, id, { adopt = false, now = new Date() } = {
     return { result: "reset", moved: entries, backup };
 }
 
+/**
+ * Whether the world named `worldName` was made by the master (on its admin page: such worlds are
+ * the list's headless ones). It has been the master's since it was made, so every reset the
+ * master calls is meant for it, the first one it hears of included. Any other world (one joined
+ * to the master by hand) only notes its first.
+ */
+export function bornUnderMaster(worlds, worldName) {
+    if (!Array.isArray(worlds) || typeof worldName !== "string" || !worldName) return false;
+    return worlds.some((world) => world?.world === worldName && world.headless === true);
+}
+
 async function main(argv) {
     const saves = path.join(ROOT, "server", "data", "saves");
     const from = argv.indexOf("--from-master");
@@ -90,14 +102,16 @@ async function main(argv) {
         // A world of a master: the id comes with the world list. No answer, no reset.
         const master = String(argv[from + 1] ?? "").replace(/\/+$/, "");
         if (!/^https?:\/\/[^\s/]+$/.test(master)) return;
+        let answer;
         try {
             const response = await fetch(`${master}/world-list.json`, { signal: AbortSignal.timeout(8000), headers: { Accept: "application/json" } });
             if (!response.ok) return;
-            id = clean((await response.json()).accountsReset);
+            answer = await response.json();
         } catch {
             return;
         }
-        adopt = true;
+        id = clean(answer.accountsReset);
+        adopt = !bornUnderMaster(answer.worlds, argv[argv.indexOf("--world") + 1]);
     } else {
         id = masterResetId(ROOT);
     }

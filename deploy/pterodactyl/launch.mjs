@@ -327,7 +327,7 @@ function start(env) {
     // opens its saves (deploy/reset-accounts.mjs: moved aside, never deleted; a world with no
     // master is never reset).
     if (text(env.WORLDS_MASTER_URL)) {
-        spawnSync(process.execPath, [path.join(ROOT, "deploy/reset-accounts.mjs"), "--from-master", text(env.WORLDS_MASTER_URL)], { cwd: ROOT, stdio: "inherit", timeout: 30_000 });
+        spawnSync(process.execPath, [path.join(ROOT, "deploy/reset-accounts.mjs"), "--from-master", text(env.WORLDS_MASTER_URL), "--world", text(env.WORLD_NAME)], { cwd: ROOT, stdio: "inherit", timeout: 30_000 });
     }
     let stopping = false;
     let game = null;
