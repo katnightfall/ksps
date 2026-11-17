@@ -342,7 +342,9 @@ function start(env) {
         env: { ...env, PORT: String(port), HOST: "0.0.0.0", GAME_PORT: String(GAME_PORT), CACHE_DIR: path.join(ROOT, "server/caches"),
             WORLDS_MASTER_URL: text(env.WORLDS_MASTER_URL),
             // Headless: the game and its /api only. MASTER_PROXY_KEY: the master's word on who a visitor is.
-            FRONT_HEADLESS: text(env.HEADLESS) === "1" ? "1" : "", MASTER_PROXY_KEY: text(env.MASTER_PROXY_KEY) },
+            FRONT_HEADLESS: text(env.HEADLESS) === "1" ? "1" : "", MASTER_PROXY_KEY: text(env.MASTER_PROXY_KEY),
+            // https at the node's own name, when the node shows the world its certificate.
+            FRONT_TLS_CERT: text(env.TLS_CERT), FRONT_TLS_KEY: text(env.TLS_KEY) },
         stdio: ["ignore", "inherit", "inherit"],
     });
     front.on("exit", (code) => {
@@ -370,10 +372,11 @@ function start(env) {
     if (!fs.existsSync(path.join(ROOT, "server/caches"))) say("The first start downloads the game cache (about 250 MB), so it takes a while longer.");
     const waitForGame = setInterval(async () => {
         try {
-            const answer = await fetch(`http://127.0.0.1:${port}/api/world-info`, { signal: AbortSignal.timeout(2000) });
+            // Asked of the game server itself: the front door may be answering on https.
+            const answer = await fetch(`http://127.0.0.1:${GAME_PORT}/api/world-info`, { signal: AbortSignal.timeout(2000) });
             if (!answer.ok) return;
             clearInterval(waitForGame);
-            console.log(`${READY_LINE}: the website and the game answer on port ${port}.`);
+            console.log(`${READY_LINE}: ${text(env.HEADLESS) === "1" ? "the game answers" : "the website and the game answer"} on port ${port}.`);
         } catch { /* not up yet */ }
     }, 2000);
     waitForGame.unref();

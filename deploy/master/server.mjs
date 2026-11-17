@@ -91,10 +91,31 @@ const statusBoard = createStatusBoard(async (world) => {
     return fetchJson(ownName !== null && world.world === ownName ? localStatus : `${world.secure ? "https" : "http"}://${world.address}/api/world-status`);
 });
 
+// Whether a world answers on https at its address, asked at most every two minutes per address.
+const httpsSeen = new Map();
+async function answersHttps(address) {
+    const kept = httpsSeen.get(address);
+    if (kept && Date.now() - kept.at < 120_000) return kept.ok;
+    const ok = await fetchJson(`https://${address}/api/world-status`, 2_500).then(() => true, () => false);
+    httpsSeen.set(address, { at: Date.now(), ok });
+    return ok;
+}
+
+const registry = createRegistry(REGISTRY_FILE);
+// A world made here that has started answering on https at its node's name is listed there from
+// then on, whether or not anyone has the admin page open.
+setInterval(async () => {
+    if (storage) return;
+    for (const record of registry.all()) {
+        if (record.panel && record.secure === false && await answersHttps(record.address)) registry.update(record.id, { secure: true });
+    }
+}, 60_000).unref();
+
 const handle = createAdmin({
+    answersHttps,
     password,
     secret: sessionSecret(),
-    registry: createRegistry(REGISTRY_FILE),
+    registry,
     storage,
     proxyKey: proxyKey(),
     projectWorlds: () => loadWorlds(worldsFile),

@@ -30,6 +30,8 @@ const PANEL_CACHE_MS = 30_000;
 export const MIN_PASSWORD = 12;
 /** What a world's server gets unless the form says otherwise (the egg needs 4 GB to build). */
 export const DEFAULTS = { memoryMb: 6144, diskMb: 15360, cpu: 0, xpRate: 10, bots: 100 };
+/** Where a node keeps the certificate for its own name (Let's Encrypt's layout, as Wings uses). */
+const TLS_DIR = "/etc/letsencrypt/live";
 
 class Refusal extends Error {
     constructor(status, message) {
@@ -47,6 +49,14 @@ function number(value, { min, max, whole = true, name }) {
     return n;
 }
 
+/** Where the world goes: a place from the location picker ("location-3", "node-2"), or a node outright. */
+function readPlace(body) {
+    const place = text(body?.place, 40);
+    if (/^(location|node)-\d{1,9}$/.test(place)) return { place };
+    if (body?.nodeId === undefined || body?.nodeId === "") throw new Refusal(400, "Pick a location.");
+    return { nodeId: number(body.nodeId, { min: 1, max: 1e9, name: "The node" }) };
+}
+
 /** What the create form sent, checked. */
 export function readNewWorld(body) {
     const name = text(body?.name, 40);
@@ -55,7 +65,7 @@ export function readNewWorld(body) {
     return {
         name,
         description: text(body?.description, 120) || "A new world.",
-        nodeId: number(body?.nodeId, { min: 1, max: 1e9, name: "The node" }),
+        ...readPlace(body),
         xpRate: number(body?.xpRate ?? DEFAULTS.xpRate, { min: 1, max: 1000, whole: false, name: "The XP rate" }),
         bots: number(body?.bots ?? DEFAULTS.bots, { min: 0, max: 2000, name: "Bots" }),
         developers: text(body?.developers, 200),
@@ -139,8 +149,8 @@ export function createAdmin(options) {
         if (!fresh && now() - panelCache.at < PANEL_CACHE_MS) return panelCache.value;
         let value;
         try {
-            const [egg, nodes] = await Promise.all([panel.egg(), panel.nodes()]);
-            value = { configured: true, host: new URL(settings.url).host, egg: { id: egg.id, name: egg.name }, nodes };
+            const [egg, nodes, places] = await Promise.all([panel.egg(), panel.nodes(), panel.places()]);
+            value = { configured: true, host: new URL(settings.url).host, egg: { id: egg.id, name: egg.name }, nodes, places };
         } catch (error) {
             value = { configured: true, host: new URL(settings.url).host, error: error.message };
         }
@@ -149,6 +159,13 @@ export function createAdmin(options) {
     }
 
     async function state() {
+        // A world made here that has started answering on https at its node's name (the node lets
+        // it read the certificate) is from then on listed there, and reached directly.
+        if (options.answersHttps && !storage) {
+            await Promise.all(registry.all().filter((record) => record.panel && record.secure === false).map(async (record) => {
+                if (await options.answersHttps(record.address)) registry.update(record.id, { secure: true });
+            }));
+        }
         const project = options.projectWorlds().map((world) => ({ ...world, source: "project", listed: true }));
         const managed = registry.all().map((record) => ({ ...record, source: record.panel ? "panel" : "added" }));
         const worlds = [...project, ...managed];
@@ -169,6 +186,7 @@ export function createAdmin(options) {
                 return {
                     id: world.id, name: world.name, world: world.world ?? world.name, address: world.address, secure: world.secure !== false,
                     description: world.description ?? "", listed: world.listed !== false, source: world.source,
+                    location: world.location ?? "", headless: world.headless === true,
                     createdAt: world.createdAt ?? null,
                     online: status?.online === true, players: status?.players ?? null, bots: status?.bots ?? null, experienceRate: status?.experienceRate ?? null,
                     link: `${world.secure !== false ? "https" : "http"}://${world.address}/`,
@@ -186,10 +204,13 @@ export function createAdmin(options) {
         if (used.names.has(world.name.toLowerCase())) throw new Refusal(409, `There is already a world called "${world.name}".`);
         let id = slug(world.name);
         for (let n = 2; used.ids.has(id); n++) id = `${slug(world.name).slice(0, 36)}-${n}`;
+        const nodeId = world.nodeId ?? await panel.nodeIn(world.place);
+        const fqdn = (await panel.nodes()).find((node) => node.id === nodeId)?.fqdn ?? "";
+        const named = fqdn && !/^[\d.]+$|:/.test(fqdn);
         const made = await panel.createWorld({
             name: world.name,
             description: world.description,
-            nodeId: world.nodeId,
+            nodeId,
             externalId: `tsps-world-${id}`,
             memoryMb: world.memoryMb, diskMb: world.diskMb, cpu: world.cpu,
             environment: {
@@ -204,12 +225,17 @@ export function createAdmin(options) {
                 // serves no website of its own, and believes the visitor's address we sign.
                 HEADLESS: "1",
                 MASTER_PROXY_KEY: options.proxyKey ?? "",
+                // https at the node's own name, with the node's own certificate, where the node
+                // lets the world read it (deploy/README.txt). Where it does not, the world answers
+                // on plain http and is played through us as before.
+                ...(named ? { TLS_CERT: `${TLS_DIR}/${fqdn}/fullchain.pem`, TLS_KEY: `${TLS_DIR}/${fqdn}/privkey.pem` } : {}),
             },
         });
         panelCache.at = -Infinity; // a port was taken
         return registry.add({
             id, name: world.name, world: world.name, address: `${made.host}:${made.port}`, secure: false,
-            description: world.description, listed: true, createdAt: new Date(now()).toISOString(),
+            description: world.description, listed: true, headless: true, createdAt: new Date(now()).toISOString(),
+            location: made.nodeName ?? "",
             panel: { serverId: made.serverId, identifier: made.identifier, nodeId: made.nodeId, allocationId: made.allocationId },
         });
     }

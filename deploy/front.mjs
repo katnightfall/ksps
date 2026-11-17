@@ -124,7 +124,22 @@ const worldBoard = createStatusBoard(
 
 /** Whether the visitor's page is https: an https page may not open an insecure game connection. */
 function secureVisitor(request) {
-    return request.headers["x-forwarded-proto"] === "https" || String(request.headers["cf-visitor"] ?? "").includes('"scheme":"https"');
+    return request.socket?.encrypted === true || request.headers["x-forwarded-proto"] === "https" || String(request.headers["cf-visitor"] ?? "").includes('"scheme":"https"');
+}
+
+// https of our own (FRONT_TLS_CERT and FRONT_TLS_KEY, two PEM files): a world on a panel node
+// answers at the node's own name with the node's own certificate, so a page on https can connect
+// to it directly. Files that cannot be read (the node does not show them to the world) leave the
+// world on plain http, where its master carries it. A renewed certificate is taken up within the hour.
+const TLS_FILES = { cert: String(process.env.FRONT_TLS_CERT ?? "").trim(), key: String(process.env.FRONT_TLS_KEY ?? "").trim() };
+function readCertificate() {
+    if (!TLS_FILES.cert || !TLS_FILES.key) return null;
+    try {
+        return { cert: fs.readFileSync(TLS_FILES.cert), key: fs.readFileSync(TLS_FILES.key), stamp: `${fs.statSync(TLS_FILES.cert).mtimeMs}|${fs.statSync(TLS_FILES.key).mtimeMs}` };
+    } catch (error) {
+        console.log(`[front] no https here: ${error.code ?? error.message} reading ${error.path ?? "the certificate"}. Answering on plain http; the master carries this world.`);
+        return null;
+    }
 }
 
 const WORLD_LIST_PATHS = new Set(["/worlds.json", "/servers.json", "/world-list.json"]);
@@ -304,7 +319,8 @@ function listen(staticPort) {
         response.on("close", () => upstream.destroy());
         request.pipe(upstream);
     };
-    const server = http.createServer((request, response) => {
+    let certificate = readCertificate();
+    const server = (certificate ? https : http).createServer(certificate ? { cert: certificate.cert, key: certificate.key } : {}, (request, response) => {
         const pathname = String(request.url ?? "").split("?")[0];
         if ((request.method === "GET" || request.method === "HEAD") && WORLD_LIST_PATHS.has(pathname)) {
             // The world list: ours to answer, unless this world is on no list (then the website's own file).
@@ -361,8 +377,22 @@ function listen(staticPort) {
         }, () => socket.destroy());
     });
 
+    if (certificate) {
+        // A renewed certificate, without a restart (which would drop every player).
+        setInterval(() => {
+            try {
+                const stamp = `${fs.statSync(TLS_FILES.cert).mtimeMs}|${fs.statSync(TLS_FILES.key).mtimeMs}`;
+                if (stamp === certificate.stamp) return;
+                const renewed = readCertificate();
+                if (!renewed) return;
+                server.setSecureContext({ cert: renewed.cert, key: renewed.key });
+                certificate = renewed;
+                console.log("[front] the renewed certificate is in use");
+            } catch {}
+        }, 3_600_000).unref();
+    }
     server.keepAliveTimeout = 30_000;
-    server.listen(PORT, HOST, () => console.log(`[front] http://${HOST}:${PORT}: ${staticPort ? `website on ${staticPort}` : "no website (headless)"}, game on ${GAME_PORT}${IS_MASTER ? ", master" : MASTER_URL ? `, master at ${MASTER_URL}` : ""}`));
+    server.listen(PORT, HOST, () => console.log(`[front] ${certificate ? "https" : "http"}://${HOST}:${PORT}: ${staticPort ? `website on ${staticPort}` : "no website (headless)"}, game on ${GAME_PORT}${IS_MASTER ? ", master" : MASTER_URL ? `, master at ${MASTER_URL}` : ""}`));
 }
 
 /** A port nothing is using on this machine. */

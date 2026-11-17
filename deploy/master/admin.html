@@ -90,7 +90,7 @@ label > span { display: block; margin-bottom: 3px; }
         <div class="grid">
           <label class="wide"><span>Name (shown on the landing page and the world's login screen)</span><input type="text" name="name" maxlength="40" required></label>
           <label class="wide"><span>Description</span><input type="text" name="description" maxlength="120" placeholder="10x custom, US/New York"></label>
-          <label><span>Node</span><select name="nodeId" required></select></label>
+          <label><span>Location</span><select name="place" required></select></label>
           <label><span>XP rate</span><input type="number" name="xpRate" min="1" max="1000" step="any"></label>
           <label><span>Bots</span><input type="number" name="bots" min="0" max="2000"></label>
           <label><span>Memory (MB)</span><input type="number" name="memoryMb" min="4096"></label>
@@ -174,11 +174,12 @@ function worldRow(world) {
   const facts = [];
   facts.push(world.online ? (world.players === null ? "Online" : world.players + (world.players === 1 ? " player" : " players")) + (world.bots ? ", " + world.bots + " bots" : "")
     : server ? "Server " + server.state : "Not answering");
+  if (world.location) facts.unshift(world.location);
   if (world.experienceRate) facts.push(world.experienceRate + "x");
   if (server && server.memoryMb) facts.push(server.memoryMb + " MB, " + server.cpu + "% CPU");
   const links = el("div", { className: "facts" }, [
     el("a", { href: world.link, target: "_blank", rel: "noopener", textContent: world.address }),
-    world.secure ? "" : " (no https: an https page's world picker leaves it out)",
+    world.secure ? " (https: players connect to it directly)" : " (no https: played through this site)",
   ]);
   const actions = el("div", { className: "actions" });
   const act = (label, run, cls = "small") => actions.append(el("button", { type: "button", className: cls, textContent: label, onclick: run }));
@@ -243,7 +244,7 @@ function render() {
   const online = worlds.filter((world) => world.online).length;
   $("summary").textContent = online + " of " + worlds.length + " online";
   const panel = state.panel;
-  const select = $("create-form").elements.nodeId;
+  const select = $("create-form").elements.place;
   const ready = panel.configured && !panel.error;
   if (state.storage) say(state.storage, true);
   $("panel-note").className = ready ? "" : "bad";
@@ -252,10 +253,21 @@ function render() {
     : "on " + panel.host + ", egg “" + panel.egg.name + "”";
   $("create-button").disabled = !ready;
   if (ready && select.options.length === 0) {
-    for (const node of panel.nodes) {
-      select.append(el("option", { value: node.id, disabled: node.free === 0 || node.maintenance,
-        textContent: node.name + (node.location ? " (" + node.location + ")" : "") + " - " + (node.maintenance ? "in maintenance" : node.free + " free port" + (node.free === 1 ? "" : "s")) }));
+    // A location, and the world goes on its node with the most free ports. A location with
+    // several nodes also offers each of them by name.
+    for (const place of panel.places) {
+      const open = place.nodes.filter((node) => !node.maintenance);
+      select.append(el("option", { value: place.key, disabled: place.free === 0,
+        textContent: place.name + " - " + (open.length === 0 ? "in maintenance" : place.free + " free port" + (place.free === 1 ? "" : "s")) }));
+      if (place.nodes.length > 1) {
+        for (const node of place.nodes) {
+          select.append(el("option", { value: "node-" + node.id, disabled: node.free === 0 || node.maintenance,
+            textContent: "   " + node.name + " - " + (node.maintenance ? "in maintenance" : node.free + " free") }));
+        }
+      }
     }
+    const firstOpen = [...select.options].find((option) => !option.disabled);
+    if (firstOpen) select.value = firstOpen.value;
     const form = $("create-form").elements;
     for (const key of ["xpRate", "bots", "memoryMb", "diskMb", "cpu"]) if (form[key].value === "") form[key].value = state.defaults[key];
   }
@@ -307,7 +319,7 @@ $("create-form").onsubmit = async (event) => {
     const world = await api("POST", "worlds", data);
     say(world.name + " is being installed at " + world.address + ". It shows as online once it has built and started.");
     form.elements.name.value = ""; form.elements.description.value = "";
-    form.elements.nodeId.replaceChildren();
+    form.elements.place.replaceChildren();
     await load();
   } catch (error) { if (error.message !== "signed-out") say(error.message, true); $("create-button").disabled = false; }
 };

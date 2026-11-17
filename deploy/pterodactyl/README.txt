@@ -40,6 +40,9 @@ The variables
                       site, which carries the game connection to it (needs Master address).
   Master proxy key    with a master: the key it signs each visitor's address with (its admin
                       page shows it), so this world sees who is really connecting.
+  Certificate file,   for https at the server's own address: a certificate and its key as the
+  Certificate key     server can read them (a panel mount of the node's). Empty or unreadable:
+                      plain http.
   Update on start     1: each start fetches the newest version and rebuilds what changed.
   Rebuild on start    1: build everything again on the next start; set it back to 0 after.
   Game memory (MB)    empty: 70% of the server's memory.

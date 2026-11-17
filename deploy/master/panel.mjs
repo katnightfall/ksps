@@ -71,6 +71,14 @@ export function createPanel(settings, fetchImpl = fetch) {
                 const first = JSON.parse(raw).errors?.[0];
                 detail = first?.detail || first?.code || detail;
             } catch {}
+            // The two commonest set-up faults, said in full: what the key may not do, and a key the panel does not know.
+            if (response.status === 403 && scope === "application") {
+                detail = `the application key may not ${method === "GET" ? "read" : "change"} ${path.split("/")[1]} (Admin > Application API: Servers read & write; Users, Nodes, Allocations, Nests, Eggs and Locations read)`;
+            } else if (response.status === 401) {
+                detail = scope === "application"
+                    ? "it does not know the application key (PTERO_APP_KEY)"
+                    : "it does not know the client key (PTERO_CLIENT_KEY: Account > API Credentials of an admin account; if the key lists allowed IPs, this server's must be among them)";
+            }
             throw new PanelError(response.status, String(detail).slice(0, 300));
         }
         if (!raw) return null;
@@ -107,13 +115,44 @@ export function createPanel(settings, fetchImpl = fetch) {
         return { id: found.id, nestId, name: found.name, image: images[0] ?? found.docker_image, startup: found.startup, environment };
     }
 
-    /** The nodes worlds can go on, each with how many ports it has free. */
+    /**
+     * The nodes worlds can go on, each with how many ports it has free and the location it is in.
+     * `place` is what the admin page's location picker goes by: the panel's location, or the node
+     * itself where the panel names no location for it.
+     */
     async function nodes() {
         const list = await all("/nodes", { include: "location" });
         return Promise.all(list.map(async (node) => {
             const free = (await freeAllocations(node.id)).length;
-            return { id: node.id, name: node.name, fqdn: node.fqdn, location: node.relationships?.location?.attributes?.short ?? "", maintenance: node.maintenance_mode === true, free };
+            const location = node.relationships?.location?.attributes;
+            return {
+                id: node.id, name: node.name, fqdn: node.fqdn, maintenance: node.maintenance_mode === true, free,
+                location: location?.short ?? "",
+                place: location?.id ? `location-${location.id}` : `node-${node.id}`,
+                placeName: text(location?.long) || location?.short || node.name,
+            };
         }));
+    }
+
+    /** The places a world can be made in: each location with its nodes' free ports added up. */
+    async function places() {
+        const byPlace = new Map();
+        for (const node of await nodes()) {
+            const place = byPlace.get(node.place) ?? { key: node.place, name: node.placeName, free: 0, nodes: [] };
+            if (!node.maintenance) place.free += node.free;
+            place.nodes.push({ id: node.id, name: node.name, fqdn: node.fqdn, free: node.free, maintenance: node.maintenance });
+            byPlace.set(node.place, place);
+        }
+        return [...byPlace.values()];
+    }
+
+    /** The node a new world goes on in `place`: the one with the most free ports that is not in maintenance. */
+    async function nodeIn(place) {
+        const found = (await places()).find((candidate) => candidate.key === place);
+        if (!found) throw new PanelError(404, "The panel has no such location.");
+        const best = found.nodes.filter((node) => !node.maintenance && node.free > 0).sort((a, b) => b.free - a.free)[0];
+        if (!best) throw new PanelError(409, `${found.name} has no free port. Add allocations to its node in the panel.`);
+        return best.id;
     }
 
     const inRange = (port) => settings.portRanges.length === 0 || settings.portRanges.some(([from, to]) => port >= from && port <= to);
@@ -163,10 +202,12 @@ export function createPanel(settings, fetchImpl = fetch) {
                     start_on_completion: true,
                 },
             })).attributes;
-            // Where players reach it: the allocation's public name when it has one, else its
-            // address, else (an allocation on every address) the node's own name.
-            const host = text(allocation.alias) || (allocation.ip && allocation.ip !== "0.0.0.0" ? allocation.ip : node.fqdn);
-            return { serverId: server.id, identifier: server.identifier, uuid: server.uuid, nodeId: node.id, allocationId: allocation.id, host, port: allocation.port };
+            // Where players reach it: the node's own name (which is what its certificate is for,
+            // so the world can answer on https there); without one, the allocation's name or address.
+            const named = text(node.fqdn) && !/^[\d.]+$|:/.test(node.fqdn);
+            const host = named ? node.fqdn : text(allocation.alias) || allocation.ip;
+            return { serverId: server.id, identifier: server.identifier, uuid: server.uuid, nodeId: node.id, nodeName: node.name, fqdn: named ? node.fqdn : "",
+                allocationId: allocation.id, host, port: allocation.port };
         } finally {
             claimed.delete(allocation.id);
         }
@@ -196,5 +237,5 @@ export function createPanel(settings, fetchImpl = fetch) {
         }
     }
 
-    return { egg, nodes, createWorld, deleteWorld, power, state, serverUrl: (identifier) => `${settings.url}/server/${identifier}` };
+    return { egg, nodes, places, nodeIn, createWorld, deleteWorld, power, state, serverUrl: (identifier) => `${settings.url}/server/${identifier}` };
 }

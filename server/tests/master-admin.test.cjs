@@ -28,8 +28,8 @@ async function fakePanel(t) {
     2: [{ id: 21, ip: "104.194.10.100", alias: "ny.example.com", port: 5000, assigned: false }],
   };
   const nodes = [
-    { id: 1, name: "Dallas 8", fqdn: "dal8.example.com", maintenance_mode: false, relationships: { location: { attributes: { short: "dal" } } } },
-    { id: 2, name: "New York 1", fqdn: "ny1.example.com", maintenance_mode: false, relationships: { location: { attributes: { short: "nyc" } } } },
+    { id: 1, name: "Dallas 8", fqdn: "dal8.example.com", maintenance_mode: false, relationships: { location: { attributes: { id: 1, short: "dal", long: "Dallas, US" } } } },
+    { id: 2, name: "New York 1", fqdn: "ny1.example.com", maintenance_mode: false, relationships: { location: { attributes: { id: 2, short: "nyc", long: "New York, US" } } } },
   ];
   const egg = { id: 15, name: "Kat-Net TSPS", docker_images: { "Node.js 22": "ghcr.io/parkervcp/yolks:nodejs_22" }, startup: "node deploy/pterodactyl/launch.mjs",
     relationships: { variables: { data: [
@@ -97,12 +97,13 @@ async function master(t, { password = PASSWORD, panelEnv } = {}) {
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const settings = panelSettings(panelEnv ?? { PTERO_URL: panelStub.url, PTERO_APP_KEY: "app-key", PTERO_CLIENT_KEY: "client-key" });
   const registry = createRegistry(path.join(dir, "saves", "master-worlds.json"));
+  const https = new Set();
   const online = new Map([["kat-net", { online: true, players: 3, bots: 1500, experienceRate: 10 }]]);
   let clock = Date.UTC(2026, 10, 16, 12);
   const handle = createAdmin({
     password, secret: "test-secret", registry, settings, panel: createPanel(settings),
     projectWorlds: () => loadWorlds(path.join(__dirname, "../../deploy/worlds.json")),
-    publicUrl: "https://rs.kat-net.us", proxyKey: "test-proxy-key",
+    publicUrl: "https://rs.kat-net.us", proxyKey: "test-proxy-key", answersHttps: async (address) => https.has(address),
     statusOf: async (worlds) => ({ worlds: worlds.map((world) => ({ id: world.id, ...(online.get(world.id) ?? { online: false, players: null, bots: null }) })) }),
     page: path.join(__dirname, "../../deploy/master/admin.html"),
     now: () => clock,
@@ -119,7 +120,7 @@ async function master(t, { password = PASSWORD, panelEnv } = {}) {
     if (set) cookie = set.split(";")[0];
     return { status: response.status, body: await response.json(), set };
   };
-  return { url, call, registry, panel: panelStub, online, tick: (ms) => { clock += ms; }, signIn: () => call("POST", "login", { password }), forget: () => { cookie = ""; } };
+  return { url, call, registry, panel: panelStub, online, https, tick: (ms) => { clock += ms; }, signIn: () => call("POST", "login", { password }), forget: () => { cookie = ""; } };
 }
 
 test("nothing is answered before signing in, and a wrong password is refused", async (t) => {
@@ -171,6 +172,9 @@ test("the state: the project's worlds, the panel's egg and nodes with their free
   assert.deepEqual(body.panel.egg, { id: 15, name: "Kat-Net TSPS" });
   assert.deepEqual(body.panel.nodes.map((node) => [node.id, node.name, node.location, node.free]), [[1, "Dallas 8", "dal", 2], [2, "New York 1", "nyc", 1]]);
   assert.deepEqual(body.worlds.map((world) => [world.id, world.source, world.online, world.players]), [["kat-net", "project", true, 3], ["new-york", "project", false, null]]);
+  // The location picker: each of the panel's locations with its free ports.
+  assert.deepEqual(body.panel.places.map((place) => [place.key, place.name, place.free, place.nodes.map((node) => node.name)]),
+    [["location-1", "Dallas, US", 2, ["Dallas 8"]], ["location-2", "New York, US", 1, ["New York 1"]]]);
   assert.equal(body.site, "https://rs.kat-net.us");
   // The proxy key is given only when asked for, signed in.
   assert.ok(!JSON.stringify(body).includes("test-proxy-key"));
@@ -185,13 +189,15 @@ test("making a world: a server on the panel from our egg, told its name and its 
   const made = await m.call("POST", "worlds", { name: "Kat-Net Chicago", description: "5x, US/Chicago", nodeId: "1", xpRate: "5", bots: "250", developers: "kat", memoryMb: "8192", diskMb: "20480", cpu: "0" });
   assert.equal(made.status, 201, JSON.stringify(made.body));
   assert.equal(made.body.id, "kat-net-chicago");
-  assert.equal(made.body.address, "dal8.example.com:5001", "an allocation on every address is reached at the node's own name");
+  assert.equal(made.body.address, "dal8.example.com:5001", "the node's own name, which is what its certificate is for");
+  assert.deepEqual([made.body.headless, made.body.location, made.body.secure], [true, "Dallas 8", false]);
   const create = m.panel.calls.find((call) => call.method === "POST" && call.route === "/servers");
   assert.deepEqual(create.body, {
     name: "Kat-Net Chicago", description: "5x, US/Chicago", external_id: "tsps-world-kat-net-chicago", user: 42, egg: 15,
     docker_image: "ghcr.io/parkervcp/yolks:nodejs_22", startup: "node deploy/pterodactyl/launch.mjs",
     environment: { WORLD_NAME: "Kat-Net Chicago", XP_RATE: "5", AUTO_UPDATE: "1", GIT_BRANCH: "main", WORLD_DESCRIPTION: "5x, US/Chicago", BOT_COUNT: "250",
-      DEV_USERNAME: "kat", WORLDS_MASTER_URL: "https://rs.kat-net.us", HEADLESS: "1", MASTER_PROXY_KEY: "test-proxy-key" },
+      DEV_USERNAME: "kat", WORLDS_MASTER_URL: "https://rs.kat-net.us", HEADLESS: "1", MASTER_PROXY_KEY: "test-proxy-key",
+      TLS_CERT: "/etc/letsencrypt/live/dal8.example.com/fullchain.pem", TLS_KEY: "/etc/letsencrypt/live/dal8.example.com/privkey.pem" },
     limits: { memory: 8192, swap: 0, disk: 20480, io: 500, cpu: 0 },
     feature_limits: { databases: 0, allocations: 0, backups: 0 },
     allocation: { default: 12 },
@@ -212,13 +218,15 @@ test("making a world: a server on the panel from our egg, told its name and its 
   assert.equal((await m.call("POST", "worlds", { name: "kat-net chicago", nodeId: 1 })).status, 409);
   assert.equal((await m.call("POST", "worlds", { name: "Kat-Net", nodeId: 1 })).status, 409, "nor a project world's own name");
   assert.equal(m.panel.calls.length, before);
-  // On an allocation with a public name, that name is the address.
-  const second = await m.call("POST", "worlds", { name: "Second", nodeId: 2 });
-  assert.equal(second.body.address, "ny.example.com:5000");
+  // By location: the world goes on that location's node.
+  const second = await m.call("POST", "worlds", { name: "Second", place: "location-2" });
+  assert.equal(second.body.address, "ny1.example.com:5000");
+  assert.equal(second.body.location, "New York 1");
   // A node with no port left says so.
-  const none = await m.call("POST", "worlds", { name: "Third", nodeId: 2 });
+  const none = await m.call("POST", "worlds", { name: "Third", place: "location-2" });
   assert.equal(none.status, 502);
-  assert.match(none.body.error, /New York 1.*no free port/);
+  assert.match(none.body.error, /New York, US has no free port/);
+  assert.equal((await m.call("POST", "worlds", { name: "Third", place: "location-9" })).status, 502, "a location the panel does not have");
   assert.equal(m.registry.get("third"), null, "nothing is listed for a world that was not made");
 });
 
@@ -229,7 +237,8 @@ test("the form is checked before the panel is asked", async (t) => {
     [{ nodeId: 1 }, /Give the world a name/],
     [{ name: "X", nodeId: 1, memoryMb: 1024 }, /Memory \(MB\) must be a whole number from 4096/],
     [{ name: "X", nodeId: 1, bots: 5000 }, /Bots must be/],
-    [{ name: "X" }, /The node must be/],
+    [{ name: "X" }, /Pick a location/],
+    [{ name: "X", place: "somewhere" }, /Pick a location/],
   ]) {
     const answer = await m.call("POST", "worlds", body);
     assert.equal(answer.status, 400);
@@ -328,4 +337,24 @@ test("where the worlds cannot be saved, nothing is made on the panel and the pag
     assert.match((await answer.json()).error, /cannot save its worlds/);
   }
   assert.ok(!panelStub.calls.some((call) => call.method === "POST" && call.route === "/servers"));
+});
+
+test("a world made here that starts answering on https at its node's name is listed there, and reached directly", async (t) => {
+  const m = await master(t);
+  const { listedFrom } = await load("master/registry.mjs");
+  const { serverList, worldUrls } = await load("worlds.mjs");
+  await m.signIn();
+  await m.call("POST", "worlds", { name: "Chicago", place: "location-1" });
+  let world = (await m.call("GET", "state")).body.worlds.find((entry) => entry.id === "chicago");
+  assert.equal(world.secure, false, "plain http until the node shows it the certificate");
+  let [entry] = listedFrom(m.registry.all());
+  assert.deepEqual(serverList([entry], { host: "rs.kat-net.us", secure: true })[0], { name: "Chicago", address: "rs.kat-net.us/w/chicago", secure: true, maxPlayers: 2047 });
+
+  m.https.add("dal8.example.com:5001");
+  world = (await m.call("GET", "state")).body.worlds.find((item) => item.id === "chicago");
+  assert.equal(world.secure, true);
+  [entry] = listedFrom(m.registry.all());
+  assert.deepEqual(serverList([entry], { host: "rs.kat-net.us", secure: true })[0], { name: "Chicago", address: "dal8.example.com:5001", secure: true, maxPlayers: 2047 }, "the world picker connects straight to it");
+  // It has no website of its own, so its link stays on the master's site.
+  assert.equal(worldUrls(entry, "").play, "/play?world=chicago");
 });

@@ -119,6 +119,26 @@
             "field_type": "text"
         },
         {
+            "name": "Certificate file",
+            "description": "For https at this server's own address: the certificate (fullchain.pem) as the server can read it, for example /etc/letsencrypt/live/<the node's name>/fullchain.pem through a panel mount. Empty, or a file it cannot read: plain http.",
+            "env_variable": "TLS_CERT",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:255",
+            "field_type": "text"
+        },
+        {
+            "name": "Certificate key file",
+            "description": "The certificate's private key (privkey.pem), beside the certificate.",
+            "env_variable": "TLS_KEY",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:255",
+            "field_type": "text"
+        },
+        {
             "name": "Update on start",
             "description": "1: fetch the newest version of the project each time the server starts, and rebuild what changed. 0: stay on the version installed.",
             "env_variable": "AUTO_UPDATE",

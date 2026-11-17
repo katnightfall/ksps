@@ -38,7 +38,9 @@ export function cleanWorld(entry) {
     const name = text(entry.name, 40);
     if (!name) return null;
     const id = text(entry.id, 40).toLowerCase().replace(/[^a-z0-9-]+/g, "-") || address.replace(/[^a-z0-9]+/g, "-");
-    return { id, name, world: text(entry.world, 40) || name, address, secure: entry.secure !== false, here: false, description: text(entry.description, 160) };
+    return { id, name, world: text(entry.world, 40) || name, address, secure: entry.secure !== false, here: false, description: text(entry.description, 160),
+        // A world with no website of its own (made on the master's admin page): played on the master's site.
+        ...(entry.headless === true ? { headless: true } : {}) };
 }
 
 /** The worlds in `file`, or [] when there is no file or it cannot be read as a list. */
@@ -101,7 +103,8 @@ export function serverList(worlds, site = null) {
  */
 export function worldUrls(world, masterUrl = undefined) {
     if (world.here) return { home: "/", play: "/play", hiscores: "/hiscores" };
-    if (throughMaster(world) && masterUrl !== undefined) {
+    // A headless world has no site of its own to link to, https or not: the master's is its site.
+    if ((throughMaster(world) || world.headless) && masterUrl !== undefined) {
         const play = `${masterUrl}/play?world=${world.id}`;
         return { home: play, play, hiscores: `${masterUrl}/hiscores?world=${world.id}` };
     }

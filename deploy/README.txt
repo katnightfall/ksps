@@ -86,10 +86,12 @@ It is off until these are in the server's own settings (sudo nano /opt/tsps/.env
 "npm run remote -- restart web". They are secrets: never in the project, which is public.
 
   MASTER_ADMIN_PASSWORD=...   12 characters or more: what you sign in with
-  PTERO_URL=https://...       the panel's address
-  PTERO_APP_KEY=ptla_...      Admin > Application API: read & write on Servers; read on Users,
-                              Nests, Eggs, Nodes, Allocations, Locations
-  PTERO_CLIENT_KEY=ptlc_...   Account > API Credentials, of a root admin account
+  PTERO_URL=https://panel.kat-net.us   the panel's address (one this server can reach)
+  PTERO_APP_KEY=ptla_...      Admin > Application API. It needs, and the page names what is
+                              missing: Servers read & write; Users, Nodes, Allocations, Nests,
+                              Eggs and Locations read
+  PTERO_CLIENT_KEY=ptlc_...   Account > API Credentials, of a root admin account. If the key
+                              lists allowed IPs, this server's must be among them
   PTERO_PORT_RANGE=5000-5099  optional: only these ports are given to worlds
   PTERO_EGG_ID=, PTERO_NEST_ID=   optional: the egg is found by its name, "Kat-Net TSPS"
   PTERO_OWNER_ID=             optional: the panel user that owns the worlds
@@ -109,12 +111,36 @@ world picker link to. The master's front door carries that world's game connecti
 The same goes for any listed world without https of its own (New York, until it has a name
 behind https): the master carries it too. A world with https of its own is reached directly.
 
+The admin page's "Location" is the panel's location (or the node, where the panel names none):
+the world goes on that location's node with the most free ports.
+
+https at the node's own name
+----------------------------
+A world made on the admin page is listed at its node's own name and port (game-nyc...:5000),
+and is told where that node keeps the certificate for its name (the egg's "Certificate file"
+and "Certificate key file": /etc/letsencrypt/live/<the node's name>/fullchain.pem and
+privkey.pem). When the world can read them it answers on https there, the master notices
+within a minute or two, and from then on the world picker connects players to it directly,
+not through Dallas. When it cannot, it answers on plain http and is played through the master,
+exactly as before: nothing breaks either way.
+
+For the world to read them, once per node (as root on the node), since a panel server sees
+nothing of the node's own files and the key is root's alone:
+  1. Keep a copy the servers may read, refreshed at each renewal:
+       mkdir -p /etc/tsps-certs
+       cp -L /etc/letsencrypt/live/<name>/{fullchain,privkey}.pem /etc/tsps-certs/
+       chown -R pterodactyl: /etc/tsps-certs && chmod 640 /etc/tsps-certs/*
+     and the same three lines in /etc/letsencrypt/renewal-hooks/deploy/tsps-certs.sh.
+  2. In the panel: Admin > Mounts > new mount, source /etc/tsps-certs, target
+     /etc/letsencrypt/live/<name>, read only; add the node and the egg to it. Wings must allow
+     the source (allowed_mounts in /etc/pterodactyl/config.yml), then restart Wings.
+  3. On each world's server: Mounts tab > mount it, and restart the world.
+This shows the node's private key to the worlds mounted on it: only for worlds that are ours.
+
 What to know:
-  * Every player of such a world connects through this server: their traffic passes Dallas,
-    which adds the distance to their latency. For a world far from here, give it a name behind
-    https (a subdomain through Cloudflare), then set that address and tick https under "Edit
-    listing": players then connect to it directly (it needs its own website for that:
-    Headless 0 in its egg).
+  * Every player of a world played through the master connects through this server: their
+    traffic passes Dallas, which adds the distance to their latency. https at the node's own
+    name (above) is what takes a far-away world off that path.
   * The master tells each such world who is really connecting, signed with a key both hold
     (the egg's "Master proxy key"; worlds made on the admin page are given it). A world set
     up by hand needs it set too ("Show the proxy key" on the admin page), or it sees every
