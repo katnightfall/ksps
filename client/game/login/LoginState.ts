@@ -1,3 +1,4 @@
+import { masterWorldPrefix, masterWorldServer } from "../../network/masterWorld";
 import { BRAND_NAME } from "../../config/brand";
 import {
     ACCOUNT_NAME_PATTERN,
@@ -99,6 +100,16 @@ export class LoginState {
             this.serverIceServers = browserHostWorld.iceServers;
             return;
         }
+        // Ours: /play?world=<id> opens that world, whatever was played last (the master's landing
+        // page links here). It is not remembered as the last world: the link says which.
+        const linked = masterWorldServer(typeof window !== "undefined" ? window.location : undefined);
+        if (linked) {
+            this.serverName = linked.id;
+            this.serverAddress = linked.address;
+            this.serverSecure = linked.secure;
+            this.serverTransport = "websocket";
+            return;
+        }
         let lastServer = getClientPreference("lastServer");
         if (!lastServer) return;
 
@@ -167,7 +178,8 @@ export class LoginState {
             const url = new URL(transport === "webrtc" && signalUrl ? signalUrl : `${secure ? "https" : "http"}://${address}`);
             if (url.protocol === "ws:") url.protocol = "http:";
             if (url.protocol === "wss:") url.protocol = "https:";
-            url.pathname = transport === "webrtc" ? "/worlds" : "/api/world-info";
+            // Ours: a world played through the master answers under its /w/<id> (network/masterWorld.ts).
+            url.pathname = transport === "webrtc" ? "/worlds" : masterWorldPrefix(url.pathname) + "/api/world-info";
             url.search = ""; url.hash = "";
             const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
             if (!response.ok) return;

@@ -20,6 +20,7 @@
  *   secure   true for https/wss. A page on https cannot open a game connection to a world
  *            without it, so such a world is left out of an https page's world picker.
  */
+import crypto from "node:crypto";
 import fs from "node:fs";
 
 /** How long a world's answer is kept, and how long it is given to answer. */
@@ -69,15 +70,64 @@ export function worldsFrom(answer) {
     return entries.map(cleanWorld).filter((world) => world && !seen.has(world.id) && seen.add(world.id));
 }
 
-/** /servers.json: the list as the game's world picker reads it (client/game/login/renderer/serverList.ts). */
-export function serverList(worlds) {
-    return worlds.map((world) => ({ name: world.name, address: world.address, secure: world.secure, maxPlayers: 2047 }));
+/**
+ * Through the master. A world with no https of its own (a panel server on a bare address and
+ * port, a headless world with no website at all) is played on the master's site: the master
+ * carries its game connection and its /api at /w/<id> (deploy/front.mjs), so the one https
+ * address serves every world. A world with https of its own is reached directly.
+ */
+export const throughMaster = (world) => !world.here && !world.secure;
+export const masterPath = (id) => `/w/${id}`;
+/** "/w/<id>" at the start of a request's address: [id, the rest] or null. */
+export function masterRoute(url) {
+    const match = /^\/w\/([a-z0-9-]{1,40})(?=[/?]|$)(.*)$/.exec(String(url ?? ""));
+    return match ? [match[1], match[2] || "/"] : null;
 }
 
-/** Where a world's own site is, and where its game is played. */
-export function worldUrls(world) {
+/**
+ * /servers.json: the list as the game's world picker reads it (client/game/login/renderer/serverList.ts).
+ * `site`, on the master: { host, secure } of the page asking; worlds played through the master
+ * are then listed at its own address.
+ */
+export function serverList(worlds, site = null) {
+    return worlds.map((world) => (site && throughMaster(world)
+        ? { name: world.name, address: `${site.host}${masterPath(world.id)}`, secure: site.secure, maxPlayers: 2047 }
+        : { name: world.name, address: world.address, secure: world.secure, maxPlayers: 2047 }));
+}
+
+/**
+ * Where a world's site is, and where its game is played. `masterUrl`: "" on the master itself,
+ * the master's address on another world that knows it, undefined on a world that knows no master.
+ */
+export function worldUrls(world, masterUrl = undefined) {
+    if (world.here) return { home: "/", play: "/play", hiscores: "/hiscores" };
+    if (throughMaster(world) && masterUrl !== undefined) {
+        const play = `${masterUrl}/play?world=${world.id}`;
+        return { home: play, play, hiscores: `${masterUrl}/hiscores?world=${world.id}` };
+    }
     const base = `${world.secure ? "https" : "http"}://${world.address}`;
-    return { home: world.here ? "/" : `${base}/`, play: world.here ? "/play" : `${base}/play`, hiscores: world.here ? "/hiscores" : `${base}/hiscores` };
+    return { home: `${base}/`, play: `${base}/play`, hiscores: `${base}/hiscores` };
+}
+
+// A visitor's address, as the master states it to a world it carries a connection to. The world
+// would otherwise see every player arriving from the master's own address (an IP ban would then
+// ban them all). Signed with a key both hold
+// (MASTER_PROXY_KEY), and good for two minutes: only the master can state it.
+const VISITOR_SECONDS = 120;
+const visitorMac = (ip, expires, key) => crypto.createHmac("sha256", key).update(`${ip}|${expires}`).digest("base64url");
+export const VISITOR_HEADER = "x-master-visitor";
+export function signVisitor(ip, key, now = Date.now()) {
+    const expires = Math.floor(now / 1000) + VISITOR_SECONDS;
+    return `${ip}|${expires}|${visitorMac(ip, expires, key)}`;
+}
+/** The address a signed header states, or null when it is not the master's, or stale. */
+export function verifyVisitor(header, key, now = Date.now()) {
+    if (!key || typeof header !== "string") return null;
+    const [ip, expires, mac] = header.split("|");
+    const left = Number(expires) - Math.floor(now / 1000);
+    if (!ip || !mac || !(left >= 0 && left <= VISITOR_SECONDS * 2)) return null;
+    const want = Buffer.from(visitorMac(ip, expires, key)), got = Buffer.from(mac);
+    return got.length === want.length && crypto.timingSafeEqual(got, want) ? ip : null;
 }
 
 /** What a world's /api/world-status said, as the landing page shows it. Anything unexpected is left out. */
@@ -100,7 +150,7 @@ export function readStatus(answer) {
  * costs each world one question every twenty seconds. `ask(world)` resolves to the world's
  * /api/world-status answer (parsed), or rejects when the world does not answer.
  */
-export function createStatusBoard(ask, now = () => Date.now()) {
+export function createStatusBoard(ask, now = () => Date.now(), masterUrl = undefined) {
     const kept = new Map();
     async function statusOf(world) {
         const cached = kept.get(world.id);
@@ -131,7 +181,7 @@ export function createStatusBoard(ask, now = () => Date.now()) {
                     name: world.name || reportedName || "World",
                     description: world.description || reportedDescription || "",
                     here: world.here,
-                    ...worldUrls(world),
+                    ...worldUrls(world, masterUrl),
                     ...status,
                 };
             }),

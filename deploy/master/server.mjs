@@ -61,6 +61,23 @@ function sessionSecret() {
     return made;
 }
 
+/**
+ * The key the master signs each visitor's address with for the worlds it carries game
+ * connections to (deploy/worlds.mjs signVisitor; the front door reads this file). Every world
+ * made here is given it; made once, kept in the folder.
+ */
+function proxyKey() {
+    const file = path.join(DATA_DIR, "proxy-key");
+    try {
+        const kept = fs.readFileSync(file, "utf8").trim();
+        if (kept.length >= 32) return kept;
+    } catch {}
+    if (storage) return "";
+    const made = crypto.randomBytes(32).toString("hex");
+    fs.writeFileSync(file, `${made}\n`, { mode: 0o600 });
+    return made;
+}
+
 const password = String(process.env.MASTER_ADMIN_PASSWORD ?? "");
 const publicUrl = String(process.env.MASTER_PUBLIC_URL ?? "").replace(/\/+$/, "");
 const settings = panelSettings(process.env);
@@ -79,6 +96,7 @@ const handle = createAdmin({
     secret: sessionSecret(),
     registry: createRegistry(REGISTRY_FILE),
     storage,
+    proxyKey: proxyKey(),
     projectWorlds: () => loadWorlds(worldsFile),
     panel: createPanel(settings),
     settings,

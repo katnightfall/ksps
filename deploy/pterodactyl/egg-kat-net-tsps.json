@@ -99,6 +99,26 @@
             "field_type": "text"
         },
         {
+            "name": "Headless",
+            "description": "1: this world builds and serves no website of its own. It is played on its master's site, which carries the game connection to it (needs Master address). 0: a world with its own website.",
+            "env_variable": "HEADLESS",
+            "default_value": "0",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|boolean",
+            "field_type": "text"
+        },
+        {
+            "name": "Master proxy key",
+            "description": "Only for a world played through a master: the key the master signs each visitor's address with, so this world sees who is really connecting. The master's admin page shows it.",
+            "env_variable": "MASTER_PROXY_KEY",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string|max:128",
+            "field_type": "text"
+        },
+        {
             "name": "Update on start",
             "description": "1: fetch the newest version of the project each time the server starts, and rebuild what changed. 0: stay on the version installed.",
             "env_variable": "AUTO_UPDATE",

@@ -200,6 +200,10 @@ export function createAdmin(options) {
                 DEV_USERNAME: world.developers,
                 // The new world asks us for the list of worlds, so it shows them all.
                 WORLDS_MASTER_URL: publicUrl,
+                // It is played on our site (/play?world=<id>, carried at /w/<id>): it builds and
+                // serves no website of its own, and believes the visitor's address we sign.
+                HEADLESS: "1",
+                MASTER_PROXY_KEY: options.proxyKey ?? "",
             },
         });
         panelCache.at = -Infinity; // a port was taken
@@ -308,6 +312,8 @@ export function createAdmin(options) {
             if (!signedIn(request)) throw new Refusal(401, "Sign in first.");
 
             if (action === "state" && method === "GET") return send(response, 200, await state());
+            // For a world set up by hand (its egg's "Master proxy key"): asked for, never sent with the state.
+            if (action === "proxy-key" && method === "GET") return send(response, 200, { key: options.proxyKey ?? "" });
             if (action === "worlds" && method === "POST") return send(response, 201, await createWorld(await readBody(request)));
             if (action === "worlds/external" && method === "POST") return send(response, 201, addExternal(await readBody(request)));
             const world = /^worlds\/([a-z0-9-]{1,40})(\/power)?$/.exec(action);

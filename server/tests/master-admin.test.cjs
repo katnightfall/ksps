@@ -102,7 +102,7 @@ async function master(t, { password = PASSWORD, panelEnv } = {}) {
   const handle = createAdmin({
     password, secret: "test-secret", registry, settings, panel: createPanel(settings),
     projectWorlds: () => loadWorlds(path.join(__dirname, "../../deploy/worlds.json")),
-    publicUrl: "https://rs.kat-net.us",
+    publicUrl: "https://rs.kat-net.us", proxyKey: "test-proxy-key",
     statusOf: async (worlds) => ({ worlds: worlds.map((world) => ({ id: world.id, ...(online.get(world.id) ?? { online: false, players: null, bots: null }) })) }),
     page: path.join(__dirname, "../../deploy/master/admin.html"),
     now: () => clock,
@@ -172,6 +172,9 @@ test("the state: the project's worlds, the panel's egg and nodes with their free
   assert.deepEqual(body.panel.nodes.map((node) => [node.id, node.name, node.location, node.free]), [[1, "Dallas 8", "dal", 2], [2, "New York 1", "nyc", 1]]);
   assert.deepEqual(body.worlds.map((world) => [world.id, world.source, world.online, world.players]), [["kat-net", "project", true, 3], ["new-york", "project", false, null]]);
   assert.equal(body.site, "https://rs.kat-net.us");
+  // The proxy key is given only when asked for, signed in.
+  assert.ok(!JSON.stringify(body).includes("test-proxy-key"));
+  assert.deepEqual((await m.call("GET", "proxy-key")).body, { key: "test-proxy-key" });
   // The keys never reach the page.
   assert.ok(!JSON.stringify(body).includes("app-key") && !JSON.stringify(body).includes("client-key"));
 });
@@ -188,7 +191,7 @@ test("making a world: a server on the panel from our egg, told its name and its 
     name: "Kat-Net Chicago", description: "5x, US/Chicago", external_id: "tsps-world-kat-net-chicago", user: 42, egg: 15,
     docker_image: "ghcr.io/parkervcp/yolks:nodejs_22", startup: "node deploy/pterodactyl/launch.mjs",
     environment: { WORLD_NAME: "Kat-Net Chicago", XP_RATE: "5", AUTO_UPDATE: "1", GIT_BRANCH: "main", WORLD_DESCRIPTION: "5x, US/Chicago", BOT_COUNT: "250",
-      DEV_USERNAME: "kat", WORLDS_MASTER_URL: "https://rs.kat-net.us" },
+      DEV_USERNAME: "kat", WORLDS_MASTER_URL: "https://rs.kat-net.us", HEADLESS: "1", MASTER_PROXY_KEY: "test-proxy-key" },
     limits: { memory: 8192, swap: 0, disk: 20480, io: 500, cpu: 0 },
     feature_limits: { databases: 0, allocations: 0, backups: 0 },
     allocation: { default: 12 },

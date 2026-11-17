@@ -1,3 +1,4 @@
+import { worldFromQuery } from "../network/masterWorld";
 import { getDefaultWsUrl } from "../config/clientEnv";
 
 /** What the game server's /api/hiscores sends (server/plugins/world/Hiscores.plugin.js). */
@@ -49,7 +50,9 @@ export type TableView = { kind: "skill" | "activity" | "kills"; name: string };
 
 /** The game server's HTTP address: the game connection's own, as http(s). */
 export function hiscoresUrl(params: Record<string, string | number | undefined>): string {
-    const url = new URL("/api/hiscores", getDefaultWsUrl().replace(/^ws/i, "http"));
+    // Ours: /hiscores?world=<id> shows a world played through the master (network/masterWorld.ts).
+    const world = typeof window !== "undefined" ? worldFromQuery(window.location.search) : undefined;
+    const url = new URL((world ? "/w/" + world : "") + "/api/hiscores", getDefaultWsUrl().replace(/^ws/i, "http"));
     for (const [key, value] of Object.entries(params)) {
         if (value !== undefined && value !== "") url.searchParams.set(key, String(value));
     }

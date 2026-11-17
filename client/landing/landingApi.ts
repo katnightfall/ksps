@@ -21,7 +21,8 @@ export interface LandingWorld {
 /** Only links we would follow: this site's own paths, or another world's http(s) address. */
 function safeLink(value: unknown, fallback: string): string {
     if (typeof value !== "string") return fallback;
-    if (/^\/[a-z0-9/_-]*$/i.test(value)) return value;
+    // This site's own pages; a world played through the master is /play?world=<id>.
+    if (/^\/[a-z0-9/_-]*(\?world=[a-z0-9-]{1,40})?$/i.test(value)) return value;
     try {
         const url = new URL(value);
         return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : fallback;

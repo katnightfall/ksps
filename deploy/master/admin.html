@@ -112,6 +112,8 @@ label > span { display: block; margin-bottom: 3px; }
           <label><span>Description</span><input type="text" name="description" maxlength="160"></label>
         </div>
         <div class="row"><label class="check"><input type="checkbox" name="secure"> It answers on https</label><button type="submit">Add it</button></div>
+        <p class="quiet">A world without https is played on this site (/play?world=...), which carries the game connection to it. So that it sees who is really connecting, set its egg's "Master address" to this site and its "Master proxy key" to this key, then restart it.
+          <button class="small" type="button" id="show-key">Show the proxy key</button> <code id="proxy-key"></code></p>
       </form>
     </section>
   </main>
@@ -292,6 +294,10 @@ $("login-form").onsubmit = async (event) => {
 };
 $("logout").onclick = async () => { try { await api("POST", "logout"); } catch {} show(false); };
 $("refresh").onclick = () => load();
+$("show-key").onclick = async () => {
+  try { $("proxy-key").textContent = (await api("GET", "proxy-key")).key || "(none: this page cannot save its files yet)"; }
+  catch (error) { if (error.message !== "signed-out") say(error.message, true); }
+};
 $("create-form").onsubmit = async (event) => {
   event.preventDefault();
   const form = event.target, data = Object.fromEntries(new FormData(form));

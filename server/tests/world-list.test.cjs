@@ -119,3 +119,49 @@ test("/api/world-status counts people and bots apart", () => {
   plugin.register({ core: {}, registerContentEndpoint: (name) => { registered = name; } });
   assert.equal(registered, "world-status");
 });
+
+// Worlds played through the master (a world with no https of its own): the master lists it at its
+// own address, carries it at /w/<id>, and signs each visitor's address for it.
+test("through the master: which worlds, their addresses on the master's page, and their links", async () => {
+  const { serverList, worldUrls, throughMaster, masterRoute, createStatusBoard } = await worlds;
+  const here = { id: "kat-net", name: "Dallas", world: "Kat-Net", address: "rs.kat-net.us", secure: true, here: true, description: "" };
+  const bare = { id: "new-york", name: "New York", world: "NY", address: "104.194.10.100:5000", secure: false, here: false, description: "" };
+  const own = { id: "classic", name: "Classic", world: "Classic", address: "classic.kat-net.us", secure: true, here: false, description: "" };
+  assert.deepEqual([here, bare, own].map(throughMaster), [false, true, false], "only a world without https of its own");
+
+  // The world picker on the master's https page: the bare world at the master's own address.
+  assert.deepEqual(serverList([here, bare, own], { host: "rs.kat-net.us", secure: true }), [
+    { name: "Dallas", address: "rs.kat-net.us", secure: true, maxPlayers: 2047 },
+    { name: "New York", address: "rs.kat-net.us/w/new-york", secure: true, maxPlayers: 2047 },
+    { name: "Classic", address: "classic.kat-net.us", secure: true, maxPlayers: 2047 },
+  ]);
+  // On a world that is not the master, as before: where it really is.
+  assert.equal(serverList([bare])[0].address, "104.194.10.100:5000");
+
+  // Links: on the master, on a world that knows the master, on one that does not.
+  assert.deepEqual(worldUrls(bare, ""), { home: "/play?world=new-york", play: "/play?world=new-york", hiscores: "/hiscores?world=new-york" });
+  assert.equal(worldUrls(bare, "https://rs.kat-net.us").play, "https://rs.kat-net.us/play?world=new-york");
+  assert.equal(worldUrls(bare).play, "http://104.194.10.100:5000/play");
+  assert.equal(worldUrls(own, "").play, "https://classic.kat-net.us/play", "a world with https of its own is reached directly");
+  const board = createStatusBoard(async () => ({ players: 1, bots: 0 }), () => 0, "");
+  assert.equal((await board([here, bare])).worlds[1].play, "/play?world=new-york");
+
+  assert.deepEqual(masterRoute("/w/new-york"), ["new-york", "/"]);
+  assert.deepEqual(masterRoute("/w/new-york/api/world-info?x=1"), ["new-york", "/api/world-info?x=1"]);
+  assert.deepEqual(masterRoute("/w/new-york?x=1"), ["new-york", "?x=1"]);
+  for (const url of ["/w/", "/w", "/world-list.json", "/w/Bad_Id/api", "/play", "/w/a/../admin".replace("a/..", "..")]) assert.equal(masterRoute(url), null, url);
+});
+
+test("the visitor's address is believed only as the master signed it, and only for two minutes", async () => {
+  const { signVisitor, verifyVisitor } = await worlds;
+  const key = "k".repeat(64);
+  const at = Date.UTC(2026, 10, 17);
+  const header = signVisitor("203.0.113.7", key, at);
+  assert.equal(verifyVisitor(header, key, at), "203.0.113.7");
+  assert.equal(verifyVisitor(signVisitor("2001:db8::7", key, at), key, at + 60_000), "2001:db8::7");
+  assert.equal(verifyVisitor(header, key, at + 121_000), null, "stale");
+  assert.equal(verifyVisitor(header, "another-key", at), null);
+  assert.equal(verifyVisitor(header.replace("203.0.113.7", "198.51.100.1"), key, at), null, "a changed address");
+  assert.equal(verifyVisitor(header, "", at), null, "a world given no key believes nothing");
+  for (const bad of [undefined, "", "203.0.113.7", "a|b|c", "203.0.113.7|notatime|x"]) assert.equal(verifyVisitor(bad, key, at), null);
+});

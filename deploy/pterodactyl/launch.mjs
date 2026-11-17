@@ -215,7 +215,9 @@ function prepare(env) {
     const serverMb = Number(text(env.SERVER_MEMORY));
     const buildHeap = Number.isInteger(serverMb) && serverMb > 0 ? Math.max(1024, Math.min(4096, Math.floor(serverMb * 0.7))) : 4096;
 
-    for (const pkg of ["server", "client"]) {
+    // A headless world (HEADLESS=1) is played on its master's site: no website is installed or built.
+    const headless = text(env.HEADLESS) === "1";
+    for (const pkg of headless ? ["server"] : ["server", "client"]) {
         const key = `${pkg}Packages`;
         if (!all && state[key] === now[key] && fs.existsSync(path.join(ROOT, pkg, "node_modules"))) continue;
         // The Yarn version the project pins, fetched through npm (as `npm run setup` does).
@@ -230,7 +232,7 @@ function prepare(env) {
         run("Building the game server", path.join(ROOT, "server"), process.execPath, [`--max-old-space-size=${buildHeap}`, "node_modules/typescript/bin/tsc", "--build"]);
         save("serverBuild");
     }
-    if (all || state.clientBuild !== now.clientBuild || !fs.existsSync(path.join(ROOT, "client/build/index.html"))) {
+    if (!headless && (all || state.clientBuild !== now.clientBuild || !fs.existsSync(path.join(ROOT, "client/build/index.html")))) {
         const buildEnv = { ...env, ...clientBuildEnv(env), ...FRUGAL_BUILD, NODE_OPTIONS: `--max-old-space-size=${buildHeap}` };
         run("Building the website (several minutes)", path.join(ROOT, "client"), process.execPath,
             ["../scripts/run-with-env.mjs", "production", "./node_modules/@craco/craco/dist/bin/craco.js", "build"], buildEnv);
@@ -338,7 +340,9 @@ function start(env) {
         cwd: path.join(ROOT, "client"),
         // WORLDS_MASTER_URL (a world in a group): the front door asks that master for the list of worlds.
         env: { ...env, PORT: String(port), HOST: "0.0.0.0", GAME_PORT: String(GAME_PORT), CACHE_DIR: path.join(ROOT, "server/caches"),
-            WORLDS_MASTER_URL: text(env.WORLDS_MASTER_URL) },
+            WORLDS_MASTER_URL: text(env.WORLDS_MASTER_URL),
+            // Headless: the game and its /api only. MASTER_PROXY_KEY: the master's word on who a visitor is.
+            FRONT_HEADLESS: text(env.HEADLESS) === "1" ? "1" : "", MASTER_PROXY_KEY: text(env.MASTER_PROXY_KEY) },
         stdio: ["ignore", "inherit", "inherit"],
     });
     front.on("exit", (code) => {

@@ -98,10 +98,28 @@ The panel must have the current egg (deploy/pterodactyl/egg-kat-net-tsps.json: i
 after it changes), and each node needs free allocations. A new world is told the master's
 address (MASTER_PUBLIC_URL in deploy/settings.env) and so shows the whole list.
 
-A new world is reached at its node's address and port over plain http. A page on https cannot
-open a game connection to it, so the world picker on rs.kat-net.us leaves it out and the
-landing page links to it directly. To fix that for a world, give it a name behind https (a
-subdomain through Cloudflare), then set that address and tick https under "Edit listing".
+Worlds played on the master's site
+----------------------------------
+A world made on the admin page is headless: it builds and serves no website (a much smaller
+and quicker install), and runs at its node's bare address and port. It is played on the
+master's site, at https://rs.kat-net.us/play?world=<id>, which the landing page and the game's
+world picker link to. The master's front door carries that world's game connection and its
+/api at /w/<id>, so the one https address serves every world.
+
+The same goes for any listed world without https of its own (New York, until it has a name
+behind https): the master carries it too. A world with https of its own is reached directly.
+
+What to know:
+  * Every player of such a world connects through this server: their traffic passes Dallas,
+    which adds the distance to their latency. For a world far from here, give it a name behind
+    https (a subdomain through Cloudflare), then set that address and tick https under "Edit
+    listing": players then connect to it directly (it needs its own website for that:
+    Headless 0 in its egg).
+  * The master tells each such world who is really connecting, signed with a key both hold
+    (the egg's "Master proxy key"; worlds made on the admin page are given it). A world set
+    up by hand needs it set too ("Show the proxy key" on the admin page), or it sees every
+    player arriving from the master's address: an IP ban there would then ban them all.
+  * Accounts and saves are each world's own.
 
 Keeping up with the original project
 ------------------------------------

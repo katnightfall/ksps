@@ -30,12 +30,14 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
+import https from "node:https";
 import net from "node:net";
 import path from "node:path";
+import tls from "node:tls";
 import { fileURLToPath } from "node:url";
 
 import { listedFrom } from "./master/registry.mjs";
-import { createStatusBoard, fetchJson, listFor, loadWorlds, serverList, worldsFrom } from "./worlds.mjs";
+import { createStatusBoard, fetchJson, listFor, loadWorlds, masterRoute, serverList, signVisitor, throughMaster, verifyVisitor, VISITOR_HEADER, worldsFrom } from "./worlds.mjs";
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || "0.0.0.0";
@@ -114,7 +116,11 @@ async function listedWorlds() {
     return listFor(await everyWorld(), await ownWorldName());
 }
 
-const worldBoard = createStatusBoard((world) => fetchJson(world.here ? LOCAL_STATUS : `${world.secure ? "https" : "http"}://${world.address}/api/world-status`));
+// Links to a world played through the master go to the master's own /play: here when we are it,
+// at its address when we know it.
+const worldBoard = createStatusBoard(
+    (world) => fetchJson(world.here ? LOCAL_STATUS : `${world.secure ? "https" : "http"}://${world.address}/api/world-status`),
+    undefined, IS_MASTER ? "" : MASTER_URL || undefined);
 
 /** Whether the visitor's page is https: an https page may not open an insecure game connection. */
 function secureVisitor(request) {
@@ -145,8 +151,11 @@ async function answerWorldList(request, response, pathname) {
         return true;
     }
     if (worlds.length === 0) return false;
-    // The world picker of a page on https cannot reach a world without https: it is left out there.
-    send(serverList(secureVisitor(request) ? worlds.filter((world) => world.secure) : worlds));
+    // On the master, a world with no https of its own is listed at the master's address, which
+    // carries it (/w/<id>). Elsewhere, a page on https cannot reach such a world: it is left out.
+    const site = IS_MASTER ? { host: String(request.headers.host ?? ""), secure: secureVisitor(request) } : null;
+    const reachable = secureVisitor(request) ? worlds.filter((world) => world.secure || (site && throughMaster(world))) : worlds;
+    send(serverList(reachable, site));
     return true;
 }
 
@@ -164,8 +173,28 @@ for (const range of ["2400:cb00::/32", "2606:4700::/32", "2803:f800::/32", "2405
     trusted.addSubnet(address, Number(prefix), "ipv6");
 }
 
-/** The visitor's address: the caller's, or what Cloudflare says when Cloudflare is the caller. */
+// The key the master signs a visitor's address with for the worlds it carries (worlds.mjs
+// signVisitor). The master's is made by its admin page (deploy/master/server.mjs) and kept in
+// its folder; a world is given the same key as MASTER_PROXY_KEY and believes only what it signs.
+const PROXY_KEY_FILE = path.join(ROOT, "server", "data", "saves", "master", "proxy-key");
+const OWN_PROXY_KEY = IS_MASTER ? "" : String(process.env.MASTER_PROXY_KEY ?? "").trim();
+let masterKey = { key: "", checked: 0 };
+function proxyKey() {
+    if (Date.now() - masterKey.checked > 10_000) {
+        let key = "";
+        try { key = fs.readFileSync(PROXY_KEY_FILE, "utf8").trim(); } catch {}
+        masterKey = { key, checked: Date.now() };
+    }
+    return masterKey.key;
+}
+
+/**
+ * The visitor's address: the caller's; what Cloudflare says when Cloudflare is the caller; or, on
+ * a world the master carries connections to, what the master signed.
+ */
 function visitorAddress(request) {
+    const stated = OWN_PROXY_KEY ? verifyVisitor(request.headers[VISITOR_HEADER], OWN_PROXY_KEY) : null;
+    if (stated && net.isIP(stated)) return stated;
     const caller = String(request.socket.remoteAddress ?? "").replace(/^::ffff:/, "");
     const family = net.isIP(caller) === 6 ? "ipv6" : "ipv4";
     const reported = request.headers["cf-connecting-ip"];
@@ -177,9 +206,37 @@ function visitorAddress(request) {
 function forwardedHeaders(request) {
     const headers = { ...request.headers };
     delete headers["x-real-ip"];
+    delete headers[VISITOR_HEADER];
     const address = visitorAddress(request);
     if (net.isIP(address)) headers["x-real-ip"] = address;
     return headers;
+}
+
+/**
+ * On the master, a /w/<id>... address: the listed world it means and the rest of the address.
+ * { world: null } for an id that is not on the list; null when the address is not one of these.
+ */
+async function carried(url) {
+    const route = IS_MASTER ? masterRoute(url) : null;
+    if (!route) return null;
+    return { world: (await listedWorlds()).find((world) => world.id === route[0]) ?? null, rest: route[1] };
+}
+
+/** The request's headers for a world the master carries it to: its own host, and the visitor's address, signed. */
+function carriedHeaders(request, world) {
+    const headers = forwardedHeaders(request);
+    const visitor = headers["x-real-ip"];
+    // Only the signed header says who the visitor is; nothing of Cloudflare's or ours is passed on.
+    for (const name of Object.keys(headers)) if (/^(x-real-ip|x-forwarded-|cf-|cdn-loop|cookie$)/.test(name)) delete headers[name];
+    headers.host = world.address;
+    const key = proxyKey();
+    if (key && visitor) headers[VISITOR_HEADER] = signVisitor(visitor, key);
+    return headers;
+}
+
+function worldTarget(world) {
+    const [host, port] = world.address.split(":");
+    return { host, port: Number(port) || (world.secure ? 443 : 80) };
 }
 
 const ADMIN_PATH = /^\/admin(\/|\?|$)/;
@@ -206,22 +263,44 @@ async function startMaster() {
     run();
 }
 
+/** `staticPort`: the website's private port, or 0 on a headless world (no website of its own). */
 function listen(staticPort) {
+    const refuse = (response, status, message) => {
+        if (!response.headersSent) response.writeHead(status, { "Content-Type": "text/plain; charset=utf-8" });
+        response.end(message);
+    };
     /** Hands the request to the game server, the admin page or the website behind us. */
-    const pass = (request, response) => {
-        const admin = masterPort > 0 && ADMIN_PATH.test(request.url ?? "");
-        const port = admin ? masterPort : GAME_PATH.test(request.url ?? "") ? GAME_PORT : staticPort;
+    const pass = (request, response, url = request.url) => {
+        const admin = masterPort > 0 && ADMIN_PATH.test(url ?? "");
+        const game = GAME_PATH.test(url ?? "");
+        if (!admin && !game && staticPort === 0) {
+            // A headless world: its game and its /api, and nothing to look at. The master has the site.
+            if (MASTER_URL) { response.writeHead(302, { Location: `${MASTER_URL}/` }); return response.end(); }
+            return refuse(response, 404, "This world has no website of its own.");
+        }
+        const port = admin ? masterPort : game ? GAME_PORT : staticPort;
         const headers = forwardedHeaders(request);
         // The admin page sets its cookie Secure on an https visit; only this proxy may say so.
         if (admin) headers["x-forwarded-proto"] = secureVisitor(request) ? "https" : "http";
-        const upstream = http.request({ host: LOCAL, port, method: request.method, path: request.url, headers }, (answer) => {
+        const upstream = http.request({ host: LOCAL, port, method: request.method, path: url, headers }, (answer) => {
             response.writeHead(answer.statusCode ?? 502, answer.headers);
             answer.pipe(response);
         });
-        upstream.on("error", () => {
-            if (!response.headersSent) response.writeHead(502, { "Content-Type": "text/plain; charset=utf-8" });
-            response.end(admin ? "The admin page is not answering. It may be starting." : port === GAME_PORT ? "The game server is not answering. It may be restarting." : "The website is not answering.");
+        upstream.on("error", () => refuse(response, 502, admin ? "The admin page is not answering. It may be starting." : port === GAME_PORT ? "The game server is not answering. It may be restarting." : "The website is not answering."));
+        response.on("close", () => upstream.destroy());
+        request.pipe(upstream);
+    };
+    /** The master, carrying a world's /api (and nothing else of it) at /w/<id>/api... */
+    const carry = (request, response, { world, rest }) => {
+        if (!world) return refuse(response, 404, "There is no such world.");
+        if (!GAME_PATH.test(rest)) return refuse(response, 404, "Not found.");
+        if (world.here) return pass(request, response, rest);
+        const upstream = (world.secure ? https : http).request({ ...worldTarget(world), method: request.method, path: rest, headers: carriedHeaders(request, world), timeout: 20_000 }, (answer) => {
+            response.writeHead(answer.statusCode ?? 502, answer.headers);
+            answer.pipe(response);
         });
+        upstream.on("timeout", () => upstream.destroy(new Error("timeout")));
+        upstream.on("error", () => refuse(response, 502, "That world is not answering. It may be starting."));
         response.on("close", () => upstream.destroy());
         request.pipe(upstream);
     };
@@ -235,18 +314,24 @@ function listen(staticPort) {
             );
             return;
         }
+        if (IS_MASTER && pathname.startsWith("/w/")) {
+            carried(request.url).then(
+                (route) => (route ? carry(request, response, route) : pass(request, response)),
+                () => refuse(response, 502, "The world list is not answering."),
+            );
+            return;
+        }
         pass(request, response);
     });
 
-    // The game connection: hand the request to the game server as it came and join the two sockets.
-    server.on("upgrade", (request, socket, head) => {
-        const game = net.connect(GAME_PORT, LOCAL);
+    /** Joins the visitor's socket to a game server's, after sending it the request that asked for it. */
+    const join = (request, socket, head, game, url, headers, ready = "connect") => {
         const close = () => { socket.destroy(); game.destroy(); };
         game.on("error", close);
         socket.on("error", close);
-        game.on("connect", () => {
-            const lines = [`${request.method} ${request.url} HTTP/${request.httpVersion}`];
-            for (const [name, value] of Object.entries(forwardedHeaders(request))) {
+        game.on(ready, () => {
+            const lines = [`${request.method} ${url} HTTP/${request.httpVersion}`];
+            for (const [name, value] of Object.entries(headers)) {
                 for (const item of Array.isArray(value) ? value : [value]) lines.push(`${name}: ${item}`);
             }
             game.setNoDelay(true);
@@ -258,10 +343,26 @@ function listen(staticPort) {
         });
         socket.on("close", () => game.destroy());
         game.on("close", () => socket.destroy());
+    };
+    // The game connection: hand the request to the game server as it came and join the two
+    // sockets. On the master, /w/<id> is the game connection of that world, wherever it runs.
+    server.on("upgrade", (request, socket, head) => {
+        const local = (url = request.url) => join(request, socket, head, net.connect(GAME_PORT, LOCAL), url, forwardedHeaders(request));
+        if (!IS_MASTER || !String(request.url ?? "").startsWith("/w/")) return local();
+        socket.on("error", () => socket.destroy());
+        carried(request.url).then((route) => {
+            if (socket.destroyed) return;
+            if (!route) return local();
+            if (!route.world) return socket.destroy();
+            if (route.world.here) return local(route.rest);
+            const target = worldTarget(route.world);
+            if (route.world.secure) join(request, socket, head, tls.connect({ ...target, servername: target.host }), route.rest, carriedHeaders(request, route.world), "secureConnect");
+            else join(request, socket, head, net.connect(target), route.rest, carriedHeaders(request, route.world));
+        }, () => socket.destroy());
     });
 
     server.keepAliveTimeout = 30_000;
-    server.listen(PORT, HOST, () => console.log(`[front] http://${HOST}:${PORT}: website on ${staticPort}, game on ${GAME_PORT}`));
+    server.listen(PORT, HOST, () => console.log(`[front] http://${HOST}:${PORT}: ${staticPort ? `website on ${staticPort}` : "no website (headless)"}, game on ${GAME_PORT}${IS_MASTER ? ", master" : MASTER_URL ? `, master at ${MASTER_URL}` : ""}`));
 }
 
 /** A port nothing is using on this machine. */
@@ -279,6 +380,9 @@ function freePort() {
 if (IS_MASTER) await startMaster();
 if (process.env.FRONT_STATIC_PORT) {
     listen(Number(process.env.FRONT_STATIC_PORT));
+} else if (process.env.FRONT_HEADLESS === "1") {
+    // A world played on the master's site: no website is built or served here.
+    listen(0);
 } else {
     const staticPort = await freePort();
     const client = path.join(ROOT, "client");

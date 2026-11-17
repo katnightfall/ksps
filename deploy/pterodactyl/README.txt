@@ -36,6 +36,10 @@ The variables
   Public game address only for a world list (wss://play.example.com).
   Master address      only for a world in a group: the group's master (https://rs.kat-net.us),
                       which it asks for the list of worlds. Empty: a world on its own.
+  Headless            1: no website is built or served; the world is played on its master's
+                      site, which carries the game connection to it (needs Master address).
+  Master proxy key    with a master: the key it signs each visitor's address with (its admin
+                      page shows it), so this world sees who is really connecting.
   Update on start     1: each start fetches the newest version and rebuilds what changed.
   Rebuild on start    1: build everything again on the next start; set it back to 0 after.
   Game memory (MB)    empty: 70% of the server's memory.

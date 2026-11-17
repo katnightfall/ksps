@@ -49,3 +49,23 @@ test("who is on a world, in words", () => {
     assert.equal(playersText(world({ online: true, players: 1 })), "1 player");
     assert.equal(playersText(world({ online: true, players: 1234 })), "1,234 players");
 });
+
+// Worlds played through the master's site (network/masterWorld.ts): /play?world=<id>, carried at /w/<id>.
+test("a world played through the master: its link, its address on this page, and its /w/<id> kept", async () => {
+    const { masterWorldPrefix, masterWorldServer, worldFromQuery } = await import("../network/masterWorld");
+    assert.equal(readWorlds({ worlds: [{ id: "ny", name: "NY", play: "/play?world=new-york", hiscores: "/hiscores?world=new-york" }] })[0].play, "/play?world=new-york");
+    assert.equal(readWorlds({ worlds: [{ id: "ny", name: "NY", play: "/play?world=x&next=//evil.example.com" }] })[0].play, "/play", "nothing else rides on the link");
+    assert.equal(worldFromQuery("?world=new-york"), "new-york");
+    assert.equal(worldFromQuery("?world=New York"), undefined);
+    assert.equal(worldFromQuery("?world=../admin"), undefined);
+    assert.equal(worldFromQuery(""), undefined);
+    assert.deepEqual(masterWorldServer({ host: "rs.kat-net.us", protocol: "https:", search: "?world=new-york" }), { id: "new-york", address: "rs.kat-net.us/w/new-york", secure: true });
+    assert.deepEqual(masterWorldServer({ host: "localhost:3000", protocol: "http:", search: "?world=ny" }), { id: "ny", address: "localhost:3000/w/ny", secure: false });
+    assert.equal(masterWorldServer({ host: "rs.kat-net.us", protocol: "https:", search: "" }), undefined);
+    // The game connection's address keeps the prefix for the world's /api; any other path is dropped as before.
+    assert.equal(masterWorldPrefix("/w/new-york"), "/w/new-york");
+    assert.equal(masterWorldPrefix("/w/new-york/"), "/w/new-york");
+    assert.equal(masterWorldPrefix("/"), "");
+    assert.equal(masterWorldPrefix("/signal"), "");
+    assert.equal(masterWorldPrefix("/w/Bad_Id"), "");
+});

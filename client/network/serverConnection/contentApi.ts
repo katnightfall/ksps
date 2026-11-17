@@ -1,3 +1,4 @@
+import { masterWorldPrefix } from "../masterWorld";
 import { state } from "./state";
 import { WebRtcGameSocket } from "./connection/WebRtcGameSocket";
 import { resolveServerTransport } from "./outgoing/connectionInfo";
@@ -18,7 +19,8 @@ export function getContentApiBase(): string | undefined {
     try {
         const parsed = new URL(url);
         parsed.protocol = parsed.protocol === "wss:" ? "https:" : "http:";
-        parsed.pathname = "";
+        // Ours: a world played through the master keeps its /w/<id> (network/masterWorld.ts).
+        parsed.pathname = masterWorldPrefix(parsed.pathname);
         parsed.search = "";
         parsed.hash = "";
         return parsed.toString().replace(/\/$/, "");

@@ -1,3 +1,4 @@
+import { masterWorldServer } from "../network/masterWorld";
 import { BRAND_NAME } from "../config/brand";
 import { AGILITY_HELPER_HIGHLIGHT_OBSTACLES_ENABLED, HELPER_AGILITY_HIGHLIGHTED_COURSE } from "@runelite/api/gameval/VarbitID";
 import { retainedInventory, stopInventoryTransmit } from "./sync/InventoryStopTransmit";
@@ -6501,11 +6502,13 @@ export class OsrsClient {
             window.history.replaceState({}, "", url.toString());
 
             // Keep URL-param auto-login on the active environment's default server.
-            const serverAddress = getDefaultServerAddress();
-            setServerUrl(getDefaultWsUrl());
+            // Ours: unless the link names a world played through the master (?world=<id>).
+            const linked = masterWorldServer(window.location);
+            const serverAddress = linked?.address ?? getDefaultServerAddress();
+            setServerUrl(linked ? `${linked.secure ? "wss" : "ws"}://${linked.address}` : getDefaultWsUrl());
             this.loginState.serverAddress = serverAddress;
-            this.loginState.serverName = getDefaultServerName();
-            this.loginState.serverSecure = getDefaultServerSecure();
+            this.loginState.serverName = linked?.id ?? getDefaultServerName();
+            this.loginState.serverSecure = linked?.secure ?? getDefaultServerSecure();
             this.loginState.serverTransport = "websocket";
             this.loginState.serverSignalUrl = undefined;
             this.loginState.serverWorldId = undefined;
