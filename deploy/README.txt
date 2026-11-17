@@ -174,6 +174,18 @@ Not shared, still each world's own: bans and mutes, extra characters under one a
 changed display names, clans, and the bots (a bot's save is never handed in). Experience rates
 are each world's own too, so a character levels faster on a world with a higher rate.
 
+Area loot
+---------
+A player picks up what lies around them without walking to each pile: the Area Loot panel in
+the client's sidebar lists the drops in reach (name, amount, guide value) with a Take all
+button, and a click on a row takes that pile; typing ::loot does the same. The distance is
+the world's (world setting AreaLoot:radius, 1 to 30 tiles, default 10). The game's own
+pick-up rules decide what comes: the player's floor, what they can see and may take (another
+player's fresh drop is not theirs), room in the backpack. Items the world itself puts out
+(a quest item on a table) are left, and so is everything in the Wilderness unless
+AreaLoot:wilderness is on. AreaLoot:enabled turns it off. (server/plugins/world/
+AreaLoot.plugin.js, client/game/plugins/arealoot.)
+
 New characters and bots
 -----------------------
 A new character starts with OSRS's Tutorial Island kit and 25 coins in the bank

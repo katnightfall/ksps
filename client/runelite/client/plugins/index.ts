@@ -47,6 +47,8 @@ import { MenuSwapperPlugin } from "../../../game/plugins/menuswapper/MenuSwapper
 import { DoorKickerPlugin } from "../../../game/plugins/doorkicker/DoorKickerPlugin";
 import { InventorySetupsPlugin } from "../../../game/plugins/inventorysetups/InventorySetupsPlugin";
 import { LootTrackerPlugin } from "../../../game/plugins/loottracker/LootTrackerPlugin";
+// Ours: area loot (bulk pick-up of the drops around the player).
+import { AreaLootPlugin } from "../../../game/plugins/arealoot/AreaLootPlugin";
 import { NotesConfig } from "../../../game/plugins/notes/NotesPlugin";
 import { ObjectIndicatorsPlugin } from "../../../game/plugins/objectindicators/ObjectIndicatorsPlugin";
 import { NpcIndicatorsPlugin } from "../../../game/plugins/npcindicators/NpcIndicatorsPlugin";
@@ -90,6 +92,7 @@ export const CORE_PLUGINS: ReadonlyArray<PluginClass> = [
     GameFrame317Plugin,
     GroundItemsPlugin,
     LootTrackerPlugin,
+    AreaLootPlugin,
     InventorySetupsPlugin,
     DoorKickerPlugin,
     InteractHighlightPlugin,
