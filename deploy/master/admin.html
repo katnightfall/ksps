@@ -80,7 +80,12 @@ label > span { display: block; margin-bottom: 3px; }
   </header>
   <main>
     <section class="panel">
-      <h2>Worlds <small id="summary"></small></h2>
+      <h2>Worlds <small id="summary"></small>
+        <span style="flex:1"></span>
+        <button class="small" type="button" id="restart-all" hidden>Restart all</button>
+        <button class="small" type="button" id="start-all" hidden>Start all</button>
+        <button class="small danger" type="button" id="stop-all" hidden>Stop all</button>
+      </h2>
       <div id="worlds"></div>
     </section>
 
@@ -116,6 +121,14 @@ label > span { display: block; margin-bottom: 3px; }
         <p class="quiet">A world without https is played on this site (/play?world=...), which carries the game connection to it. So that it sees who is really connecting, set its egg's "Master address" to this site and its "Master proxy key" to this key, then restart it.
           <button class="small" type="button" id="show-key">Show the proxy key</button> <code id="proxy-key"></code></p>
       </form>
+    </section>
+
+    <section class="panel">
+      <h2>A fresh start <small>every account, on every world</small></h2>
+      <div class="body">
+        <p class="quiet">Resets every world to new: all accounts, characters, banks and bots, and what players built up (clans, scoreboards). Bans and mutes stay. Each world sets its saves aside in a backup folder on its own server as it restarts; nothing is deleted, but putting them back is done by hand.</p>
+        <div class="row"><button class="danger" type="button" id="reset-accounts">Reset all accounts</button></div>
+      </div>
     </section>
   </main>
 </div>
@@ -246,6 +259,9 @@ function render() {
   $("worlds").replaceChildren(...(worlds.length ? worlds.map(worldRow) : [el("p", { className: "body quiet", textContent: "No worlds yet." })]));
   const online = worlds.filter((world) => world.online).length;
   $("summary").textContent = online + " of " + worlds.length + " online" + (state.masterOnly ? " · this server hosts no world of its own" : "");
+  // One click for every world made here: shown once there is more than nothing to click.
+  const run = worlds.filter((world) => world.server).length;
+  for (const id of ["restart-all", "start-all", "stop-all"]) $(id).hidden = run === 0;
   const panel = state.panel;
   const select = $("create-form").elements.place;
   const ready = panel.configured && panel.ready === true;
@@ -296,6 +312,32 @@ async function power(world, signal) {
     setTimeout(() => load(true), 3000);
   } catch (error) { if (error.message !== "signed-out") say(error.message, true); }
 }
+
+async function powerAll(signal) {
+  const count = state.worlds.filter((world) => world.server).length;
+  const warning = signal === "start" ? "" : " Players on them are saved and disconnected.";
+  const extra = signal === "restart" ? " Each fetches the newest version as it starts." : "";
+  if (!confirm(signal[0].toUpperCase() + signal.slice(1) + " all " + count + " worlds made here?" + warning + extra)) return;
+  try {
+    const answer = await api("POST", "power-all", { signal });
+    const failed = answer.failed.map((world) => world.name + " (" + world.error + ")").join("; ");
+    say("Sent " + signal + " to " + answer.done.length + " of " + count + " worlds." + (failed ? " Not sent to: " + failed : ""), answer.failed.length > 0);
+    setTimeout(() => load(true), 4000);
+  } catch (error) { if (error.message !== "signed-out") say(error.message, true); }
+}
+$("reset-accounts").onclick = async () => {
+  const typed = prompt("This resets EVERY account on EVERY world: characters, banks, bots, clans and scoreboards all start over. The worlds restart now to apply it.\n\nType RESET to go ahead.");
+  if (typed === null) return;
+  try {
+    const answer = await api("POST", "reset-accounts", { confirm: typed });
+    const failed = answer.failed.map((world) => world.name).join(", ");
+    say("A fresh start is called. Restarted " + answer.done.length + " worlds to apply it." + (failed ? " Not restarted: " + failed + " (they apply it at their next start)." : ""), answer.failed.length > 0);
+    setTimeout(() => load(true), 4000);
+  } catch (error) { if (error.message !== "signed-out") say(error.message, true); }
+};
+$("restart-all").onclick = () => powerAll("restart");
+$("start-all").onclick = () => powerAll("start");
+$("stop-all").onclick = () => powerAll("stop");
 
 async function makeDefault(world) {
   try {

@@ -414,6 +414,7 @@ After changing a plugin's `description` or `config`, run `yarn --cwd server worl
 | --- | --- | --- | --- |
 | `CrossFloor:combat` | boolean | *Off unless enabled by a legacy environment flag* | **Cross-floor combat.** Allows ranged and magic attacks between floors while CrossFloor is enabled. |
 | `Gravestones:enabled` | boolean | `true` | **Gravestones.** Player deaths in PvM leave a gravestone. Turn off for the older behaviour where lost items drop where the player died. |
+| `StarterKit:enabled` | boolean | `true` | **Starter items for new characters.** A new character starts with OSRS's Tutorial Island kit and 25 coins in the bank. Worlds that run Tutorial Island give it there instead, whatever this says. |
 
 ### Plugin switches
 
@@ -1041,6 +1042,7 @@ This table lists bundled plugins that have a description. The world config page 
 | `SandPits` | SandPits | world | yes | Using an empty bucket on a sandpit fills all empty buckets, one every two ticks. (members only) |
 | `ShiloCart` | ShiloCart | world | yes | Shilo Village carts: board with Hajedy or Vigroy, or Pay-fare, between Brimhaven and Shilo Village, free after the elite Karamja Diary. (members only) |
 | `SpiritTrees` | SpiritTrees | world | yes | Spirit tree network: the location menu, travel, talk-to and last-destination, with trees you cannot use greyed out. (members only) |
+| `StarterKit` | StarterKit | world | yes | Gives a new character the items OSRS hands out on leaving Tutorial Island (tools, a sword, a bow and arrows, runes, food, and 25 coins in the bank) on worlds that do not run the island. |
 | `TableItems` | TableItems | world | yes | Using a tradeable item on a table places it there, visible to others after 60 seconds and despawning after 10 minutes. |
 | `TarSwampMushroom` | TarSwampMushroom | world | yes | Fossil Island's Tar Swamp rubber cap mushroom: Jump on throws the player to the mud pit, softened by 9 bittercaps (Fill). (members only) |
 | `Vineyard` | Vineyard | world | yes | Aldarin's vineyard foreman hands out the grape barrel. (members only) |

@@ -428,3 +428,43 @@ test("a master that runs a world itself has no default world to pick", async (t)
   const { body } = await m.call("GET", "state");
   assert.deepEqual([body.masterOnly, body.defaultId], [false, ""]);
 });
+
+// The user's ask (2026-11-17): one click to restart every world after an update.
+test("restart all: every world made here gets the signal; the others are left alone, and one failure does not stop the rest", async (t) => {
+  const m = await master(t);
+  await m.signIn();
+  await m.call("POST", "worlds", { name: "Chicago", place: "location-1" });
+  await m.call("POST", "worlds", { name: "Boston", place: "location-1" });
+  await m.call("POST", "worlds/external", { name: "Friends", address: "friends.example.com", secure: true });
+  const before = m.panel.calls.length;
+  const all = await m.call("POST", "power-all", { signal: "restart" });
+  assert.deepEqual(all.body, { signal: "restart", done: ["Chicago", "Boston"], failed: [] });
+  assert.deepEqual(m.panel.calls.slice(before).map((call) => [call.scope, call.route, call.body.signal]),
+    [["client", "/servers/abc100/power", "restart"], ["client", "/servers/abc101/power", "restart"]], "only the worlds made here: not the project's, not one added by address");
+  assert.equal((await m.call("POST", "power-all", { signal: "kill" })).status, 400, "not kill: that loses what was not saved");
+
+  // A world whose server is gone from the panel: named, and the rest still get the signal.
+  m.panel.servers.delete(100);
+  const partial = await m.call("POST", "power-all", { signal: "stop" });
+  assert.deepEqual(partial.body.done, ["Boston"]);
+  assert.deepEqual(partial.body.failed.map((world) => world.name), ["Chicago"]);
+});
+
+// The user's ask (2026-11-17): reset all accounts for a fresh start.
+test("reset all accounts: only with RESET typed; it sets a new reset id and restarts every world made here", async (t) => {
+  const m = await master(t);
+  await m.signIn();
+  await m.call("POST", "worlds", { name: "Chicago", place: "location-1" });
+  assert.equal(m.registry.getAccountsReset(), "");
+  for (const confirm of [undefined, "reset", "yes"]) assert.equal((await m.call("POST", "reset-accounts", { confirm })).status, 400);
+  assert.equal(m.registry.getAccountsReset(), "", "nothing is called by a wrong word");
+  const before = m.panel.calls.length;
+  const done = await m.call("POST", "reset-accounts", { confirm: "RESET" });
+  assert.equal(done.status, 200);
+  assert.equal(done.body.id, "2026-11-16T12:00:00Z");
+  assert.deepEqual(done.body.done, ["Chicago"]);
+  assert.equal(m.registry.getAccountsReset(), "2026-11-16T12:00:00Z");
+  assert.deepEqual(m.panel.calls.slice(before).map((call) => [call.route, call.body.signal]), [["/servers/abc100/power", "restart"]]);
+  // The worlds and the default world are untouched by it.
+  assert.equal(m.registry.get("chicago").name, "Chicago");
+});

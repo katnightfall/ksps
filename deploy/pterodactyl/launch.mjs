@@ -323,6 +323,12 @@ function writeWorld(env) {
 
 function start(env) {
     const port = Number(text(env.SERVER_PORT)) || 3000;
+    // A world of a master applies the master's fresh start, if it called one, before the game
+    // opens its saves (deploy/reset-accounts.mjs: moved aside, never deleted; a world with no
+    // master is never reset).
+    if (text(env.WORLDS_MASTER_URL)) {
+        spawnSync(process.execPath, [path.join(ROOT, "deploy/reset-accounts.mjs"), "--from-master", text(env.WORLDS_MASTER_URL)], { cwd: ROOT, stdio: "inherit", timeout: 30_000 });
+    }
     let stopping = false;
     let game = null;
     const startGame = () => {

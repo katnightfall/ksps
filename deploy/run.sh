@@ -29,6 +29,9 @@ case "${1:-}" in
     # The one folder the website's service may write to (the admin page's worlds, deploy/master/):
     # made here, by the service that may make it.
     mkdir -p "$ROOT/server/data/saves/master"
+    # A fresh start the master called (deploy/reset-accounts.mjs): the saves are moved aside, once,
+    # before anything opens them.
+    node "$ROOT/deploy/reset-accounts.mjs" || true
     export WEBSOCKET_PORT="$GAME_PORT"
     if [ "$MASTER_ONLY" = 1 ]; then
       # No world here. The website still hands players the game cache, which the game server

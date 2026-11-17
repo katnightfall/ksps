@@ -20,25 +20,33 @@ export function createRegistry(file) {
     function readFile() {
         try {
             const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
-            return { worlds: Array.isArray(parsed?.worlds) ? parsed.worlds : [], default: typeof parsed?.default === "string" ? parsed.default : "" };
+            return {
+                worlds: Array.isArray(parsed?.worlds) ? parsed.worlds : [],
+                default: typeof parsed?.default === "string" ? parsed.default : "",
+                accountsReset: typeof parsed?.accountsReset === "string" ? parsed.accountsReset : "",
+            };
         } catch {
-            return { worlds: [], default: "" };
+            return { worlds: [], default: "", accountsReset: "" };
         }
     }
     const read = () => readFile().worlds;
     /** Written whole, to a file beside it first: a crash mid-write leaves the old list. */
-    function write(worlds, standard = readFile().default) {
+    function write(worlds, changes = {}) {
+        const kept = readFile();
         fs.mkdirSync(path.dirname(file), { recursive: true });
         const temporary = `${file}.${process.pid}.tmp`;
-        fs.writeFileSync(temporary, `${JSON.stringify({ default: standard, worlds }, null, 2)}\n`);
+        fs.writeFileSync(temporary, `${JSON.stringify({ default: changes.default ?? kept.default, accountsReset: changes.accountsReset ?? kept.accountsReset, worlds }, null, 2)}\n`);
         fs.renameSync(temporary, file);
     }
     return {
         file,
         all: read,
+        /** The admin page's part of the master's reset id (deploy/reset-accounts.mjs): changing it resets every world. */
+        getAccountsReset: () => readFile().accountsReset,
+        setAccountsReset(id) { write(read(), { accountsReset: id }); },
         /** The default world's id: the one the master's bare address plays when it hosts none itself. "" for the first listed. */
         getDefault: () => readFile().default,
-        setDefault(id) { write(read(), id); },
+        setDefault(id) { write(read(), { default: id }); },
         get: (id) => read().find((world) => world.id === id) ?? null,
         add(world) {
             const worlds = read();

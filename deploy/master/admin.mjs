@@ -11,6 +11,8 @@
  *   POST   /admin/api/worlds/external     add a world that already runs somewhere, by its address
  *   PATCH  /admin/api/worlds/<id>         its listing: name, address, secure, description, listed
  *   POST   /admin/api/worlds/<id>/power   { signal: start | stop | restart | kill }
+ *   POST   /admin/api/power-all           { signal: start | stop | restart }: every world made here
+ *   POST   /admin/api/reset-accounts      { confirm: "RESET" }: a fresh start on every world
  *   DELETE /admin/api/worlds/<id>         { confirm: <its name> }: the server and all on it
  *
  * Worlds from the project's own list (deploy/worlds.json) are shown and cannot be changed here.
@@ -303,6 +305,39 @@ export function createAdmin(options) {
         return { ok: true };
     }
 
+    /**
+     * Every world made here, one signal: after an update, one click restarts them all (each
+     * fetches the newest version as it starts). One world failing does not stop the rest.
+     */
+    async function powerAll(body) {
+        const signal = text(body?.signal, 10);
+        if (!["start", "stop", "restart"].includes(signal)) throw new Refusal(400, "The signal is start, stop or restart.");
+        const done = [];
+        const failed = [];
+        for (const record of registry.all().filter((world) => world.panel)) {
+            try {
+                await panel.power(record.panel.identifier, signal);
+                done.push(record.name);
+            } catch (error) {
+                failed.push({ name: record.name, error: error.message });
+            }
+        }
+        return { signal, done, failed };
+    }
+
+    /**
+     * A fresh start on every world: a new reset id, which each world applies when it next starts
+     * (deploy/reset-accounts.mjs: its saves are moved aside, not deleted), and a restart of every
+     * world made here so that is now.
+     */
+    async function resetAccounts(body) {
+        if (storage) throw new Refusal(503, storage);
+        if (text(body?.confirm, 20) !== "RESET") throw new Refusal(400, "To reset every account on every world, type RESET.");
+        const id = new Date(now()).toISOString().replace(/\.\d+Z$/, "Z");
+        registry.setAccountsReset(id);
+        return { id, ...(settings.configured ? await powerAll({ signal: "restart" }) : { done: [], failed: [] }) };
+    }
+
     async function remove(id, body) {
         const record = managed(id);
         if (text(body?.confirm, 40) !== record.name) throw new Refusal(400, `To delete it, type the world's name exactly: ${record.name}`);
@@ -366,6 +401,8 @@ export function createAdmin(options) {
                 registry.setDefault(id);
                 return send(response, 200, { ok: true, defaultId: id });
             }
+            if (action === "power-all" && method === "POST") return send(response, 200, await powerAll(await readBody(request)));
+            if (action === "reset-accounts" && method === "POST") return send(response, 200, await resetAccounts(await readBody(request)));
             if (action === "worlds" && method === "POST") return send(response, 201, await createWorld(await readBody(request)));
             if (action === "worlds/external" && method === "POST") return send(response, 201, addExternal(await readBody(request)));
             const world = /^worlds\/([a-z0-9-]{1,40})(\/power)?$/.exec(action);

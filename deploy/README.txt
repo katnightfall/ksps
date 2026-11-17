@@ -118,6 +118,25 @@ The panel must have the current egg (deploy/pterodactyl/egg-kat-net-tsps.json: i
 after it changes), and each node needs free allocations. A new world is told the master's
 address (MASTER_PUBLIC_URL in deploy/settings.env) and so shows the whole list.
 
+After an update: "Restart all" on the admin page restarts every world made there in one click
+(each fetches the newest version as it starts). "Start all" and "Stop all" are beside it.
+
+A fresh start (resetting every account)
+---------------------------------------
+"Reset all accounts" on the admin page (it asks for the word RESET), or a new value for
+ACCOUNTS_RESET_ID in deploy/settings.env and a deploy. Each world applies it once, as it next
+starts (the admin page restarts them): everything in its server/data/saves is moved into a
+folder beside it, reset-<date>-<time>, and the world begins empty. Bans, mutes and the bank PIN
+key stay. Nothing is deleted: putting a world back is moving that folder's files back while the
+world is stopped. Only the master calls a reset, and only worlds told about it by their master
+apply it, so a world of somebody else's started from the public egg is never touched. A world
+that joins the master later is not wiped by resets called before it joined.
+
+New characters and bots
+-----------------------
+A new character starts with OSRS's Tutorial Island kit and 25 coins in the bank
+(server/plugins/world/StarterKit.plugin.js; world setting StarterKit:enabled).
+
 Worlds played on the master's site
 ----------------------------------
 A world made on the admin page is headless: it builds and serves no website (a much smaller

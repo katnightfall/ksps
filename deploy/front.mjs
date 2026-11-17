@@ -37,6 +37,7 @@ import tls from "node:tls";
 import { fileURLToPath } from "node:url";
 
 import { listedFrom } from "./master/registry.mjs";
+import { masterResetId } from "./reset-accounts.mjs";
 import { createStatusBoard, fetchJson, listFor, loadWorlds, masterRoute, serverList, signVisitor, throughMaster, verifyVisitor, VISITOR_HEADER, worldsFrom } from "./worlds.mjs";
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -181,7 +182,8 @@ async function answerWorldList(request, response, pathname) {
         response.end(request.method === "HEAD" ? undefined : json);
     };
     if (pathname === "/world-list.json") {
-        send({ worlds: (await everyWorld()).map(({ here, ...world }) => world) }, true);
+        // With the list, the master's word on a fresh start (deploy/reset-accounts.mjs): its worlds apply it as they start.
+        send({ worlds: (await everyWorld()).map(({ here, ...world }) => world), ...(IS_MASTER ? { accountsReset: masterResetId(ROOT) } : {}) }, true);
         return true;
     }
     const worlds = await listedWorlds();

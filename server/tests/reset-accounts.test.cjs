@@ -1,0 +1,99 @@
+// Ours. node --test tests/reset-accounts.test.cjs
+// A fresh start (deploy/reset-accounts.mjs): the master calls it, each world applies it once as it
+// starts, and what was saved is moved aside, never deleted.
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const { test } = require("node:test");
+const { pathToFileURL } = require("node:url");
+
+const reset = import(pathToFileURL(path.join(__dirname, "../../deploy/reset-accounts.mjs")).href);
+
+/** A world's saves folder as a played world leaves it. */
+function saves(t) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "reset-accounts-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  for (const [name, text] of Object.entries({
+    "players.sqlite": "accounts", "players.sqlite-wal": "wal", "clans.json": "{}", "nex-scoreboard.json": "[]",
+    "Bans.txt": "cheater", "IPBans.txt": "203.0.113.9", "Mutes.txt": "", "IPMutes.txt": "", "bank-pin-host.key": "secret",
+  })) fs.writeFileSync(path.join(dir, name), text);
+  fs.mkdirSync(path.join(dir, "master"));
+  fs.writeFileSync(path.join(dir, "master", "master-worlds.json"), "{}");
+  return dir;
+}
+const list = (dir) => fs.readdirSync(dir).sort();
+
+test("a reset moves every account and what players built aside, and keeps bans, the PIN key and the master's folder", async (t) => {
+  const { applyReset } = await reset;
+  const dir = saves(t);
+  const done = applyReset(dir, "2026-11-17|", { now: new Date(Date.UTC(2026, 10, 17, 2, 30, 5)) });
+  assert.equal(done.result, "reset");
+  assert.deepEqual(done.moved.sort(), ["clans.json", "nex-scoreboard.json", "players.sqlite", "players.sqlite-wal"]);
+  assert.equal(path.basename(done.backup), "reset-20261117-023005");
+  assert.deepEqual(list(dir), [".accounts-reset", "Bans.txt", "IPBans.txt", "IPMutes.txt", "Mutes.txt", "bank-pin-host.key", "master", "reset-20261117-023005"]);
+  // Nothing is lost: it is all in the backup folder, as it was.
+  assert.deepEqual(list(done.backup), ["clans.json", "nex-scoreboard.json", "players.sqlite", "players.sqlite-wal"]);
+  assert.equal(fs.readFileSync(path.join(done.backup, "players.sqlite"), "utf8"), "accounts");
+  assert.equal(fs.readFileSync(path.join(dir, "Bans.txt"), "utf8"), "cheater");
+});
+
+test("a reset is applied once; the next one moves only what was played since, and leaves earlier backups alone", async (t) => {
+  const { applyReset } = await reset;
+  const dir = saves(t);
+  const first = applyReset(dir, "one", { now: new Date(Date.UTC(2026, 10, 17, 2, 0, 0)) });
+  assert.equal(applyReset(dir, "one").result, "current");
+  assert.equal(applyReset(dir, "one").result, "current");
+  fs.writeFileSync(path.join(dir, "players.sqlite"), "new accounts");
+  const second = applyReset(dir, "two", { now: new Date(Date.UTC(2026, 10, 18, 2, 0, 0)) });
+  assert.deepEqual(second.moved, ["players.sqlite"]);
+  assert.ok(fs.existsSync(path.join(first.backup, "players.sqlite")), "the first backup is still whole");
+  assert.equal(fs.readFileSync(path.join(second.backup, "players.sqlite"), "utf8"), "new accounts");
+  // Two resets in the same second do not overwrite each other's backup.
+  fs.writeFileSync(path.join(dir, "players.sqlite"), "again");
+  const third = applyReset(dir, "three", { now: new Date(Date.UTC(2026, 10, 18, 2, 0, 0)) });
+  assert.notEqual(third.backup, second.backup);
+});
+
+test("no reset called, no reset: an empty id never touches the saves", async (t) => {
+  const { applyReset } = await reset;
+  const dir = saves(t);
+  const before = list(dir);
+  for (const id of ["", undefined, null]) assert.equal(applyReset(dir, id).result, "none");
+  assert.deepEqual(list(dir), before);
+});
+
+test("a world's first word from its master is noted, not applied: joining a master does not wipe a world", async (t) => {
+  const { applyReset } = await reset;
+  const dir = saves(t);
+  assert.equal(applyReset(dir, "called-before-it-joined", { adopt: true }).result, "adopted");
+  assert.ok(fs.existsSync(path.join(dir, "players.sqlite")), "its accounts are kept");
+  assert.equal(applyReset(dir, "called-before-it-joined", { adopt: true }).result, "current");
+  // A reset called after that is applied.
+  assert.equal(applyReset(dir, "called-later", { adopt: true }).result, "reset");
+  assert.ok(!fs.existsSync(path.join(dir, "players.sqlite")));
+});
+
+test("the master's id is its settings' part and its admin page's part; either changing is a new reset", async (t) => {
+  const { combinedResetId, masterResetId } = await reset;
+  assert.equal(combinedResetId("", ""), "", "nothing called");
+  assert.equal(combinedResetId("2026-11-17", ""), "2026-11-17|");
+  assert.equal(combinedResetId("2026-11-17", "2026-12-01T10:00:00Z"), "2026-11-17|2026-12-01T10:00:00Z");
+  assert.equal(combinedResetId("a b;rm -rf", ""), "abrm-rf|", "only plain characters");
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "reset-master-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  assert.equal(masterResetId(root), "");
+  fs.mkdirSync(path.join(root, "deploy"));
+  fs.writeFileSync(path.join(root, "deploy", "settings.env"), "DEV_USERNAME=kat\nACCOUNTS_RESET_ID=2026-11-17\n");
+  assert.equal(masterResetId(root), "2026-11-17|");
+  fs.mkdirSync(path.join(root, "server", "data", "saves", "master"), { recursive: true });
+  fs.writeFileSync(path.join(root, "server", "data", "saves", "master", "master-worlds.json"), JSON.stringify({ accountsReset: "2026-12-01T10:00:00Z", worlds: [] }));
+  assert.equal(masterResetId(root), "2026-11-17|2026-12-01T10:00:00Z");
+});
+
+test("the egg's launcher asks its master before the game starts, and only a world with a master does", () => {
+  const launcher = fs.readFileSync(path.join(__dirname, "../../deploy/pterodactyl/launch.mjs"), "utf8");
+  assert.match(launcher, /if \(text\(env\.WORLDS_MASTER_URL\)\) \{\s*spawnSync\(process\.execPath, \[path\.join\(ROOT, "deploy\/reset-accounts\.mjs"\), "--from-master"/);
+  const run = fs.readFileSync(path.join(__dirname, "../../deploy/run.sh"), "utf8");
+  assert.ok(run.indexOf('node "$ROOT/deploy/reset-accounts.mjs" || true') < run.indexOf("./dist/Server.js"), "the master's own world: before the game opens its saves");
+});
