@@ -10,6 +10,10 @@ const {
   peekMovementRequest,
 } = require("../../behaviours/navigation/Navigation.PlayerBots");
 const Fishing = require("../../../skills/Fishing.plugin");
+const { earnsOwnItems, ownItemsFor } = require("../OwnItems.PlayerBots");
+
+// Ours: how much bait a bot that buys its own aims for at the shop (it takes what its coins buy).
+const OWN_BAIT_AMOUNT = 150;
 
 // Spots of the chosen cluster: within this of its centre.
 const SITE_RADIUS = 16;
@@ -183,7 +187,13 @@ function createFishAction(spec, world) {
           waitSince: bot.siteWaitSince ? nowMs - bot.siteWaitSince : 0,
         });
       }
-      if (baitId !== null && inventory.getAmount(baitId) < baitAmount / 2) {
+      if (baitId !== null && earnsOwnItems(player)) {
+        // Ours: its own bait, from its bank or a fishing shop, as much as its coins buy.
+        if (inventory.getAmount(baitId) <= 0) {
+          const got = ownItemsFor(world).fetch(ctx, { itemId: baitId, min: 1, amount: OWN_BAIT_AMOUNT });
+          if (got !== "success") return got;
+        }
+      } else if (baitId !== null && inventory.getAmount(baitId) < baitAmount / 2) {
         inventory.adds(baitId, baitAmount - inventory.getAmount(baitId));
       }
       if (Fishing.isFishingActive(player)) {
@@ -288,7 +298,10 @@ function createFishAction(spec, world) {
     stop(ctx) {
       const bot = stateFor(ctx.player);
       // Bait is provisioned for fishing only: take back what is left before a bank trip.
-      const left = baitId !== null ? ctx.player.getInventory?.()?.getAmount(baitId) ?? 0 : 0;
+      // Ours: not from a bot that bought its bait. That is its own, and it keeps it.
+      const own = earnsOwnItems(ctx.player);
+      if (own) ownItemsFor(world).stop(ctx);
+      const left = baitId !== null && !own ? ctx.player.getInventory?.()?.getAmount(baitId) ?? 0 : 0;
       if (left > 0) ctx.player.getInventory().deleteNumber(baitId, left);
       leaveSite(ctx.player, bot, ctx.nowMs);
       bot.position = null;

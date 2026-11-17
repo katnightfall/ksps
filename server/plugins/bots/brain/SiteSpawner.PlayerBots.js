@@ -15,6 +15,8 @@ const { Flag } = require("../../../src/main/typescript/elvarg/game/model/Flag");
 const { Item } = require("../../../src/main/typescript/elvarg/game/model/Item");
 const { Equipment } = require("../../../src/main/typescript/elvarg/game/model/container/impl/Equipment");
 const { ItemIdentifiers } = require("../../../src/main/typescript/elvarg/util/ItemIdentifiers");
+const { setEarnsOwnItems, worldEarns } = require("./OwnItems.PlayerBots");
+const StarterKit = require("../../world/StarterKit.plugin");
 
 /**
  * A site's `levels` sets every skill (a number) or named skills ({ "all": 40,
@@ -242,7 +244,9 @@ function startBotSites(options = {}) {
 
   /**
    * Ours: a progression site's bot. The first time it is a brand-new character at the site's
-   * anchor (the world's start location): every skill at 1, Agility too, nothing worn or carried.
+   * anchor (the world's start location): every skill at 1, Agility too, nothing worn, and in its
+   * backpack and bank what a new player starts with (world/StarterKit). Nothing else is ever
+   * handed to it: it owns what it uses (brain/OwnItems), unless the world turns that off.
    * After that it comes back from its save, where it was, with what it had earned (a bot saved
    * up on an Agility course's roofs comes back on the ground at the course's start). Either way
    * it starts on the best activity its levels allow, in a mode drawn by the site's counts.
@@ -280,6 +284,10 @@ function startBotSites(options = {}) {
     bot.setAttribute?.(START_OVER_ATTRIBUTE, round);
     bot.setAttribute?.(RETURN_ATTRIBUTE, null);
     bot.setPasswordHashWithSalt?.(lockedPassword());
+    // A bot of the crowd owns what it uses: a new player's kit once, then what it earns.
+    const earns = worldEarns();
+    setEarnsOwnItems(bot, earns);
+    if (earns) StarterKit.giveToBot(bot);
     // These bots earn their Agility on the courses like any other skill. One saved before they
     // could still holds the 99 it was handed (exactly level 99's experience): that is taken back.
     const skills = bot.getSkillManager?.();

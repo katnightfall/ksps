@@ -2,6 +2,11 @@
 
 const { playerState } = require("../ActionState.PlayerBots");
 const { clearMovementRequest } = require("../../behaviours/navigation/Navigation.PlayerBots");
+const { bankedWhere, earnsOwnItems, ownItemsFor } = require("../OwnItems.PlayerBots");
+const { isFoodItem } = require("../../../items/Food.plugin");
+
+// Ours: a bot that owns what it uses and has less food than this in its bank cooks for its bank more often.
+const FOOD_STOCK = 30;
 
 /**
  * Weighted choice between short action lists, re-rolled every time the action
@@ -15,6 +20,9 @@ function createChooseAction(spec, compileAction) {
     .map((option) => ({
       weight: Math.max(0, Number(option.weight ?? 1)),
       actions: (option.actions ?? []).map(compileAction),
+      // Ours: what the option does with the goods, for a bot that lives off them.
+      sells: (option.actions ?? []).some((step) => step?.type === "sellItems"),
+      banks: (option.actions ?? []).some((step) => step?.type === "cook") && (option.actions ?? []).some((step) => step?.type === "bank"),
     }))
     .filter((option) => option.weight > 0 && option.actions.length > 0);
   if (!options.length) {
@@ -24,13 +32,32 @@ function createChooseAction(spec, compileAction) {
   const stateFor = (player) => playerState(action, player, () => ({ option: null, index: 0 }));
   const current = (bot) => bot.option?.actions[bot.index] ?? null;
 
+  /**
+   * Ours: the options a bot that owns what it uses (brain/OwnItems) rolls between. Short of
+   * coins for something it wants, it sells; short of food in its bank, it cooks for its bank
+   * three times as often. Any other bot rolls between them all, as before.
+   */
+  function weighed(ctx) {
+    if (!earnsOwnItems(ctx.player)) return options;
+    if (ownItemsFor(ctx.world).wishing(ctx.player, ctx.state, ctx.nowMs)) {
+      const selling = options.filter((option) => option.sells);
+      if (selling.length) return selling;
+    }
+    if (options.some((option) => option.banks) &&
+        bankedWhere(ctx.player, isFoodItem).reduce((sum, entry) => sum + entry.amount, 0) < FOOD_STOCK) {
+      return options.map((option) => (option.banks ? { ...option, weight: option.weight * 3 } : option));
+    }
+    return options;
+  }
+
   const action = {
     id: "choose",
     update(ctx) {
       const bot = stateFor(ctx.player);
       if (!bot.option) {
-        let roll = Math.random() * totalWeight;
-        bot.option = options.find((option) => (roll -= option.weight) < 0) ?? options[options.length - 1];
+        const pool = weighed(ctx);
+        let roll = Math.random() * (pool === options ? totalWeight : pool.reduce((sum, option) => sum + option.weight, 0));
+        bot.option = pool.find((option) => (roll -= option.weight) < 0) ?? pool[pool.length - 1];
         bot.index = 0;
       }
       const step = current(bot);

@@ -14,6 +14,7 @@ const { createBotPluginLogging } = require("./runtime/PluginLogging.PlayerBots")
 const { bootPlayerBotsRuntime } = require("./runtime/PluginBoot.PlayerBots");
 const { createBotBenchmark } = require("./runtime/Benchmark.PlayerBots");
 const { startBotSites } = require("./brain/SiteSpawner.PlayerBots");
+const { attachBotExchange } = require("./brain/actions/Exchange.PlayerBots");
 const { setActiveBotRuntime } = require("./runtime/RuntimeRegistry.PlayerBots");
 const { PVP_BOT_SETTINGS } = require("./behaviours/pvp/WildernessHotspotRegistry.PlayerBots");
 const {
@@ -211,6 +212,10 @@ module.exports = {
   name: "PlayerBots",
   description: "Populates the world with player bots: PvP-loadout fighters and optional AI chat bots, with admin commands to manage them.",
   config: {
+    "PlayerBots:earnOwnItems": {
+      type: "boolean", label: "Levelling bots own what they use", default: true,
+      help: "The bots of a progression site start with a new player's starter items and are handed nothing after that: tools, bait, arrows, runes, food and armour are what they carry, bank, buy in shops with coins they earned, or pick up. Off: they are given a tool, gear and food for their level, as other bots are.",
+    },
     "PlayerBots:allowedActivities": {
       type: "json", label: "Bot activities allowed", defaultText: "Every activity",
       help: "A list of the activities bots may be spawned for; any other spawn is refused, e.g. [\"bounty-hunter\", \"last-man-standing\"]. Activities: world (the world's own population: Wilderness roamers and the bot sites), ai, bounty-hunter, last-man-standing, castle-wars, soul-wars, pest-control, developer (bot commands, the benchmark, --stressTest).",
@@ -253,6 +258,8 @@ module.exports = {
       config: BOT_CONFIG,
     });
     setActiveBotRuntime(boot.runtime, BOT_CONFIG.behaviorMode, boot.brainRegistry);
+    // Ours: the levelling bots trade on the Grand Exchange, and players' offers meet theirs first.
+    attachBotExchange(api);
 
     createBotBenchmark({
       api,

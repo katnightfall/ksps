@@ -364,7 +364,9 @@ class BotBrain {
         this.player,
         behaviour.id,
         nowMs,
-        behaviour.failureCooldownMs
+        // Ours: a step may ask for longer (brain/OwnItems: a bot that could not afford its tool
+        // does something else for a while, and earns).
+        Math.max(behaviour.failureCooldownMs, frame.cooldownMs ?? 0)
       );
     }
     const parent = this.frames[this.frames.length - 1];

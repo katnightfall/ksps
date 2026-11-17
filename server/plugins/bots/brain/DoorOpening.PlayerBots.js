@@ -277,7 +277,9 @@ function clickDoor(player, state, world, attempt) {
     // Simulated bots are provisioned like their tools and food: top up the toll.
     const inventory = player.getInventory();
     const missing = Number(toll[1]) - inventory.getAmount(COINS_ID);
-    if (missing > 0) inventory.adds(COINS_ID, missing);
+    // Ours: not a bot that owns what it uses (brain/OwnItems). It pays from its own coins, and
+    // with none the Al Kharid guards wave a bot through (objects/AlKharidGate).
+    if (missing > 0 && player.getAttribute?.("bots:earns-items") !== true) inventory.adds(COINS_ID, missing);
   }
   world.emitObjectInteraction?.({
     player,

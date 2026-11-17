@@ -186,7 +186,7 @@ function createAction(spec, world) {
     });
   }
   if (spec.type === "equipTool") {
-    return createEquipToolAction(spec);
+    return createEquipToolAction(spec, world);
   }
   if (spec.type === "bank") {
     return createBankAction(
@@ -210,7 +210,7 @@ function createAction(spec, world) {
     return createEnsureItemAction({
       ...spec,
       item: resolveItemId(spec.item),
-    });
+    }, world);
   }
   if (spec.type === "lightFire") {
     return createLightFireAction(spec, world);
@@ -248,6 +248,10 @@ function createAction(spec, world) {
   // Ours: laps of an Agility course.
   if (spec.type === "runCourse") {
     return createRunCourseAction(spec, world);
+  }
+  // Ours: a levelling bot's trip to the Grand Exchange.
+  if (spec.type === "exchange") {
+    return require("./actions/Exchange.PlayerBots").createExchangeAction(spec, world);
   }
   if (spec.type === "wait") return createWaitAction(spec);
   throw new Error(`[bot activities] unknown action type '${spec.type}'`);

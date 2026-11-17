@@ -7,8 +7,12 @@
  * same items in the same order, and the island's 25 coins in the bank.
  *
  * Not given: on a world that runs Tutorial Island (the island gives its own kit at the end, and
- * empties the backpack first), to a bot (bots are outfitted by their own code), or twice.
+ * empties the backpack first), or twice. A bot is not given it here: the levelling bots, which
+ * start as new characters and own what they use, are given the same kit when they are made
+ * (`giveToBot`, called by bots/brain/SiteSpawner); other bots are outfitted by their own code.
  */
+const { ItemIdentifiers } = require("../../src/main/typescript/elvarg/util/ItemIdentifiers");
+
 const GIVEN_ATTRIBUTE = "starter-kit:given";
 const ENABLED_CONFIG = "StarterKit:enabled";
 /** The tutorial's coins, which it puts in the bank. */
@@ -33,11 +37,21 @@ function tutorialRuns() {
 }
 
 function give(player) {
-  const Items = core.ItemIdentifiers;
+  const Items = core?.ItemIdentifiers ?? ItemIdentifiers;
   const inventory = player.getInventory();
   for (const [name, amount] of KIT) inventory.adds(Items[name], amount);
   player.getBank(0).adds(Items.COINS, BANK_COINS);
   player.setAttribute(GIVEN_ATTRIBUTE, true);
+}
+
+/**
+ * A new levelling bot's kit: the one a new player gets, once, where the world gives one.
+ * (A bot never plays Tutorial Island, so a world that runs the island gives it here too.)
+ */
+function giveToBot(bot) {
+  if (api?.getPluginConfig?.(ENABLED_CONFIG, true) === false || bot.getAttribute?.(GIVEN_ATTRIBUTE) === true) return false;
+  give(bot);
+  return true;
 }
 
 function login({ player, isNewAccount }) {
@@ -62,5 +76,6 @@ module.exports = {
     api.persistAttribute(GIVEN_ATTRIBUTE, false);
     api.onPlayerLogin(login);
   },
+  giveToBot,
   _test: { KIT, BANK_COINS, GIVEN_ATTRIBUTE, ENABLED_CONFIG, login },
 };

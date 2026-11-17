@@ -14,6 +14,7 @@ const { createEquipToolAction } = require("./EquipTool.PlayerBots");
 const Cooking = require("../../../skills/Cooking.plugin");
 const Firemaking = require("../../../skills/Firemaking.plugin");
 const { ItemIds } = require("../../../../src/main/typescript/elvarg/util/IdEnums");
+const { earnsOwnItems, ownItemsFor } = require("../OwnItems.PlayerBots");
 
 // A range further than this is not worth the walk: light a fire instead.
 const RANGE_SEARCH_TILES = 24;
@@ -49,7 +50,7 @@ function createCookAction(spec, world) {
   const chopLog = createInteractObjectAction({
     catalog: "tree", tier: "normal", option: "Chop down", until: { hasAnyItem: logIds }, stallSeconds: 120,
   }, world);
-  const equipAxe = createEquipToolAction({ tool: "axe" });
+  const equipAxe = createEquipToolAction({ tool: "axe", tidy: false }, world);
   const stateFor = (player) => playerState(action, player, () => ({
     lastUseAt: 0, failedUses: 0, lastTargetKey: null, avoid: new Map(), chopping: false, moved: false, position: null,
   }));
@@ -128,7 +129,15 @@ function createCookAction(spec, world) {
         chopLog.stop?.(ctx);
         bot.chopping = false;
       }
-      if (inventory.getAmount(TINDERBOX) <= 0) inventory.adds(TINDERBOX, 1);
+      if (inventory.getAmount(TINDERBOX) <= 0) {
+        if (earnsOwnItems(player)) {
+          // Ours: its own tinderbox, from its bank or a shop.
+          const got = ownItemsFor(world).fetch(ctx, { itemId: TINDERBOX });
+          if (got !== "success") return got;
+        } else {
+          inventory.adds(TINDERBOX, 1);
+        }
+      }
       // The fire takes the tile the bot stands on and steps it aside; the next update finds it.
       return Firemaking.startBotInventoryFiremaking?.(player, log) === false ? "failed" : "running";
     }
@@ -136,7 +145,9 @@ function createCookAction(spec, world) {
       // Room for the log: one raw fish goes, as a player would drop one.
       inventory.deleteNumber(raw.item.getId(), 1);
     }
-    if (equipAxe.update(ctx) !== "success") return "failed";
+    // Ours: a bot that owns its axe may be on its way to fetch it ("running").
+    const axe = equipAxe.update(ctx);
+    if (axe !== "success") return axe === "running" ? "running" : "failed";
     bot.chopping = true;
     const result = chopLog.update(ctx);
     return result === "failed" ? "failed" : "running";

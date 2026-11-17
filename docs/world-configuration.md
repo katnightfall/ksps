@@ -337,6 +337,7 @@ After changing a plugin's `description` or `config`, run `yarn --cwd server worl
 | `PlayerBots:activeRegionBotsByRegion` | json | *Shipped value in bot-sites.json* | **Wilderness bots per map square.** Target number of bots in individual 64x64 map squares, keyed plane:regionX:regionY with whole-number counts. Replaces pvp.activeRegionBotsByRegion in bot-sites.json. |
 | `PlayerBots:ai` | json | *AI bots off (3 bots when enabled)* | **AI bots.** Settings for bots that chat through an AI model, merged over the shipped defaults, e.g. { "enabled": true, "count": 3, "places": ["lumbridge"] }. Also takes names, disclose, providers and gifts; API keys come from the server environment, never here. |
 | `PlayerBots:allowedActivities` | json | *Every activity* | **Bot activities allowed.** A list of the activities bots may be spawned for; any other spawn is refused, e.g. ["bounty-hunter", "last-man-standing"]. Activities: world (the world's own population: Wilderness roamers and the bot sites), ai, bounty-hunter, last-man-standing, castle-wars, soul-wars, pest-control, developer (bot commands, the benchmark, --stressTest). |
+| `PlayerBots:earnOwnItems` | boolean | `true` | **Levelling bots own what they use.** The bots of a progression site start with a new player's starter items and are handed nothing after that: tools, bait, arrows, runes, food and armour are what they carry, bank, buy in shops with coins they earned, or pick up. Off: they are given a tool, gear and food for their level, as other bots are. |
 | `PlayerBots:sites` | json | *No overrides: the shipped bot-sites.json applies* | **Bot site overrides.** Maps a bot site id to the properties to change for it, e.g. { "some_site": { "enabled": false } }. Sites not named keep their shipped properties; a world.local.json value replaces the world.json one as a whole. |
 
 #### Plugin area `combat` (`pluginConfig`)
@@ -414,6 +415,8 @@ After changing a plugin's `description` or `config`, run `yarn --cwd server worl
 | --- | --- | --- | --- |
 | `CrossFloor:combat` | boolean | *Off unless enabled by a legacy environment flag* | **Cross-floor combat.** Allows ranged and magic attacks between floors while CrossFloor is enabled. |
 | `Gravestones:enabled` | boolean | `true` | **Gravestones.** Player deaths in PvM leave a gravestone. Turn off for the older behaviour where lost items drop where the player died. |
+| `MasterSync:enabled` | boolean | `true` | **Share characters with the master's other worlds.** Only on a world that was given a master's address and key (WORLDS_MASTER_URL and MASTER_PROXY_KEY). Off: this world keeps its characters to itself. |
+| `MasterSync:offlineLogins` | boolean | `false` | **Let players in while the master cannot be reached.** Off (recommended): a login waits for the master, so nobody plays on from an old copy of a character. On: logins go ahead from this world's own copy; what was done on another world since may be lost. |
 | `StarterKit:enabled` | boolean | `true` | **Starter items for new characters.** A new character starts with OSRS's Tutorial Island kit and 25 coins in the bank. Worlds that run Tutorial Island give it there instead, whatever this says. |
 
 ### Plugin switches
@@ -1032,6 +1035,7 @@ This table lists bundled plugins that have a description. The world config page 
 | `MagicCarpets` | MagicCarpets | world | yes | Rug Merchants fly riders by magic carpet between Shantay Pass, Pollnivneach and other desert stations, with fares, discounts and captured flight paths. (members only) |
 | `MagicMushtrees` | MagicMushtrees | world | yes | Fossil Island's Magic Mushtrees: the four-tree travel menu, with each tree unlocked per player once used. (members only) |
 | `ManagingMiscellania` | ManagingMiscellania | world | yes | Managing Miscellania: pay the kingdom's coffers and Advisor Ghrim collects daily coal, logs, herbs, flax, fish, hardwood and seeds, scaled by approval. (members only) |
+| `MasterSync` | MasterSync | world | yes | On a world of a master: characters are shared with the master's other worlds (fetched at login, handed in on every save), an account can be in one world at a time, and every world's saves are copied here so the hiscores rank them all. |
 | `MultiCombatApi` | MultiCombatApi | world | yes | Serves the bounds of multi-combat zones to the client over the content API, without exposing the full development world data. |
 | `Museum` | Museum | world | yes | Varrock Museum Kudos: the Dig Site cleaning activity, display cases, Historian Minas's quest timeline reports and Curator Haig Halen's salvaging relics. (members only) |
 | `Music` | Music | world | yes | The music tab: track unlocking, jukebox selection, now-playing, the music cape from Olaf the Bard and air guitar unlock. |

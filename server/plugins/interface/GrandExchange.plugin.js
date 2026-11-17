@@ -1041,6 +1041,9 @@ function confirm(player, offer, warned = null) {
   // A buy counts against the limit from now (pendingBuys) and opens or joins a window when it fills.
   const finished = { ...offer, total, finished: false, placedAt: now, completesAt: delay === null ? null : now + delay,
     ...(offer.sell ? {} : { limitOnFill: true }) };
+  // Ours: the bots trade here too (bots/brain/actions/Exchange). What they have up, or bid for,
+  // meets a player's offer before the market does: a handler may bring `completesAt` forward.
+  pluginApi.emitCustomEvent("ge:offer-placing", { player, offer: finished });
   completedOffers(player)[offer.slot] = finished;
   saveOffers(player);
   offers.delete(player);
@@ -1415,8 +1418,22 @@ const EXCHANGE_BUTTONS = [SETUP_FEE_INFO, DETAILS_FEE_INFO, uid(3), uid(4), uid(
 const historyUid = (child) => (GE_HISTORY << 16) | child;
 const HISTORY_BUTTONS = [historyUid(2), historyUid(3)];
 
+/**
+ * Ours: brings a waiting offer's fill forward to `at` (a bot's goods or bid met it:
+ * bots/brain/actions/Exchange). False when there is no such offer waiting.
+ */
+function fillBy(player, slot, at) {
+  const offer = completedOffers(player)[slot];
+  if (!offer || offer.finished || offer.aborted) return false;
+  if (offer.completesAt !== null && offer.completesAt <= at) return true;
+  offer.completesAt = at;
+  scheduleCompletion(player, offer);
+  return true;
+}
+
 module.exports = {
   name: "GrandExchange",
+  fillBy,
   description: "The Grand Exchange: offers, offer collection and the item-price resource it uses.",
   config: {
     "GrandExchange:maxTradeDelay": {

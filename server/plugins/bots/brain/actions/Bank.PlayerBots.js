@@ -194,6 +194,12 @@ function createBankAction(spec, world) {
         player.setAutoRetaliate?.(false);
       }
       if (bot.depositAt > 0 && nowMs >= bot.depositAt) {
+        // Ours: a caller with its own business at the bank (brain/OwnItems: a bot putting away
+        // what it has no use for and taking out what it owns) does it here, at the open bank.
+        if (typeof spec.atBank === "function") {
+          bot.depositAt = 0;
+          return spec.atBank(player) ? "success" : "failed";
+        }
         if (isWithdraw) {
           performWithdraw(player);
           world.log?.("bot_brain_bank_withdrew", {

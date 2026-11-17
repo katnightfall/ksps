@@ -5,6 +5,8 @@ const { nearestClusters, npcClustersFor } = require("../NpcClusterIndex.PlayerBo
 const { canReachSpot } = require("../../behaviours/navigation/LongRoutes.PlayerBots");
 const { requestMovement, clearMovementRequest, peekMovementRequest, randomInRange } =
   require("../../behaviours/navigation/Navigation.PlayerBots");
+const { earnsOwnItems } = require("../OwnItems.PlayerBots");
+const { createOwnCombatKit } = require("./OwnCombatKit.PlayerBots");
 
 const TARGET_RETRY_MS = 1800;
 const TARGET_SPREAD = 4;
@@ -122,7 +124,23 @@ function createTrainCombatAction(spec, world) {
     endsAt: 0, retryAt: 0, lastProgressAt: 0, position: null, targetHp: null,
     claimedAt: 0, failedTargets: 0, progressFlag: false, avoided: new WeakMap(), avoidedSites: new Map(),
   }));
+  // Ours: a bot that owns what it uses (brain/OwnItems) is handed nothing here. Its kit is its own.
+  let ownKit = null;
+  const kit = () => (ownKit ??= createOwnCombatKit({
+    world, combatStyles, hashSeed, skillByIndex,
+    tiers: { melee: meleeTiers, ranged: rangedTiers, magic: magicTiers },
+  }));
+  /** Ours: the melee stance that trains the lowest of Attack, Strength and Defence (as prepare sets it). */
+  const meleeStance = (player) => {
+    const levels = skills.map((skill) => player.getSkillManager().getMaxLevel(skill));
+    const fightStyle = styles[levels.indexOf(Math.min(...levels))];
+    const fightType = Object.values(player.getWeapon()?.getFightType?.() ?? {})
+      .find((type) => type?.getStyle?.() === fightStyle);
+    if (fightType) WeaponInterfaceManager.changeCombatStyle(player, fightType.getChildId());
+  };
   const styleFor = (player, state) => {
+    // Ours: its own style while it has the bow and arrows, or the runes, for it; else melee.
+    if (earnsOwnItems(player)) return (state.combatStyle = kit().usableStyle(player));
     if (!state.combatStyle) {
       const index = combatStyles.length
         ? hashSeed(`${player.getUsername?.() ?? "bot"}:style`) % combatStyles.length
@@ -171,6 +189,11 @@ function createTrainCombatAction(spec, world) {
   }
 
   function prepare(player, state) {
+    // Ours: its own weapon, armour, arrows, runes and food, or none.
+    if (earnsOwnItems(player)) {
+      if (kit().prepare(player, state) === "melee") meleeStance(player);
+      return;
+    }
     let changed = false;
     const equipment = player.getEquipment();
     const manager = player.getSkillManager();
@@ -351,7 +374,18 @@ function createTrainCombatAction(spec, world) {
         leaveSite(player, bot);
         return "running";
       }
-      if (player.isTeleportingReturn?.() || player.getForceMovement?.() || player.busy?.()) return "running";
+      // Ours: not while on an errand of its own. The bank it just opened is its business there
+      // (brain/OwnItems closes it); waiting on it here would leave the bot at the booth for good.
+      if (player.isTeleportingReturn?.() || player.getForceMovement?.() || (player.busy?.() && !bot.onErrand)) return "running";
+      // Ours: a bot with its own food that has run out and is badly hurt stops training for a while.
+      const owns = earnsOwnItems(player);
+      if (owns && kit().mustRetreat(player)) {
+        dropTarget(player, bot, nowMs);
+        leaveSite(player, bot);
+        if (ctx.frame) ctx.frame.cooldownMs = Math.max(ctx.frame.cooldownMs ?? 0, kit().RETREAT_COOLDOWN_MS);
+        world.log?.("bot_combat_training_retreat", { username: player.getUsername?.() ?? null });
+        return "failed";
+      }
       const location = player.getLocation();
       const position = `${location.getX()},${location.getY()},${location.getZ()}`;
       bot.stillTicks = position === bot.position ? (bot.stillTicks ?? 0) + 1 : 0;
@@ -376,7 +410,7 @@ function createTrainCombatAction(spec, world) {
       // request pending forever; after a short frozen window drop the target and
       // site and count the failure, so repeated stalls fail the activity instead
       // of hopping sites forever.
-      if (peekMovementRequest(player) && nowMs - bot.lastProgressAt >= MOVEMENT_STALL_MS &&
+      if (!bot.onErrand && peekMovementRequest(player) && nowMs - bot.lastProgressAt >= MOVEMENT_STALL_MS &&
           bot.stillTicks >= MOVEMENT_STALL_TICKS) {
         clearMovementRequest(player);
         bot.retryAt = nowMs;
@@ -400,6 +434,7 @@ function createTrainCombatAction(spec, world) {
         }
       }
       if (bot.target && !live(bot.target)) {
+        if (owns) kit().noteKill(bot, bot.target, nowMs);
         dropTarget(player, bot, nowMs);
         bot.failedTargets = 0;
         bot.retryAt = nowMs + randomInRange(600, TARGET_RETRY_MS);
@@ -426,6 +461,12 @@ function createTrainCombatAction(spec, world) {
         }
       }
       if (!bot.target) {
+        // Ours: first what its kill dropped, then (between rounds) the bank and the shops.
+        bot.onErrand = owns && (kit().loot(ctx, bot) === "running" || (!bot.site && kit().provision(ctx, bot) === "running"));
+        if (bot.onErrand) {
+          bot.lastProgressAt = nowMs;
+          return "running";
+        }
         const stage = stageFor(player, state);
         if (bot.site && (bot.stageId !== stage.id || nowMs >= bot.endsAt)) return "success";
         if (bot.failedTargets >= maxFailedTargets) {
@@ -514,7 +555,9 @@ function createTrainCombatAction(spec, world) {
       // Food and runes are provisioned for training only: take them back, so a bot
       // switching to skilling has a free inventory (the next fight re-provisions).
       const inventory = ctx.player.getInventory?.();
-      for (const itemId of [foodId, ...(bot.runeIds ?? [])]) {
+      // Ours: not from a bot whose food and runes are its own.
+      if (earnsOwnItems(ctx.player)) kit().stop(ctx, bot);
+      for (const itemId of earnsOwnItems(ctx.player) ? [] : [foodId, ...(bot.runeIds ?? [])]) {
         const amount = inventory?.getAmount(itemId) ?? 0;
         if (amount > 0) inventory.deleteNumber?.(itemId, amount);
       }
