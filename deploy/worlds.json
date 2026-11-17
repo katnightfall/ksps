@@ -1,10 +1,1 @@
-[
-    {
-        "id": "new-york",
-        "name": "Kat-Net New York",
-        "world": "Kat-Net NYC location",
-        "address": "104.194.10.100:5000",
-        "secure": false,
-        "description": "10x custom, US/New York"
-    }
-]
+[]

@@ -10,26 +10,27 @@ const { pathToFileURL } = require("node:url");
 
 const worlds = import(pathToFileURL(path.join(__dirname, "../../deploy/worlds.mjs")).href);
 
-test("our own list: the worlds on the panel's nodes; the master itself hosts none (MASTER_ONLY)", async () => {
-  const { loadWorlds, listFor, serverList, worldUrls } = await worlds;
+test("our own list: the master itself hosts no world (MASTER_ONLY); its worlds are made on the admin page", async () => {
+  const { loadWorlds, listFor, serverList, worldUrls, cleanWorld } = await worlds;
+  // The project's own list may be empty: the worlds then come from the admin page alone.
   const list = loadWorlds(path.join(__dirname, "../../deploy/worlds.json"));
-  assert.ok(list.length >= 1);
   assert.ok(list.every((world) => world.here === false), "the file marks nobody: a world knows itself by name");
   assert.ok(!list.some((world) => world.address === "rs.kat-net.us"), "the master's own address is not a world");
   assert.match(fs.readFileSync(path.join(__dirname, "../../deploy/settings.env"), "utf8"), /^MASTER_ONLY=1$/m);
-  // A world on the list finds itself by its own name and shows the others; the master's own
-  // world.json name is on no list, and neither is somebody else's world.
-  const newYork = listFor(list, "Kat-Net NYC location");
-  assert.deepEqual(newYork.filter((world) => world.here).map((world) => world.id), ["new-york"]);
+
+  // A world on a list finds itself by its own name and shows the others; one that is not on it
+  // (the master's own world.json name, somebody else's world) gets nothing of ours.
+  const sample = [
+    cleanWorld({ id: "chicago", name: "Kat-Net Chicago", world: "Chicago World", address: "game-chi.example.com:5000", secure: false }),
+    cleanWorld({ id: "miami", name: "Kat-Net Miami", address: "game-mia.example.com:5001", secure: false }),
+  ];
+  assert.deepEqual(listFor(sample, "Chicago World").map((world) => [world.id, world.here]), [["chicago", true], ["miami", false]]);
+  assert.deepEqual(listFor(sample, "Kat-Net Miami").map((world) => [world.id, world.here]), [["chicago", false], ["miami", true]]);
   const ownName = JSON.parse(fs.readFileSync(path.join(__dirname, "../data/definitions/world.json"), "utf8")).name;
-  assert.deepEqual(listFor(list, ownName), []);
-  assert.deepEqual(listFor(list, "My World"), []);
-  assert.deepEqual(listFor(list, ""), []);
-  assert.deepEqual(listFor(list, null), []);
-  // On the master's page New York is played through the master.
-  const york = list.find((world) => world.id === "new-york");
-  assert.equal(worldUrls(york, "").play, "/play?world=new-york");
-  assert.deepEqual(serverList([york], { host: "rs.kat-net.us", secure: true })[0], { name: "Kat-Net New York", address: "rs.kat-net.us/w/new-york", secure: true, maxPlayers: 2047 });
+  for (const name of [ownName, "My World", "", null]) assert.deepEqual(listFor(sample, name), []);
+  // On the master's page such a world is played through the master.
+  assert.equal(worldUrls(sample[0], "").play, "/play?world=chicago");
+  assert.deepEqual(serverList([sample[0]], { host: "rs.kat-net.us", secure: true })[0], { name: "Kat-Net Chicago", address: "rs.kat-net.us/w/chicago", secure: true, maxPlayers: 2047 });
 });
 
 test("a list is only what it safely says: bad entries are dropped, the rest cleaned", async (t) => {

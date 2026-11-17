@@ -126,8 +126,8 @@ master's site, at https://rs.kat-net.us/play?world=<id>, which the landing page 
 world picker link to. The master's front door carries that world's game connection and its
 /api at /w/<id>, so the one https address serves every world.
 
-The same goes for any listed world without https of its own (New York, until it has a name
-behind https): the master carries it too. A world with https of its own is reached directly.
+The same goes for any listed world without https of its own (one added by its bare address):
+the master carries it too. A world with https of its own is reached directly.
 
 The admin page's "Location" is the panel's location (or the node, where the panel names none):
 the world goes on that location's node with the most free ports.
