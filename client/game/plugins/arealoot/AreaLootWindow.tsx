@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import type { AreaLootPlugin } from "./AreaLootPlugin";
 import type { AreaLootRow } from "./areaLoot";
+import { attachLootWindowInput } from "./windowInput";
 import "./AreaLootWindow.css";
 
 const formatCoins = (amount: number) => {
@@ -13,16 +14,13 @@ const tooltip = (row: AreaLootRow) =>
     `${row.name}${row.quantity > 1 ? ` x ${row.quantity.toLocaleString()}` : ""}` +
     `${row.value > 0 ? ` (${formatCoins(row.value)} gp)` : ""}, ${row.distance} ${row.distance === 1 ? "tile" : "tiles"} away`;
 
-/** Everything a press on the window could tell the game underneath it. */
-const SWALLOWED = ["pointerdown", "pointerup", "mousedown", "mouseup", "click", "dblclick", "contextmenu", "wheel", "touchstart", "touchend"] as const;
-
 /**
  * Ours. The Area Loot window: a small in-game window over the game view that lists the drops in
  * reach as item pictures. A click on a picture takes that pile, "Take all" takes everything,
  * the title bar drags it, the cross closes it until something new drops.
  *
- * Its presses are handled on the window itself (not through React) and stopped there, so a
- * click on it is never also a click on the game behind it.
+ * Its presses are handled on the window itself (not through React: windowInput.ts) and stopped
+ * there, so a click on it is never also a click on the game behind it.
  */
 export function AreaLootWindow({ plugin }: { plugin: AreaLootPlugin }): JSX.Element | null {
     const subscribe = useCallback((listener: () => void) => plugin.subscribe(listener), [plugin]);
@@ -31,51 +29,8 @@ export function AreaLootWindow({ plugin }: { plugin: AreaLootPlugin }): JSX.Elem
     const root = useRef<HTMLDivElement | null>(null);
     const open = state.open && state.rows.length > 0;
 
-    useEffect(() => {
-        const element = root.current;
-        if (!element) return;
-        let drag: { pointer: number; dx: number; dy: number } | undefined;
-        const stop = (event: Event) => event.stopPropagation();
-        const onClick = (event: Event) => {
-            event.stopPropagation();
-            const target = (event.target as HTMLElement | null)?.closest?.("[data-loot]") as HTMLElement | null;
-            const action = target?.dataset.loot;
-            if (action === "all") plugin.takeAll();
-            else if (action === "close") plugin.dismiss();
-            else if (action === "pile") {
-                const row = plugin.getState().rows.find((entry) => entry.id === Number(target?.dataset.pile));
-                if (row) plugin.take(row);
-            }
-        };
-        const onDown = (event: PointerEvent) => {
-            event.stopPropagation();
-            const onTitle = (event.target as HTMLElement | null)?.closest?.(".area-loot-title");
-            if (!onTitle || (event.target as HTMLElement).closest("[data-loot]")) return;
-            const at = plugin.getState().position;
-            drag = { pointer: event.pointerId, dx: event.clientX - at.x, dy: event.clientY - at.y };
-            window.addEventListener("pointermove", onMove);
-            window.addEventListener("pointerup", onUp);
-        };
-        const onMove = (event: PointerEvent) => {
-            if (!drag || event.pointerId !== drag.pointer) return;
-            const bounds = element.parentElement?.getBoundingClientRect();
-            plugin.moveTo(event.clientX - drag.dx, event.clientY - drag.dy, bounds ? { width: bounds.width, height: bounds.height } : undefined,
-                { width: element.offsetWidth, height: element.offsetHeight });
-        };
-        const onUp = (event: PointerEvent) => {
-            if (!drag || event.pointerId !== drag.pointer) return;
-            drag = undefined;
-            window.removeEventListener("pointermove", onMove);
-            window.removeEventListener("pointerup", onUp);
-            plugin.savePosition();
-        };
-        for (const type of SWALLOWED) element.addEventListener(type, type === "click" ? onClick : type === "pointerdown" ? (onDown as EventListener) : stop);
-        return () => {
-            for (const type of SWALLOWED) element.removeEventListener(type, type === "click" ? onClick : type === "pointerdown" ? (onDown as EventListener) : stop);
-            window.removeEventListener("pointermove", onMove);
-            window.removeEventListener("pointerup", onUp);
-        };
-    }, [plugin, open]);
+    // The presses are wired to the window's own element (windowInput.ts), each time it appears.
+    useEffect(() => (root.current ? attachLootWindowInput(root.current, plugin) : undefined), [plugin, open]);
 
     if (!open) return null;
     const { rows, settings, position } = state;
