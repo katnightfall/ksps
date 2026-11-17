@@ -53,6 +53,13 @@ export class MobileList<E extends Mobile> implements Iterable<E> {
     private capacity: number;
     public characters: E[];
     private size: number;
+    /**
+     * Ours: the highest slot in use (0 when the list is empty). Slots are handed out lowest
+     * first, so the live entries sit in 1..highest, and a walk of the list stops there instead
+     * of visiting every slot it could ever hold (65,536 for NPCs, a few thousand of them alive:
+     * upstream issue #6036 measured that walk as half of the server's garbage).
+     */
+    private highest = 0;
     private onAdded?: (mobile: E) => void;
     private onRemoved?: (mobile: E) => void;
 
@@ -90,6 +97,7 @@ export class MobileList<E extends Mobile> implements Iterable<E> {
                 e.setRegistered(true);
                 e.setIndex(index);
                 this.characters[index] = e;
+                if (index > this.highest) this.highest = index;
                 try {
                     e.onAdd();
                     this.size++;
@@ -102,6 +110,7 @@ export class MobileList<E extends Mobile> implements Iterable<E> {
                     const rollbackErrors: unknown[] = [];
                     if (this.characters[index] === e) {
                         this.characters[index] = null as any;
+                        this.lower();
                         this.slotQueue.push(index);
                         if (counted) this.size--;
                         e.setRegistered(false);
@@ -131,6 +140,7 @@ export class MobileList<E extends Mobile> implements Iterable<E> {
         if (e.isRegistered() && this.characters[e.getIndex()] != null) {
             e.setRegistered(false);
             this.characters[e.getIndex()] = null;
+            this.lower();
             this.slotQueue.push(e.getIndex());
             try {
                 this.onRemoved?.(e);
@@ -152,8 +162,20 @@ export class MobileList<E extends Mobile> implements Iterable<E> {
         return this.characters[e.getIndex()] != null;
     }
 
+    /** Ours: after a slot is emptied, `highest` comes down to the highest slot still in use. */
+    private lower(): void {
+        while (this.highest > 0 && this.characters[this.highest] == null) this.highest--;
+    }
+
+    /** Ours: the highest slot in use, for a walk of the list (see `highest`). */
+    public highestSlot(): number {
+        return this.highest;
+    }
+
     public forEach(action: (e: E) => void): void {
-        for (let e of this.characters) {
+        // The bound is read each step: an entry added by `action` in a higher slot is still visited.
+        for (let slot = 1; slot <= this.highest; slot++) {
+            const e = this.characters[slot];
             if (!e) {
                 continue;
             }
@@ -162,8 +184,9 @@ export class MobileList<E extends Mobile> implements Iterable<E> {
     }
 
     public search(filter: (e: E) => boolean): E | null {
-        for (let e of this.characters) {
-            if (e === null)
+        for (let slot = 1; slot <= this.highest; slot++) {
+            const e = this.characters[slot];
+            if (e == null)
                 continue;
             if (filter(e))
                 return e;
@@ -171,13 +194,14 @@ export class MobileList<E extends Mobile> implements Iterable<E> {
         return null;
     }
 
-    public * [Symbol.iterator](): IterableIterator<E> {
-        for (let e of this.characters) {
-            if (e === null) {
-                continue;
-            }
-            yield e;
-        }
+    /**
+     * The live entries in slot order, as before: entries added while it runs are visited when
+     * their slot is still ahead, and removed ones are skipped. Ours: it stops at the highest
+     * slot in use, and is a plain object rather than a generator, with one result object for
+     * the whole walk (`for...of`, spread and Array.from read each result at once).
+     */
+    public [Symbol.iterator](): IterableIterator<E> {
+        return new MobileListIterator<E>(this);
     }
 
     public get(slot: number): E {
@@ -208,6 +232,7 @@ export class MobileList<E extends Mobile> implements Iterable<E> {
         this.characters.forEach(this.remove);
         this.characters = [] as E[];
         this.size = 0;
+        this.highest = 0;
     }
 
     public remove(item: E): void {
@@ -217,6 +242,7 @@ export class MobileList<E extends Mobile> implements Iterable<E> {
         if (item.isRegistered() && this.characters[item.getIndex()] != null) {
             item.setRegistered(false);
             this.characters[item.getIndex()] = null as any;
+            this.lower();
             this.slotQueue.push(item.getIndex());
             try {
                 this.onRemoved?.(item);
@@ -226,6 +252,33 @@ export class MobileList<E extends Mobile> implements Iterable<E> {
                 this.size--;
             }
         }
+    }
+}
+
+/** Ours: a walk of a MobileList's live entries (see MobileList's own iterator). */
+class MobileListIterator<E extends Mobile> implements IterableIterator<E> {
+    private slot = 1;
+    private readonly result: { value: E; done: boolean } = { value: undefined as any, done: false };
+
+    constructor(private readonly list: MobileList<E>) {}
+
+    public next(): IteratorResult<E> {
+        const list = this.list;
+        const characters = list.characters;
+        while (this.slot <= list.highestSlot()) {
+            const e = characters[this.slot++];
+            if (e != null) {
+                this.result.value = e;
+                return this.result as IteratorResult<E>;
+            }
+        }
+        this.result.value = undefined as any;
+        this.result.done = true;
+        return this.result as IteratorResult<E>;
+    }
+
+    public [Symbol.iterator](): IterableIterator<E> {
+        return this;
     }
 }
 

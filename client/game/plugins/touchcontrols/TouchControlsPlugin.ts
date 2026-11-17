@@ -118,13 +118,44 @@ export type TouchControlsClient = {
     menuAction?(arg0: number, arg1: number, opcode: number, identifier: number, option: string, target: string): void;
 };
 
+/**
+ * Ours (upstream issue #5133): whether touch is how this device is used, not merely something
+ * its screen can do. A laptop with a touchscreen has touch points too, and got the joystick
+ * over its game; its main pointer is a mouse or trackpad (fine, and it can hover), which is
+ * what tells it from a phone or tablet (coarse, no hover). `matches(query)` asks a CSS media
+ * query; where the browser cannot be asked, any touch screen counts, as before.
+ */
+export function isTouchFirst(
+    hasTouch: boolean,
+    matches?: (query: string) => boolean | undefined,
+): boolean {
+    if (!hasTouch) return false;
+    const coarse = matches?.("(pointer: coarse)");
+    const fine = matches?.("(pointer: fine)");
+    const hover = matches?.("(hover: hover)");
+    if (coarse === undefined && fine === undefined && hover === undefined) return true;
+    if (coarse === true) return true;
+    // A fine main pointer that can hover is a mouse or trackpad: the touchscreen is an extra.
+    return !(fine === true && hover !== false);
+}
+
 function detectTouchDevice(): boolean {
     if (typeof window === "undefined" || typeof navigator === "undefined") return false;
     const params = new URLSearchParams(window.location.search);
     // ?touch=1 forces the joystick on for desktop testing; ?touch=0 hides it on a phone.
     if (params.get("touch") === "0") return false;
     if (params.get("touch") === "1") return true;
-    return (navigator.maxTouchPoints ?? 0) > 0 || "ontouchstart" in window;
+    const hasTouch = (navigator.maxTouchPoints ?? 0) > 0 || "ontouchstart" in window;
+    const ask = typeof window.matchMedia === "function"
+        ? (query: string) => {
+            try {
+                return window.matchMedia(query).matches;
+            } catch {
+                return undefined;
+            }
+        }
+        : undefined;
+    return isTouchFirst(hasTouch, ask);
 }
 
 /**
