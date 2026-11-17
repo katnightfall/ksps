@@ -66,7 +66,7 @@ function world(t, name, hub, { reset = "", offline = false, stateFile = null, ke
   };
   const sync = createMasterSync({
     persistence, call, world: name, reset, stateFile, offlineLogins: () => offline,
-    online: () => here, kick: (names, message) => kicked.push({ names, message }), now: () => hub.clock.now,
+    online: () => here, localKeys: () => [...rows.keys()], kick: (names, message) => kicked.push({ names, message }), now: () => hub.clock.now,
   });
   return {
     sync, rows, kicked, here,
@@ -231,6 +231,87 @@ test("a fresh start empties the master's characters too, and a world not yet res
   assert.equal(await restarted.login("Kat"), null);
   await restarted.logout("Kat", "kat", { at: "new" });
   assert.equal(hub.store.counts(hub.clock.now).characters, 1);
+});
+
+test("a world's copy of the reset id has no '|' in it, and is still the same reset", async (t) => {
+  // The master's id is its two parts joined by "|"; a world keeps what deploy/reset-accounts.mjs
+  // writes down, which leaves the "|" out. Compared as written, every world was told it was on
+  // an old reset and shared nothing.
+  const { createCharacterStore, resetKey } = await masterSide;
+  assert.equal(resetKey("2026-11-17|"), "2026-11-17");
+  assert.equal(resetKey("2026-11-17|2026-12-01T10:00:00Z"), "2026-11-172026-12-01T10:00:00Z");
+  const reset = await import(pathToFileURL(path.join(__dirname, "../../deploy/reset-accounts.mjs")).href);
+  const dir = folder(t);
+  fs.mkdirSync(path.join(dir, "deploy"));
+  fs.writeFileSync(path.join(dir, "deploy", "settings.env"), ["ACCOUNTS_RESET_ID=2026-11-17", ""].join(String.fromCharCode(10)));
+  const mastersId = reset.masterResetId(dir);
+  assert.equal(mastersId, "2026-11-17|");
+  // What a world made by the master has beside its saves after applying that reset.
+  const saves = path.join(dir, "saves");
+  reset.applyReset(saves, mastersId.replace(/[^A-Za-z0-9:._-]/g, ""));
+  const worldsId = worldResetId(saves);
+  assert.equal(worldsId, "2026-11-17");
+  const hub = await master(t, { reset: () => mastersId });
+  const dakota = world(t, "4 - SD", hub, { reset: worldsId });
+  const dallas = world(t, "1 - Dallas", hub, { reset: worldsId });
+  assert.equal(await dakota.login("Kat"), null);
+  await dakota.logout("Kat", "kat", { made: "in South Dakota" });
+  assert.equal(dakota.sync.state().stale, false);
+  assert.equal(hub.store.counts(hub.clock.now).characters, 1, "handed in");
+  assert.equal(await dallas.login("Kat"), null);
+  assert.deepEqual(JSON.parse(dallas.rows.get("kat")), { made: "in South Dakota" }, "from South Dakota to Dallas");
+  const miami = world(t, "2 - Miami", hub, { reset: worldsId });
+  assert.equal(await miami.sync.mirror(), 1, "and copied to the others for their hiscores");
+  void createCharacterStore;
+});
+
+test("characters a world already had are handed in as it starts; of two of one name the more played is kept", async (t) => {
+  const hub = await master(t);
+  const save = (where, experience) => JSON.stringify({ made: where, skills: { experience } });
+  // Before the worlds shared anything: the same name made on both, played more in South Dakota.
+  const dallas = world(t, "1 - Dallas", hub);
+  dallas.rows.set("mod_kat", save("Dallas", [0, 0, 1184]));
+  dallas.rows.set("only_dallas", save("Dallas", [50]));
+  dallas.rows.set("sitebot12", save("a bot", [999999]));
+  const dakota = world(t, "4 - SD", hub);
+  dakota.rows.set("mod_kat", save("South Dakota", [900, 400, 1500]));
+  // Dallas starts first, as it happens.
+  await dallas.sync.started();
+  assert.equal(hub.store.counts(hub.clock.now).characters, 2, "its two characters, not its bot");
+  await dakota.sync.started();
+  assert.equal(JSON.parse(dakota.rows.get("mod_kat")).made, "South Dakota", "the more played one stays where it was");
+  assert.equal(JSON.parse(dakota.rows.get("only_dallas")).made, "Dallas", "and Dallas's other character is copied here");
+  await dallas.sync.mirror();
+  assert.equal(JSON.parse(dallas.rows.get("mod_kat")).made, "South Dakota", "and replaces the lesser one on Dallas");
+  assert.equal(await dallas.login("Mod Kat"), null);
+  assert.equal(JSON.parse(dallas.rows.get("mod_kat")).made, "South Dakota");
+  // Handed in once: a second start asks nothing again and changes nothing.
+  const before = hub.store.changes(0, hub.clock.now).cursor;
+  await dakota.sync.seed();
+  assert.equal(hub.store.changes(0, hub.clock.now).cursor, before);
+  // The other order comes to the same.
+  const { totalExperience } = await masterSide;
+  assert.equal(totalExperience(save("x", [900, 400, 1500])), 2800);
+  assert.equal(totalExperience("not json"), 0);
+  assert.deepEqual(hub.store.seed("2 - Miami", "mod_kat", save("Miami", [10]), hub.clock.now).kept, true);
+});
+
+test("a world told it is on an old reset asks again, and shares once the master agrees", async (t) => {
+  let id = "new";
+  const hub = await master(t, { reset: () => id });
+  const logged = [];
+  const dallas = world(t, "1 - Dallas", hub, { reset: "old" });
+  assert.equal(await dallas.login("Kat"), null, "it plays on, on its own");
+  assert.equal(dallas.sync.state().stale, true);
+  id = "old";
+  assert.equal(await dallas.login("Kat"), null);
+  assert.equal(dallas.sync.state().stale, true, "not asked again straight away");
+  hub.clock.now += 2 * 60_000 + 1;
+  assert.equal(await dallas.login("Kat"), null);
+  assert.equal(dallas.sync.state().stale, false);
+  await dallas.logout("Kat", "kat", { at: "shared" });
+  assert.equal(hub.store.counts(hub.clock.now).characters, 1);
+  void logged;
 });
 
 test("the calls are signed with the master's key: nothing else is answered", async (t) => {

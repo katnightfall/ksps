@@ -156,6 +156,13 @@ on another world (world setting MasterSync:offlineLogins allows it; MasterSync:e
 keeps a world's characters to itself). A world that stops without a word lets its characters
 go after two and a half minutes.
 
+A character a world had before it shared anything is handed in once, as that world starts. If
+two worlds each had a character of one name, the one with more experience is kept on both.
+
+To see that worlds are sharing: "npm run remote -- logs web 50" shows one line per world,
+either '"<world>" is sharing' or that it is on another reset and must restart. The admin page
+shows how many characters are shared and how many are in a world.
+
 Not shared, still each world's own: bans and mutes, extra characters under one account,
 changed display names, clans, and the bots (a bot's save is never handed in). Experience rates
 are each world's own too, so a character levels faster on a world with a higher rate.

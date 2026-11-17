@@ -18,6 +18,10 @@
  *
  * Bots are not characters: only a save an account logged in for is ever handed in.
  *
+ * As it starts, the world also hands in the characters it had before it shared anything, once
+ * each. Where the master already has a character of that name (made on another world meanwhile),
+ * the one with more experience is kept, and that one is copied here.
+ *
  * Kept in data/saves/master-sync.json: how far the copying has come, the master's version of
  * each save this world has, and which saves are still to be handed in (so a world that stops in
  * the middle hands them in when it starts). A fresh start (deploy/reset-accounts.mjs) moves it
@@ -49,6 +53,11 @@ const BOT_KEY = /^sitebot\d+$/;
 
 /** The key two spellings of a login name share: capitals, underscores and extra spaces don't count. */
 const nameKey = (name) => String(name ?? "").replace(/_/g, " ").trim().replace(/\s+/g, " ").toLowerCase();
+
+/** A reset id as it is compared (deploy/master/characters.mjs resetKey): a world's copy has no "|" in it. */
+const resetKey = (id) => String(id ?? "").replace(/[^A-Za-z0-9:._-]/g, "");
+// Told by the master that this world is on an old reset: asked again after this long.
+const STALE_RETRY_MS = 2 * 60_000;
 
 /** `<time>.<signature>`, as the master checks it (deploy/master/characters.mjs signRequest). */
 function signRequest(key, method, target, body = "", now = Date.now()) {
@@ -83,7 +92,7 @@ function httpCaller({ master, key }) {
  * id it is on, `online()` the save keys of the people in the world, `kick(names, message)` puts
  * an account out.
  */
-function createMasterSync({ persistence, call, world, reset = "", stateFile = null, offlineLogins = () => false, online = () => new Set(), kick = () => {}, log = () => {}, now = () => Date.now() }) {
+function createMasterSync({ persistence, call, world, reset = "", stateFile = null, offlineLogins = () => false, online = () => new Set(), localKeys = () => [], kick = () => {}, log = () => {}, now = () => Date.now() }) {
   /** name (lower case) -> the login it belongs to: { names, keys, online, releasing, at }. */
   const sessions = new Map();
   /** save key -> its login. Only these saves are handed in. */
@@ -95,8 +104,23 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
   let cursor = 0;
   let applying = false;
   let marks = 0;
-  /** True once the master has said this world is on an old reset: it plays on its own. */
-  let stale = false;
+  /**
+   * While the master says this world is on an old reset it plays on its own. It asks again
+   * every couple of minutes, so it shares as soon as the master agrees (`stale` is a time).
+   */
+  let staleUntil = 0;
+  const isStale = () => now() < staleUntil;
+  const markStale = (masterReset) => {
+    if (!isStale()) log("stale_reset", { world: reset, master: masterReset ?? null });
+    staleUntil = now() + STALE_RETRY_MS;
+  };
+  /** An answer that is neither yes nor a known no (a proxy's error page): said once per kind. */
+  const odd = new Set();
+  const unexpected = (what, status) => {
+    if (odd.has(`${what}:${status}`)) return;
+    odd.add(`${what}:${status}`);
+    log("unexpected_answer", { call: what, status });
+  };
 
   try {
     const kept = stateFile ? JSON.parse(fs.readFileSync(stateFile, "utf8")) : null;
@@ -160,8 +184,11 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
       persist();
       return "done";
     }
-    if (status === 409 && answer.stale) stale = true;
-    if (status >= 500 || status === 401 || status === 503) return "retry";
+    if (status === 409 && answer.stale) {
+      markStale(answer.reset);
+      return "retry";
+    }
+    if (status >= 500 || status === 401 || status === 403) return "retry";
     // Another world has the character now, or saved it since: its save is the one that counts.
     log("save_not_taken", { key, lost: answer.lost ?? null, conflict: answer.conflict ?? null, stale: answer.stale === true });
     dirty.delete(key);
@@ -196,7 +223,7 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
      * are its login names; `request.refuse` is set to refuse it.
      */
     async prepare(request) {
-      if (stale) return;
+      if (isStale()) return;
       const names = [...new Set((request.names ?? []).map(nameKey))];
       const keys = keysFor(request.names ?? []);
       if (keys.length === 0) return;
@@ -214,11 +241,13 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
       }
       const { status, answer } = result;
       if (status === 409 && answer.stale) {
-        stale = true;
-        log("stale_reset", { master: answer.reset ?? null });
+        markStale(answer.reset);
         return;
       }
-      if (status !== 200) return;
+      if (status !== 200) {
+        unexpected("checkout", status);
+        return;
+      }
       if (answer.busy) {
         request.refuse = `Your account is logged in on ${answer.busy}.`;
         return;
@@ -255,7 +284,7 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
 
     /** The game wrote a save (every write to the save database comes through here). */
     rowWritten(key) {
-      if (applying || stale) return null;
+      if (applying) return null;
       const session = tracked.get(key);
       if (!session) return null;
       dirty.set(key, { release: false, mark: ++marks });
@@ -265,7 +294,7 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
 
     /** Who is here, said to the master; whoever another world has taken is put out. */
     async heartbeat() {
-      if (stale) return;
+      if (isStale()) return;
       const here = [...new Set([...sessions.values()])].filter((session) => session.online);
       let result;
       try {
@@ -273,7 +302,8 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
       } catch {
         return;
       }
-      if (result.status === 409 && result.answer.stale) stale = true;
+      if (result.status === 409 && result.answer.stale) markStale(result.answer.reset);
+      else if (result.status !== 200) unexpected("heartbeat", result.status);
       // An account has several saves (one per profile): it is put out once.
       const taken = new Set((result.answer?.lost ?? []).map((key) => tracked.get(key)).filter((session) => session?.online));
       for (const session of taken) kick(session.names, "Your account has logged in on another world.");
@@ -286,12 +316,12 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
         if (session.releasing && !session.finished && at >= session.releaseBy) await finish(session);
         else if (!session.online && !session.releasing && at - session.at > PENDING_MS) forget(session);
       }
-      if (!stale) await pushAll();
+      if (!isStale()) await pushAll();
     },
 
     /** Copies what other worlds handed in since last time into this world's save database. */
     async mirror() {
-      if (stale) return 0;
+      if (isStale()) return 0;
       let copied = 0;
       for (let page = 0; page < MIRROR_PAGES; page++) {
         let result;
@@ -301,7 +331,11 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
           break;
         }
         const { status, answer } = result;
-        if (status !== 200 || String(answer.reset ?? "") !== reset) break;
+        if (status !== 200) {
+          unexpected("changes", status);
+          break;
+        }
+        if (resetKey(answer.reset) !== resetKey(reset)) break;
         const here = online();
         for (const row of answer.rows ?? []) {
           if (typeof row.json !== "string" || BOT_KEY.test(row.key)) continue;
@@ -320,14 +354,50 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
       return copied;
     },
 
+    /**
+     * Hands in the characters this world had before it shared anything (`localKeys()`: every
+     * save it holds), once each. The master keeps its own where it has a more played one of
+     * that name, and the copying that follows brings that one here. Returns how many it took.
+     */
+    async seed() {
+      if (isStale()) return 0;
+      let taken = 0;
+      for (const key of localKeys()) {
+        if (BOT_KEY.test(key) || versions.has(key) || dirty.has(key)) continue;
+        const json = persistence.currentJson(key);
+        if (typeof json !== "string") continue;
+        let result;
+        try {
+          result = await call("POST", "/sync/seed", { world, reset, key, json });
+        } catch {
+          break;
+        }
+        if (result.status === 409 && result.answer.stale) {
+          markStale(result.answer.reset);
+          break;
+        }
+        if (result.status !== 200) {
+          unexpected("seed", result.status);
+          break;
+        }
+        // Known to the master now, whichever copy it kept: never handed in this way again.
+        versions.set(key, result.answer.kept ? 0 : Number(result.answer.version) || 0);
+        if (!result.answer.kept) taken++;
+      }
+      persist();
+      if (taken) log("seeded", { characters: taken });
+      return taken;
+    },
+
     /** The world has just started: nobody is here, and what it still owed is handed in. */
     async started() {
       await this.heartbeat();
       await pushAll();
+      await this.seed();
       await this.mirror();
     },
 
-    state: () => ({ cursor, stale, dirty: [...dirty.keys()], tracked: [...tracked.keys()], versions: Object.fromEntries(versions) }),
+    state: () => ({ cursor, stale: isStale(), dirty: [...dirty.keys()], tracked: [...tracked.keys()], versions: Object.fromEntries(versions) }),
   };
 }
 
@@ -377,6 +447,14 @@ module.exports = {
         stateFile: path.join(savesDir, "master-sync.json"),
         offlineLogins: () => api.getPluginConfig?.(OFFLINE_CONFIG, false) === true,
         online: () => new Set([...core.World.getPlayers()].filter((player) => player && player.isPlayerBot?.() !== true).map(keyOf)),
+        // Every save this world holds, by its key (the save database's own read connection).
+        localKeys: () => {
+          try {
+            return persistence.database.prepare("SELECT username FROM player_saves").all().map((row) => row.username);
+          } catch {
+            return [];
+          }
+        },
         kick(names, message) {
           for (const name of names) {
             const player = core.World.getPlayerByName(name);

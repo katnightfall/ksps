@@ -11,6 +11,8 @@
  *                   them (POST /sync/save); the logout save lets the character go.
  *   all the time    every world copies what the others handed in (GET /sync/changes), so a
  *                   character is ranked on every world's hiscores, whichever it plays on.
+ *   as it starts    a world hands in the characters it had before it shared (POST /sync/seed);
+ *                   of two worlds' characters of one name, the more played is kept.
  *
  * Bots are not characters: no world hands in a bot's save.
  *
@@ -40,6 +42,13 @@ const MAX_BODY = 16 * 1024 * 1024;
 const MAX_KEYS = 64;
 const CHANGES_PAGE = 40;
 const KEY = /^[a-z0-9_:]{1,64}$/;
+
+/**
+ * A reset id as a world writes it down (deploy/reset-accounts.mjs keeps only these characters,
+ * so the "|" between the id's two parts is not in a world's copy). Two ids are the same reset
+ * when these are equal; comparing them as written told every world it was on an old reset.
+ */
+export const resetKey = (id) => String(id ?? "").replace(/[^A-Za-z0-9:._-]/g, "");
 
 /** `<time>.<signature>` for a request: the method, the address asked and the body, under the key. */
 export function signRequest(key, method, target, body = "", now = Date.now()) {
@@ -207,6 +216,36 @@ export function createCharacterStore(file, resetId = () => "") {
             }
         },
 
+        /**
+         * A character a world had before it shared anything (made there while the master knew
+         * nothing of it). Taken when the master has none of that name; when it has one, the one
+         * with more experience in all is kept, so two worlds' copies of one name come to the
+         * better played. { version, kept: true } when the master's own stays.
+         */
+        seed(world, key, json, now = Date.now()) {
+            const database = current(now);
+            database.exec("BEGIN IMMEDIATE");
+            try {
+                const row = read(database, key);
+                if (heldByAnother(row, world, now) || (row?.json != null && totalExperience(row.json) >= totalExperience(json))) {
+                    database.exec("COMMIT");
+                    return { version: row.version, kept: true };
+                }
+                const version = Number(meta("version") ?? 0) + 1;
+                setMeta("version", version);
+                database.prepare(`
+                    INSERT INTO characters (key, save_json, version, updated_at, saved_by) VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(key) DO UPDATE SET save_json = excluded.save_json, version = excluded.version,
+                        updated_at = excluded.updated_at, saved_by = excluded.saved_by
+                `).run(key, json, version, new Date(now).toISOString(), world);
+                database.exec("COMMIT");
+                return { version };
+            } catch (error) {
+                database.exec("ROLLBACK");
+                throw error;
+            }
+        },
+
         /** Lets go of characters a world holds without a save (it stopped; a login that came to nothing). */
         release(world, keys, now = Date.now()) {
             const database = current(now);
@@ -241,6 +280,16 @@ export function createCharacterStore(file, resetId = () => "") {
     };
 }
 
+/** A save's experience over every skill: how much a character has been played. */
+export function totalExperience(json) {
+    try {
+        const experience = JSON.parse(json)?.skills?.experience;
+        return Array.isArray(experience) ? experience.reduce((sum, value) => sum + (Number(value) || 0), 0) : 0;
+    } catch {
+        return 0;
+    }
+}
+
 const text = (value, max = 80) => (typeof value === "string" ? value.trim().slice(0, max) : "");
 const keysOf = (value) => (Array.isArray(value) ? [...new Set(value.filter((key) => typeof key === "string" && KEY.test(key)))].slice(0, MAX_KEYS) : null);
 
@@ -266,7 +315,14 @@ function readBody(request) {
  * The worlds' side of the store over HTTP: a (request, response) handler for /sync/... that
  * returns false for any other address. `key()` is the master's key now; none, no syncing.
  */
-export function createSyncApi({ store, key, now = () => Date.now() }) {
+export function createSyncApi({ store, key, now = () => Date.now(), log = () => {} }) {
+    /** What was last said about each world, so the log has one line per change, not one per call. */
+    const said = new Map();
+    const note = (world, state, line) => {
+        if (said.get(world) === state) return;
+        said.set(world, state);
+        log(line);
+    };
     const answer = (response, status, body) => {
         response.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
         response.end(JSON.stringify(body));
@@ -283,15 +339,24 @@ export function createSyncApi({ store, key, now = () => Date.now() }) {
             }
             const url = new URL(target, "http://master");
             if (request.method === "GET" && url.pathname === "/sync/changes") {
-                return answer(response, 200, { reset: store.reset(now()), ...store.changes(url.searchParams.get("since"), now()) }), true;
+                return answer(response, 200, { reset: resetKey(store.reset(now())), ...store.changes(url.searchParams.get("since"), now()) }), true;
             }
             if (request.method !== "POST") return answer(response, 405, { error: "POST" }), true;
             const asked = JSON.parse(body || "{}");
             const world = text(asked.world);
             if (!world) return answer(response, 400, { error: "Which world?" }), true;
             // A world that has not restarted since the last fresh start still has the old characters.
-            const reset = store.reset(now());
-            if (String(asked.reset ?? "") !== reset) return answer(response, 409, { stale: true, reset }), true;
+            const reset = resetKey(store.reset(now()));
+            if (resetKey(asked.reset) !== reset) {
+                note(world, `stale:${resetKey(asked.reset)}`, `[master] characters: "${world}" is on reset "${resetKey(asked.reset)}", the master on "${reset}": it shares nothing until it has restarted`);
+                return answer(response, 409, { stale: true, reset }), true;
+            }
+            note(world, "sharing", `[master] characters: "${world}" is sharing`);
+            if (url.pathname === "/sync/seed") {
+                if (typeof asked.key !== "string" || !KEY.test(asked.key) || typeof asked.json !== "string") return answer(response, 400, { error: "Which character?" }), true;
+                JSON.parse(asked.json);
+                return answer(response, 200, store.seed(world, asked.key, asked.json, now())), true;
+            }
             if (url.pathname === "/sync/save") {
                 if (typeof asked.key !== "string" || !KEY.test(asked.key)) return answer(response, 400, { error: "Which character?" }), true;
                 if (asked.json == null) return answer(response, 200, store.release(world, [asked.key], now())), true;

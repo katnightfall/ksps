@@ -107,7 +107,7 @@ async function answersHttps(address) {
 // hold the proxy key, and hand their saves in under it at /sync/...
 const sharedKey = proxyKey();
 const characters = createCharacterStore(path.join(DATA_DIR, "characters.sqlite"), () => masterResetId(ROOT));
-const sync = createSyncApi({ store: characters, key: () => sharedKey });
+const sync = createSyncApi({ store: characters, key: () => sharedKey, log: (line) => console.log(line) });
 
 const registry = createRegistry(REGISTRY_FILE);
 // A world made here that has started answering on https at its node's name is listed there from
