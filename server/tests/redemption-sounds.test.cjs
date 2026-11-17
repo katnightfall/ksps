@@ -1,4 +1,4 @@
-// Ours. Run after `yarn build`: node --test tests/redemption-sounds.test.cjs
+// Run after `yarn build`: node --test tests/redemption-sounds.test.cjs
 // The Redemption prayer's two sounds, each at its own moment:
 //   2680 (redemption)       on switching the prayer on. It is a 97 Hz bass tone, in the cache and
 //                           in the OSRS Wiki's recording alike, so small speakers do not play it.

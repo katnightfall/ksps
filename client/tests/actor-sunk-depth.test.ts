@@ -251,7 +251,7 @@ test("WebGL actor shaders take sunk vertices' depth from actorFloorViewPos", () 
     assert.ok(helper.includes("return -getHeightInterp(xz, plane) + groundOffset;"));
     assert.ok(helper.includes("transpose(mat3(worldToView)) * towardEye * 128.0"));
     for (const [name, step, args] of [
-        // Ours: floorOffset is -u_modelYOffset, or the clearance for a spot animation drawn on the
+        // FloorOffset is -u_modelYOffset, or the clearance for a spot animation drawn on the
         // floor itself (tests/gfx-floor-depth.test.ts).
         ["npc.vert.glsl", "-=", "npcInfo.plane, floorOffset"],
         ["player.vert.glsl", "+=", "playerInfo.plane, u_modelYOffset"],
@@ -282,7 +282,7 @@ test("WebGPU npc and player entries take sunk vertices' depth from actorFloorVie
             assert.ok(start >= 0, kind);
             const next = entries.map(([, s]) => s).filter((s) => s > start).sort((a, b) => a - b)[0] ?? code.length;
             const body = code.slice(start, next);
-            // Ours: spot animations (gfx) sink too, under a floor with a clearance
+            // Spot animations (gfx) sink too, under a floor with a clearance
             // (tests/gfx-floor-depth.test.ts); only projectiles keep their own depth.
             if (kind === "npc" || kind === "player" || kind === "gfx") {
                 const offset = kind === "npc" ? "-actorU.u_modelYOffset"

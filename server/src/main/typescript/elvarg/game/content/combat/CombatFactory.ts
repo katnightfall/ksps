@@ -1795,13 +1795,13 @@ export class CombatFactory {
             return;
         }
         player.performGraphic(new Graphic(436));
-        // Ours: the heal's own sound (synth 2681, redemption_heal), with the graphic and the heal.
+        // The heal's own sound (synth 2681, redemption_heal), with the graphic and the heal.
         // The graphic's animation (seq 2596) carries no sound, so nothing played here before.
         Sounds.sendSound(player, Sound.PRAYER_REDEMPTION_HEAL);
         skills.setCurrentLevels(Skill.PRAYER, 0);
         skills.setCurrentLevels(Skill.HITPOINTS, hitpoints + Math.floor(skills.getMaxLevel(Skill.PRAYER) / 4));
         player.sendMessage("You have run out of Prayer points!");
-        // Ours: one switch-off sound, as before with Redemption alone, and not one more on the
+        // One switch-off sound, as before with Redemption alone, and not one more on the
         // same tick for every other prayer that was on.
         PrayerHandler.deactivatePrayers(player, false);
         Sounds.sendSound(player, Sound.PRAYER_TURN_OFF);

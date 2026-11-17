@@ -1,4 +1,4 @@
-// Ours. The Fishing cape emote's pool (spot animation 819) was cut off and flickered: most of its
+// The Fishing cape emote's pool (spot animation 819) was cut off and flickered: most of its
 // water is drawn exactly on the floor or under it, and a depth-tested floor hides that. OSRS paints
 // a graphic over the floor whatever lies under it, so the actor shaders give a spot animation's
 // parts on or under the floor the depth of a plane just above it (actor.wgsl.ts gfxGroundOffset,
