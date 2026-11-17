@@ -73,7 +73,8 @@ export function createPanel(settings, fetchImpl = fetch) {
             } catch {}
             // The two commonest set-up faults, said in full: what the key may not do, and a key the panel does not know.
             if (response.status === 403 && scope === "application") {
-                detail = `the application key may not ${method === "GET" ? "read" : "change"} ${path.split("/")[1]} (Admin > Application API: Servers read & write; Users, Nodes, Allocations, Nests, Eggs and Locations read)`;
+                const area = /\/allocations/.test(path) ? "allocations" : /\/eggs/.test(path) ? "eggs" : path.split("/")[1];
+                detail = `the application key may not ${method === "GET" ? "read" : "change"} ${area} (Admin > Application API: Servers read & write; Users, Nodes, Allocations, Nests and Eggs read)`;
             } else if (response.status === 401) {
                 detail = scope === "application"
                     ? "it does not know the application key (PTERO_APP_KEY)"
@@ -121,38 +122,75 @@ export function createPanel(settings, fetchImpl = fetch) {
      * itself where the panel names no location for it.
      */
     async function nodes() {
+        // The location comes with the node when the key may read Locations; the node's own
+        // location_id is there either way.
         const list = await all("/nodes", { include: "location" });
         return Promise.all(list.map(async (node) => {
-            const free = (await freeAllocations(node.id)).length;
+            // null: the key may not read Allocations, so the free ports are not known.
+            const free = await freeAllocations(node.id).then((ports) => ports.length, () => null);
             const location = node.relationships?.location?.attributes;
+            const locationId = location?.id ?? node.location_id;
             return {
                 id: node.id, name: node.name, fqdn: node.fqdn, maintenance: node.maintenance_mode === true, free,
                 location: location?.short ?? "",
-                place: location?.id ? `location-${location.id}` : `node-${node.id}`,
-                placeName: text(location?.long) || location?.short || node.name,
+                place: locationId ? `location-${locationId}` : `node-${node.id}`,
+                placeName: text(location?.long) || location?.short || "",
             };
         }));
     }
 
-    /** The places a world can be made in: each location with its nodes' free ports added up. */
+    /**
+     * The places a world can be made in: each location with its nodes' free ports added up
+     * (null where they are not known). A location the panel will not name is called by its nodes.
+     */
     async function places() {
         const byPlace = new Map();
         for (const node of await nodes()) {
             const place = byPlace.get(node.place) ?? { key: node.place, name: node.placeName, free: 0, nodes: [] };
-            if (!node.maintenance) place.free += node.free;
+            if (!node.maintenance) place.free = place.free === null || node.free === null ? null : place.free + node.free;
             place.nodes.push({ id: node.id, name: node.name, fqdn: node.fqdn, free: node.free, maintenance: node.maintenance });
             byPlace.set(node.place, place);
         }
-        return [...byPlace.values()];
+        return [...byPlace.values()].map((place) => ({ ...place, name: place.name || place.nodes.map((node) => node.name).join(" / ") }));
     }
 
     /** The node a new world goes on in `place`: the one with the most free ports that is not in maintenance. */
     async function nodeIn(place) {
         const found = (await places()).find((candidate) => candidate.key === place);
         if (!found) throw new PanelError(404, "The panel has no such location.");
-        const best = found.nodes.filter((node) => !node.maintenance && node.free > 0).sort((a, b) => b.free - a.free)[0];
+        const best = found.nodes.filter((node) => !node.maintenance && node.free !== 0).sort((a, b) => (b.free ?? 0) - (a.free ?? 0))[0];
         if (!best) throw new PanelError(409, `${found.name} has no free port. Add allocations to its node in the panel.`);
         return best.id;
+    }
+
+    /**
+     * What stands between this page and making a world, in the panel's own words for its
+     * settings: [] when the keys can do all of it. Only reads are tried.
+     */
+    async function check() {
+        const problems = [];
+        const may = (path, query) => app("GET", path, { query, timeout: 15_000 }).then(() => true, (error) => (error.status === 403 || error.status === 401 ? false : null));
+        const firstNode = await app("GET", "/nodes", { query: { per_page: 1 } }).then((answer) => answer?.data?.[0]?.attributes?.id, () => undefined);
+        const firstNest = await app("GET", "/nests", { query: { per_page: 1 } }).then((answer) => answer?.data?.[0]?.attributes?.id, () => undefined);
+        const [servers, users, nests, eggs, allocations, locations] = await Promise.all([
+            may("/servers", { per_page: 1 }), may("/users", { per_page: 1 }), may("/nests", { per_page: 1 }),
+            firstNest ? may(`/nests/${firstNest}/eggs`, { per_page: 1 }) : null,
+            firstNode ? may(`/nodes/${firstNode}/allocations`, { per_page: 1 }) : null,
+            may("/locations", { per_page: 1 }),
+        ]);
+        const missing = [servers === false && "Servers (read & write)", users === false && "Users (read)", allocations === false && "Allocations (read)",
+            nests === false && "Nests (read)", eggs === false && "Eggs (read)"].filter(Boolean);
+        if (missing.length) problems.push(`The application key (Admin > Application API) is missing: ${missing.join(", ")}.`);
+        if (locations === false) problems.push("Optional: with Locations (read) the picker shows your locations' names; without it, it goes by node.");
+        const account = await client("GET", "/account", { timeout: 15_000 }).then((answer) => answer?.attributes, (error) => error);
+        if (account instanceof PanelError) {
+            problems.push(account.status === 401 || account.status === 403
+                ? "The panel does not accept the client key (PTERO_CLIENT_KEY). Make one under Account > API Credentials, signed in as an admin; if you give it allowed IPs, include this server's."
+                : `The client key could not be checked: ${account.message}`);
+        } else if (account && account.admin !== true) {
+            problems.push("The client key belongs to an account that is not an admin, so it cannot start or stop the worlds.");
+        }
+        return { problems, blocking: missing.length > 0 || account instanceof PanelError };
     }
 
     const inRange = (port) => settings.portRanges.length === 0 || settings.portRanges.some(([from, to]) => port >= from && port <= to);
@@ -237,5 +275,5 @@ export function createPanel(settings, fetchImpl = fetch) {
         }
     }
 
-    return { egg, nodes, places, nodeIn, createWorld, deleteWorld, power, state, serverUrl: (identifier) => `${settings.url}/server/${identifier}` };
+    return { egg, nodes, places, nodeIn, check, createWorld, deleteWorld, power, state, serverUrl: (identifier) => `${settings.url}/server/${identifier}` };
 }

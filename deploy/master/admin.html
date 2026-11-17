@@ -87,6 +87,7 @@ label > span { display: block; margin-bottom: 3px; }
     <section class="panel">
       <h2>Make a world <small id="panel-note"></small></h2>
       <form class="body" id="create-form">
+        <ul class="bad" id="panel-problems" hidden></ul>
         <div class="grid">
           <label class="wide"><span>Name (shown on the landing page and the world's login screen)</span><input type="text" name="name" maxlength="40" required></label>
           <label class="wide"><span>Description</span><input type="text" name="description" maxlength="120" placeholder="10x custom, US/New York"></label>
@@ -245,29 +246,41 @@ function render() {
   $("summary").textContent = online + " of " + worlds.length + " online";
   const panel = state.panel;
   const select = $("create-form").elements.place;
-  const ready = panel.configured && !panel.error;
+  const ready = panel.configured && panel.ready === true;
+  const problems = panel.configured && !panel.error ? (panel.problems || []) : [];
+  $("panel-problems").replaceChildren(...problems.map((problem) => el("li", { textContent: problem })));
+  $("panel-problems").hidden = problems.length === 0;
   if (state.storage) say(state.storage, true);
   $("panel-note").className = ready ? "" : "bad";
   $("panel-note").textContent = !panel.configured ? "The panel is not set up: " + panel.missing.join(", ") + " missing from the server's .env."
     : panel.error ? panel.host + ": " + panel.error
+    : !ready ? panel.host + " answers, but a world cannot be made yet:"
     : "on " + panel.host + ", egg “" + panel.egg.name + "”";
   $("create-button").disabled = !ready;
-  if (ready && select.options.length === 0) {
+  const ports = (free) => (free === null ? "free ports not known" : free + " free port" + (free === 1 ? "" : "s"));
+  // The locations are listed as soon as the panel answers, whatever else is still missing.
+  const drawn = JSON.stringify(panel.places || null);
+  if (panel.places && select.dataset.drawn !== drawn) {
+    // Drawn again when the free ports change (or become known), keeping what was picked.
+    const picked = select.value;
+    select.replaceChildren();
+    select.dataset.drawn = drawn;
     // A location, and the world goes on its node with the most free ports. A location with
     // several nodes also offers each of them by name.
     for (const place of panel.places) {
       const open = place.nodes.filter((node) => !node.maintenance);
       select.append(el("option", { value: place.key, disabled: place.free === 0,
-        textContent: place.name + " - " + (open.length === 0 ? "in maintenance" : place.free + " free port" + (place.free === 1 ? "" : "s")) }));
+        textContent: place.name + " - " + (open.length === 0 ? "in maintenance" : ports(place.free)) }));
       if (place.nodes.length > 1) {
         for (const node of place.nodes) {
           select.append(el("option", { value: "node-" + node.id, disabled: node.free === 0 || node.maintenance,
-            textContent: "   " + node.name + " - " + (node.maintenance ? "in maintenance" : node.free + " free") }));
+            textContent: "   " + node.name + " - " + (node.maintenance ? "in maintenance" : ports(node.free)) }));
         }
       }
     }
     const firstOpen = [...select.options].find((option) => !option.disabled);
-    if (firstOpen) select.value = firstOpen.value;
+    if ([...select.options].some((option) => option.value === picked && !option.disabled)) select.value = picked;
+    else if (firstOpen) select.value = firstOpen.value;
     const form = $("create-form").elements;
     for (const key of ["xpRate", "bots", "memoryMb", "diskMb", "cpu"]) if (form[key].value === "") form[key].value = state.defaults[key];
   }
@@ -319,7 +332,7 @@ $("create-form").onsubmit = async (event) => {
     const world = await api("POST", "worlds", data);
     say(world.name + " is being installed at " + world.address + ". It shows as online once it has built and started.");
     form.elements.name.value = ""; form.elements.description.value = "";
-    form.elements.place.replaceChildren();
+    form.elements.place.dataset.drawn = "";
     await load();
   } catch (error) { if (error.message !== "signed-out") say(error.message, true); $("create-button").disabled = false; }
 };

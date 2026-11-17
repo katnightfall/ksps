@@ -23,13 +23,15 @@ function listen(handler) {
 async function fakePanel(t) {
   const calls = [];
   const servers = new Map();
+  // limits.on: a key that may read Nodes and nothing else, and a client key the panel does not know.
+  const limits = { on: false };
   const allocations = {
     1: [{ id: 11, ip: "0.0.0.0", alias: null, port: 5000, assigned: true }, { id: 12, ip: "0.0.0.0", alias: null, port: 5001, assigned: false }, { id: 13, ip: "0.0.0.0", alias: null, port: 5002, assigned: false }],
     2: [{ id: 21, ip: "104.194.10.100", alias: "ny.example.com", port: 5000, assigned: false }],
   };
   const nodes = [
-    { id: 1, name: "Dallas 8", fqdn: "dal8.example.com", maintenance_mode: false, relationships: { location: { attributes: { id: 1, short: "dal", long: "Dallas, US" } } } },
-    { id: 2, name: "New York 1", fqdn: "ny1.example.com", maintenance_mode: false, relationships: { location: { attributes: { id: 2, short: "nyc", long: "New York, US" } } } },
+    { id: 1, name: "Dallas 8", fqdn: "dal8.example.com", maintenance_mode: false, location_id: 1, relationships: { location: { attributes: { id: 1, short: "dal", long: "Dallas, US" } } } },
+    { id: 2, name: "New York 1", fqdn: "ny1.example.com", maintenance_mode: false, location_id: 2, relationships: { location: { attributes: { id: 2, short: "nyc", long: "New York, US" } } } },
   ];
   const egg = { id: 15, name: "Kat-Net TSPS", docker_images: { "Node.js 22": "ghcr.io/parkervcp/yolks:nodejs_22" }, startup: "node deploy/pterodactyl/launch.mjs",
     relationships: { variables: { data: [
@@ -49,6 +51,13 @@ async function fakePanel(t) {
     const wanted = scope === "application" ? "Bearer app-key" : "Bearer client-key";
     if (request.headers.authorization !== wanted) return answer(403, { errors: [{ detail: "This action is unauthorized." }] });
     let match;
+    if (limits.on) {
+      if (scope === "client") return answer(401, { errors: [{ detail: "Unauthenticated." }] });
+      const bare = nodes.map(({ relationships, ...node }) => node);
+      if (route === "/nodes") return answer(200, list(bare));
+      if ((match = /^\/nodes\/(\d+)$/.exec(route))) return answer(200, { attributes: bare.find((node) => node.id === Number(match[1])) });
+      return answer(403, { errors: [{ detail: "This action is unauthorized." }] });
+    }
     if (scope === "application") {
       if (route === "/nests") return answer(200, list([{ id: 3, name: "Games" }, { id: 5, name: "Ours" }]));
       if ((match = /^\/nests\/(\d+)\/eggs$/.exec(route))) return answer(200, list(match[1] === "5" ? [{ id: 15, name: "Kat-Net TSPS" }] : [{ id: 7, name: "Paper" }]));
@@ -56,6 +65,8 @@ async function fakePanel(t) {
       if (route === "/nodes") return answer(200, list(nodes));
       if ((match = /^\/nodes\/(\d+)$/.exec(route))) return answer(200, { attributes: nodes.find((node) => node.id === Number(match[1])) });
       if ((match = /^\/nodes\/(\d+)\/allocations$/.exec(route))) return answer(200, list(allocations[match[1]]));
+      if (route === "/servers" && request.method === "GET") return answer(200, list([...servers.values()]));
+      if (route === "/locations") return answer(200, list([{ id: 1, short: "dal" }, { id: 2, short: "nyc" }]));
       if (route === "/users") return answer(200, list([{ id: 42, email: searchParams.get("filter[email]") }]));
       if (route === "/servers" && request.method === "POST") {
         const allocation = Object.values(allocations).flat().find((candidate) => candidate.id === body.allocation.default);
@@ -74,7 +85,7 @@ async function fakePanel(t) {
         return answer(204);
       }
     } else {
-      if (route === "/account") return answer(200, { attributes: { email: "admin@example.com" } });
+      if (route === "/account") return answer(200, { attributes: { email: "admin@example.com", admin: true } });
       const made = [...servers.values()].find((candidate) => route.startsWith(`/servers/${candidate.identifier}`));
       if (!made) return answer(404, { errors: [{ detail: "not found" }] });
       if (route.endsWith("/power")) { made.state = body.signal === "stop" ? "offline" : "running"; return answer(204); }
@@ -86,7 +97,7 @@ async function fakePanel(t) {
     return answer(404, { errors: [{ detail: `no such route ${route}` }] });
   });
   t.after(() => server.close());
-  return { url, calls, servers, allocations };
+  return { url, calls, servers, allocations, limits };
 }
 
 async function master(t, { password = PASSWORD, panelEnv } = {}) {
@@ -170,6 +181,7 @@ test("the state: the project's worlds, the panel's egg and nodes with their free
   await m.signIn();
   const { body } = await m.call("GET", "state");
   assert.deepEqual(body.panel.egg, { id: 15, name: "Kat-Net TSPS" });
+  assert.deepEqual([body.panel.ready, body.panel.problems], [true, []]);
   assert.deepEqual(body.panel.nodes.map((node) => [node.id, node.name, node.location, node.free]), [[1, "Dallas 8", "dal", 2], [2, "New York 1", "nyc", 1]]);
   assert.deepEqual(body.worlds.map((world) => [world.id, world.source, world.online, world.players]), [["kat-net", "project", true, 3], ["new-york", "project", false, null]]);
   // The location picker: each of the panel's locations with its free ports.
@@ -357,4 +369,28 @@ test("a world made here that starts answering on https at its node's name is lis
   assert.deepEqual(serverList([entry], { host: "rs.kat-net.us", secure: true })[0], { name: "Chicago", address: "dal8.example.com:5001", secure: true, maxPlayers: 2047 }, "the world picker connects straight to it");
   // It has no website of its own, so its link stays on the master's site.
   assert.equal(worldUrls(entry, "").play, "/play?world=chicago");
+});
+
+// What the user met on 2026-11-17: an application key that may read Nodes only, and a client key
+// the panel does not know. The location list was empty and the page said nothing useful.
+test("a key that is short of permissions: the locations still show, by node, and the page says what is missing", async (t) => {
+  const m = await master(t);
+  m.panel.limits.on = true;
+  await m.signIn();
+  const { body } = await m.call("GET", "state");
+  assert.equal(body.panel.error, undefined, "the panel answers");
+  assert.equal(body.panel.ready, false);
+  assert.deepEqual(body.panel.places.map((place) => [place.key, place.name, place.free]),
+    [["location-1", "Dallas 8", null], ["location-2", "New York 1", null]], "each node's location, called by its node, its free ports not known");
+  assert.equal(body.panel.egg, null);
+  assert.deepEqual(body.panel.problems, [
+    "The application key (Admin > Application API) is missing: Servers (read & write), Users (read), Allocations (read), Nests (read).",
+    "Optional: with Locations (read) the picker shows your locations' names; without it, it goes by node.",
+    "The panel does not accept the client key (PTERO_CLIENT_KEY). Make one under Account > API Credentials, signed in as an admin; if you give it allowed IPs, include this server's.",
+  ]);
+  // Making a world is refused by the panel, in words that say which permission.
+  const made = await m.call("POST", "worlds", { name: "X", place: "location-1" });
+  assert.equal(made.status, 502);
+  assert.match(made.body.error, /the application key may not read/);
+  assert.equal(m.registry.all().length, 0);
 });

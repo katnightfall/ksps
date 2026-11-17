@@ -149,10 +149,22 @@ export function createAdmin(options) {
         if (!fresh && now() - panelCache.at < PANEL_CACHE_MS) return panelCache.value;
         let value;
         try {
-            const [egg, nodes, places] = await Promise.all([panel.egg(), panel.nodes(), panel.places()]);
-            value = { configured: true, host: new URL(settings.url).host, egg: { id: egg.id, name: egg.name }, nodes, places };
+            // The locations come from the nodes alone, so the picker fills in even while the key
+            // is short of other permissions; what is short is listed beside it.
+            const [nodes, places, checked] = await Promise.all([panel.nodes(), panel.places(), panel.check()]);
+            const problems = [...checked.problems];
+            let egg = null;
+            if (!checked.blocking) {
+                try {
+                    const found = await panel.egg();
+                    egg = { id: found.id, name: found.name };
+                } catch (error) {
+                    problems.push(error.message);
+                }
+            }
+            value = { configured: true, host: new URL(settings.url).host, egg, nodes, places, problems, ready: !checked.blocking && egg !== null };
         } catch (error) {
-            value = { configured: true, host: new URL(settings.url).host, error: error.message };
+            value = { configured: true, host: new URL(settings.url).host, error: error.message, ready: false };
         }
         panelCache = { at: now(), value };
         return value;
