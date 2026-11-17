@@ -257,6 +257,10 @@ function createAction(spec, world) {
   if (spec.type === "errand") {
     return require("./actions/Errand.PlayerBots").createErrandAction(spec, world);
   }
+  // Ours: the walk to where a group of levelling bots meets (brain/BotGroups).
+  if (spec.type === "groupMeet") {
+    return require("./actions/GroupMeet.PlayerBots").createGroupMeetAction(spec, world);
+  }
   if (spec.type === "wait") return createWaitAction(spec);
   throw new Error(`[bot activities] unknown action type '${spec.type}'`);
 }

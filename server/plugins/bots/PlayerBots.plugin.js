@@ -17,6 +17,8 @@ const { startBotSites } = require("./brain/SiteSpawner.PlayerBots");
 const { attachBotExchange } = require("./brain/actions/Exchange.PlayerBots");
 const { createAmbition, worldHasAmbition } = require("./brain/Ambition.PlayerBots");
 const { createBotPotions } = require("./brain/BotPotions.PlayerBots");
+const { createBotTalk } = require("./brain/BotTalk.PlayerBots");
+const { createBotGroups, worldBotsGroup } = require("./brain/BotGroups.PlayerBots");
 const { setActiveBotRuntime } = require("./runtime/RuntimeRegistry.PlayerBots");
 const { PVP_BOT_SETTINGS } = require("./behaviours/pvp/WildernessHotspotRegistry.PlayerBots");
 const {
@@ -212,12 +214,21 @@ function registerDuelBotAcceptance(api) {
 
 /**
  * Ours: the levelling bots' minds (brain/Ambition) and what hangs off them: potions for their
- * fights. A world may turn either off.
+ * fights, what they say, and the groups they form. Each asks the world for the others, so a
+ * world may turn any of them off.
  */
 function startAmbition(api, boot) {
   const world = boot.brainWorld;
   const ambition = (world.ambition = createAmbition({ world }));
   if (api.getPluginConfig("PlayerBots:potions", true) !== false) createBotPotions({ world, ambition });
+  // Its own setting is asked at every line, so the world config page turns chat off at once.
+  const talk = (world.talk = createBotTalk({ world }));
+  ambition.addTicker(talk.tick);
+  api.onPlayerLevelUp(talk.levelUp);
+  if (worldBotsGroup()) {
+    const groups = (world.groups = createBotGroups({ world, runtime: boot.runtime, registry: boot.brainRegistry, ambition, talk }));
+    ambition.addTicker(groups.tick);
+  }
 }
 
 module.exports = {
@@ -235,6 +246,18 @@ module.exports = {
     "PlayerBots:potions": {
       type: "boolean", label: "Levelling bots drink potions", default: true,
       help: "With goals on, a levelling bot that can well afford them buys potions for its combat style (and an antipoison once it has been poisoned), takes one of each to a fight and drinks a dose when the boost has worn off. A boost leaves these bots a point a minute, as it leaves a player. Off: they fight without potions.",
+    },
+    "PlayerBots:chat": {
+      type: "boolean", label: "Levelling bots talk", default: true,
+      help: "With goals on, a levelling bot now and then says a short line in public chat about what it is doing (what it is saving for, a level gained, something it bought) and may answer the bot beside it. A bot says at most one line of its own every few minutes, a player hears at most one such line every 20 seconds however many bots are around, and nothing is said with no player in earshot. Off: they say nothing, and form their groups in silence.",
+    },
+    "PlayerBots:groups": {
+      type: "boolean", label: "Levelling bots form groups", default: true,
+      help: "With goals on, a levelling bot now and then proposes something to do together (the outings in bot-groups.json, and Wintertodt for those with the Firemaking for it); bots near it, and bots further off that are after the same skill, may agree, and they travel there and do it side by side with their own tools and supplies. Off: every bot keeps to itself.",
+    },
+    "PlayerBots:groupMinutes": {
+      type: "json", label: "Minutes between a bot's group proposals", defaultText: "[30, 90]",
+      help: "How often one levelling bot proposes a group outing, as [least, most] minutes; each bot draws its own time in between, e.g. [30, 90].",
     },
     "PlayerBots:allowedActivities": {
       type: "json", label: "Bot activities allowed", defaultText: "Every activity",
