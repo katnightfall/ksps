@@ -54,7 +54,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 // this front door drops every player's connection).
 const WORLDS_FILE = path.resolve(ROOT, process.env.WORLDS_FILE || "deploy/worlds.json");
 const IS_MASTER = process.env.MASTER_ADMIN === "1";
-const REGISTRY_FILE = path.join(ROOT, "server", "data", "saves", "master-worlds.json");
+const REGISTRY_FILE = path.join(ROOT, "server", "data", "saves", "master", "master-worlds.json");
 const MASTER_URL = /^https?:\/\/[^\s/]+$/.test(String(process.env.WORLDS_MASTER_URL ?? "").replace(/\/+$/, "")) && !IS_MASTER
     ? String(process.env.WORLDS_MASTER_URL).replace(/\/+$/, "") : "";
 const LOCAL_STATUS = `http://${LOCAL}:${GAME_PORT}/api/world-status`;

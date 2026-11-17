@@ -72,6 +72,8 @@ export function readNewWorld(body) {
  */
 export function createAdmin(options) {
     const { registry, panel, settings, publicUrl } = options;
+    /** Why worlds cannot be saved (the folder is not writable), or null. */
+    const storage = options.storage ?? null;
     const now = options.now ?? (() => Date.now());
     const enabled = String(options.password ?? "").length >= MIN_PASSWORD;
     const key = digest(`admin:${options.secret}:${options.password}`);
@@ -159,6 +161,7 @@ export function createAdmin(options) {
         const statuses = new Map(board.worlds.map((world) => [world.id, world]));
         return {
             site: publicUrl,
+            storage,
             defaults: DEFAULTS,
             panel: panelInfo,
             worlds: worlds.map((world, index) => {
@@ -176,6 +179,8 @@ export function createAdmin(options) {
     }
 
     async function createWorld(body) {
+        // Before the panel is asked: a server nobody could then list would be an orphan.
+        if (storage) throw new Refusal(503, storage);
         const world = readNewWorld(body);
         const used = taken();
         if (used.names.has(world.name.toLowerCase())) throw new Refusal(409, `There is already a world called "${world.name}".`);
@@ -206,6 +211,7 @@ export function createAdmin(options) {
     }
 
     function addExternal(body) {
+        if (storage) throw new Refusal(503, storage);
         const name = text(body?.name, 40);
         const entry = cleanWorld({ name, world: text(body?.world, 40) || name, address: text(body?.address, 255), secure: body?.secure === true, description: text(body?.description, 160) });
         if (!entry) throw new Refusal(400, "Give a name and an address like play.example.com or 203.0.113.10:5000 (no http://, no path).");

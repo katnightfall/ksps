@@ -16,6 +16,8 @@ SyslogIdentifier=tsps-web
 
 NoNewPrivileges=true
 ProtectSystem=strict
+# The admin page's own worlds (deploy/master/): the only place this service may write.
+ReadWritePaths=-/opt/tsps/server/data/saves/master
 ProtectHome=true
 PrivateTmp=true
 

@@ -58,7 +58,7 @@ The worlds on the landing page and in the game's world picker are, and are only:
 
   deploy/worlds.json      the project's own list (edit, commit, deploy)
   the admin page's list   worlds made or added at /admin, kept on the server beside the player
-                          saves (server/data/saves/master-worlds.json; no deploy replaces it)
+                          saves (server/data/saves/master/; no deploy replaces it)
 
   { "id": "second", "name": "Kat-Net Classic", "world": "Kat-Net Classic",
     "address": "classic.kat-net.us", "secure": true, "description": "one line about it" }
@@ -76,6 +76,11 @@ The admin page (/admin)
 Makes worlds on our Pterodactyl panel from the project's egg, starts, restarts and stops them,
 edits how they are listed, and deletes them (the server and every save on it; it asks for the
 world's name first). A world that already runs elsewhere can be added by its address.
+
+One-time, as root on the server: let the website's service write the page's worlds (it may
+write nowhere else). Until then the page says so and makes nothing.
+  sudo cp /opt/tsps/deploy/tsps-web.service /etc/systemd/system/
+  sudo systemctl daemon-reload && sudo systemctl restart tsps-web
 
 It is off until these are in the server's own settings (sudo nano /opt/tsps/.env), followed by
 "npm run remote -- restart web". They are secrets: never in the project, which is public.

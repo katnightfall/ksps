@@ -1,6 +1,6 @@
 /**
  * The worlds made or added on the master's admin page: one JSON file beside the player saves
- * (server/data/saves/master-worlds.json), which no deploy or update ever replaces.
+ * (server/data/saves/master/master-worlds.json), which no deploy or update ever replaces.
  *
  * The master's list of worlds is the project's own (deploy/worlds.json) and then these. A record:
  *

@@ -27,11 +27,29 @@ const ROOT = path.resolve(HERE, "..", "..");
 const LOCAL = "127.0.0.1";
 const PORT = Number(process.env.MASTER_PORT) || 0;
 const GAME_PORT = Number(process.env.GAME_PORT) || 43594;
-/** Beside the player saves: never sent, replaced or rolled back by a deploy. */
-export const DATA_DIR = path.join(ROOT, "server", "data", "saves");
+/**
+ * A folder of its own beside the player saves: never sent, replaced or rolled back by a deploy.
+ * The website's service may write nowhere else (deploy/tsps-web.service names it), and the game
+ * server makes the folder when it starts (deploy/run.sh).
+ */
+export const DATA_DIR = path.join(ROOT, "server", "data", "saves", "master");
 export const REGISTRY_FILE = path.join(DATA_DIR, "master-worlds.json");
 
-/** What signs the sign-ins: made once, kept beside the saves, readable by this user only. */
+/** Why worlds cannot be saved here, or null when they can. */
+function storageProblem() {
+    try {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+        const probe = path.join(DATA_DIR, `.write-test-${process.pid}`);
+        fs.writeFileSync(probe, "");
+        fs.rmSync(probe, { force: true });
+        return null;
+    } catch (error) {
+        return `This page cannot save its worlds: ${DATA_DIR} is not writable (${error.code ?? error.message}). On our server, install the current service file once: sudo cp /opt/tsps/deploy/tsps-web.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl restart tsps-web`;
+    }
+}
+const storage = storageProblem();
+
+/** What signs the sign-ins: made once, kept in the folder, readable by this user only. Without the folder, one for this run. */
 function sessionSecret() {
     const file = path.join(DATA_DIR, "master-secret");
     try {
@@ -39,8 +57,7 @@ function sessionSecret() {
         if (kept.length >= 32) return kept;
     } catch {}
     const made = crypto.randomBytes(32).toString("hex");
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(file, `${made}\n`, { mode: 0o600 });
+    if (!storage) fs.writeFileSync(file, `${made}\n`, { mode: 0o600 });
     return made;
 }
 
@@ -61,6 +78,7 @@ const handle = createAdmin({
     password,
     secret: sessionSecret(),
     registry: createRegistry(REGISTRY_FILE),
+    storage,
     projectWorlds: () => loadWorlds(worldsFile),
     panel: createPanel(settings),
     settings,
@@ -74,6 +92,7 @@ http.createServer((request, response) => { handle(request, response); }).listen(
         password.length >= MIN_PASSWORD ? null : `off until MASTER_ADMIN_PASSWORD (${MIN_PASSWORD}+ characters) is set`,
         settings.configured ? null : `the panel is not set up (${settings.missing.join(", ")})`,
         publicUrl ? null : "MASTER_PUBLIC_URL is not set, so new worlds will not know the master",
+        storage,
     ].filter(Boolean);
     console.log(`[master] the admin page is on ${LOCAL}:${this.address().port}${notes.length ? `: ${notes.join("; ")}` : ""}`);
 });

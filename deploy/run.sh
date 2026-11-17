@@ -21,6 +21,9 @@ if [ -f "$CONF" ]; then . "$CONF"; fi
 case "${1:-}" in
   game)
     cd "$ROOT/server"
+    # The one folder the website's service may write to (the admin page's worlds, deploy/master/):
+    # made here, by the service that may make it.
+    mkdir -p "$ROOT/server/data/saves/master"
     export WEBSOCKET_PORT="$GAME_PORT"
     # The world config page saves, then exits with code 75 for systemd to start it again.
     export TSPS_SUPERVISED=1

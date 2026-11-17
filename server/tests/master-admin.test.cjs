@@ -300,3 +300,29 @@ test("settings: the keys, an egg by id, and a port range", async () => {
   assert.deepEqual([settings.url, settings.appKey, settings.eggId, settings.nestId, settings.configured], ["https://panel.example.com", "a", 15, 5, true]);
   assert.deepEqual(panelSettings({ PTERO_URL: "panel.example.com" }).missing, ["PTERO_URL", "PTERO_APP_KEY", "PTERO_CLIENT_KEY"], "an address needs its https://");
 });
+
+// Our server's website service is locked to a read-only filesystem until its service file names
+// the page's folder. The page must say so, and must not make a server it could not then list.
+test("where the worlds cannot be saved, nothing is made on the panel and the page says why", async (t) => {
+  const [{ createAdmin }, { createPanel, panelSettings }, { createRegistry }] = await Promise.all([load("master/admin.mjs"), load("master/panel.mjs"), load("master/registry.mjs")]);
+  const panelStub = await fakePanel(t);
+  const settings = panelSettings({ PTERO_URL: panelStub.url, PTERO_APP_KEY: "app-key", PTERO_CLIENT_KEY: "client-key" });
+  const handle = createAdmin({
+    password: PASSWORD, secret: "s", settings, panel: createPanel(settings), storage: "This page cannot save its worlds: not writable (EROFS).",
+    registry: createRegistry(path.join(os.tmpdir(), "never-written", "master-worlds.json")), projectWorlds: () => [], publicUrl: "https://rs.kat-net.us",
+    statusOf: async () => ({ worlds: [] }), page: path.join(__dirname, "../../deploy/master/admin.html"),
+  });
+  const { server, url } = await listen((request, response) => { handle(request, response); });
+  t.after(() => server.close());
+  const headers = { "x-tsps-admin": "1", "content-type": "application/json" };
+  const login = await fetch(`${url}/admin/api/login`, { method: "POST", headers, body: JSON.stringify({ password: PASSWORD }) });
+  const cookie = login.headers.get("set-cookie").split(";")[0];
+  const state = await (await fetch(`${url}/admin/api/state`, { headers: { cookie } })).json();
+  assert.match(state.storage, /cannot save its worlds/);
+  for (const [route, body] of [["worlds", { name: "X", nodeId: 1 }], ["worlds/external", { name: "X", address: "x.example.com" }]]) {
+    const answer = await fetch(`${url}/admin/api/${route}`, { method: "POST", headers: { ...headers, cookie }, body: JSON.stringify(body) });
+    assert.equal(answer.status, 503);
+    assert.match((await answer.json()).error, /cannot save its worlds/);
+  }
+  assert.ok(!panelStub.calls.some((call) => call.method === "POST" && call.route === "/servers"));
+});

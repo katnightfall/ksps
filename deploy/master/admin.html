@@ -243,6 +243,7 @@ function render() {
   const panel = state.panel;
   const select = $("create-form").elements.nodeId;
   const ready = panel.configured && !panel.error;
+  if (state.storage) say(state.storage, true);
   $("panel-note").className = ready ? "" : "bad";
   $("panel-note").textContent = !panel.configured ? "The panel is not set up: " + panel.missing.join(", ") + " missing from the server's .env."
     : panel.error ? panel.host + ": " + panel.error
