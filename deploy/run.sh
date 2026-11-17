@@ -39,6 +39,13 @@ case "${1:-}" in
       # slow download cannot keep the port shut (the updater waits on it).
       (TS_NODE_COMPILER_OPTIONS='{"target":"es2020"}' node node_modules/ts-node/dist/bin.js ./scripts/ensure-cache.ts \
         || echo "[parked] the game cache could not be checked; the website serves the one it has") &
+      # Quest Helper's engine, once for every world of this master (deploy/quest-helper.mjs): the
+      # worlds have no Java, so they ask this one through the website. It fetches and builds what
+      # it needs by itself and is kept running beside the parked port. QUEST_HELPER_BRIDGE=0 in
+      # deploy/settings.env turns it off.
+      if [ "$(sed -n 's/^QUEST_HELPER_BRIDGE=\([01]\)[[:space:]]*$/\1/p' "$ROOT/deploy/settings.env" 2>/dev/null | tail -n 1)" != 0 ]; then
+        node "$ROOT/deploy/quest-helper.mjs" &
+      fi
       exec node "$ROOT/deploy/master/parked.mjs"
     fi
     # The world config page saves, then exits with code 75 for systemd to start it again.
