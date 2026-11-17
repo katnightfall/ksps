@@ -1566,6 +1566,33 @@ test('clicking Pay-toll pays directly and refuses when the backpack is short', (
   }
 });
 
+// Ours: bots stood at this gate for good. A bot is handed its 10 coins as it clicks, but a bot on a
+// bank trip has a full backpack, so the coins had nowhere to go and it could never pay.
+test('a bot without the toll is waved through; a bot that has it pays, and a person still needs it', () => {
+  const h = buildAlKharidHarness();
+  try {
+    const handler = h.handlers.object.get('Gate')['Pay-toll(10gp)'];
+    const full = alKharidPlayer(0, 3267, 3227);
+    full.isPlayerBot = () => true;
+    handler({ player: full, object: gateLeaf(AL_KHARID_LEAF_SOUTH, 3227) });
+    assert.equal(full.packets.length, OPEN_PACKET_COUNT, 'the gate opens for it');
+    assert.deepEqual(full.steps, [[3268, 3227]], 'and it steps through, west to east');
+    assert.ok(!full.messages.includes("You don't have enough coins."));
+
+    const paying = alKharidPlayer(10, 3269, 3227);
+    paying.isPlayerBot = () => true;
+    handler({ player: paying, object: gateLeaf(AL_KHARID_LEAF_SOUTH, 3227) });
+    assert.equal(paying.getCoins(), 0, 'a bot with the coins pays as before');
+
+    const person = alKharidPlayer(0, 3269, 3227);
+    handler({ player: person, object: gateLeaf(AL_KHARID_LEAF_SOUTH, 3227) });
+    assert.deepEqual(person.steps, []);
+    assert.deepEqual(person.messages, ["You don't have enough coins."]);
+  } finally {
+    h.restore();
+  }
+});
+
 
 test('the Tutorial Island survival gate swings open and closes back to its own panels', () => {
   const h = buildHarness();

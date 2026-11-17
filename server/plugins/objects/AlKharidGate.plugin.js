@@ -115,6 +115,10 @@ function answerCondition({ player, npcId, text }) {
 }
 
 function tryPay(player) {
+  // Ours: a bot is handed its toll as it clicks (bots/brain/DoorOpening), but one with a full
+  // backpack has nowhere to put the coins, and a bot on its way to the bank is always full: it
+  // stood at the gate for good, and the others behind it. The guards wave a bot through.
+  if (!hasToll(player) && player.isPlayerBot?.() === true) return true;
   if (!hasToll(player)) return false;
   player.getInventory().deleteNumber(core.ItemIdentifiers.COINS, TOLL);
   return true;
