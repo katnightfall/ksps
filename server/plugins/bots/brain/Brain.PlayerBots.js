@@ -209,13 +209,26 @@ class BotBrain {
       return true;
     }
     const activity = this.registry?.pickActivity?.(this.player, nowMs, this.rotation
-      ? { allowed: this.rotation.activityIds, weights: this.rotation.weights, ...(this.rotation.best === true ? { best: true } : {}) }
+      ? { allowed: this.rotation.activityIds, weights: this.weights(), ...(this.rotation.best === true ? { best: true } : {}) }
       : { own: this.rootActivityId });
     if (!activity) {
       return false;
     }
     this.pushRoot(activity, nowMs);
     return true;
+  }
+
+  /**
+   * Ours: a progression bot (`rotation.best`) has a mind of its own (brain/Ambition, when the
+   * world gives its bots one): what it wants weighs what it turns to next, and sends it on errands.
+   */
+  ambition() {
+    return this.rotation?.best === true ? this.world?.ambition ?? null : null;
+  }
+
+  /** Ours: the weights the next activity is drawn with: the bot's own, or the rotation's. */
+  weights() {
+    return this.ambition()?.steer(this, this.rotation.weights) ?? this.rotation.weights;
   }
 
   /**
@@ -239,7 +252,7 @@ class BotBrain {
     }
     const next = this.registry?.pickActivity?.(this.player, nowMs, {
       allowed: this.rotation.activityIds,
-      weights: this.rotation.weights,
+      weights: this.weights(),
       avoid: frame.behaviour.id,
       // A progression site's rotation: the best activity of each mode for the bot's levels.
       ...(this.rotation.best === true ? { best: true } : {}),
@@ -550,6 +563,8 @@ class BotBrain {
       return "running";
     }
     this.maybeSwitchActivity(nowMs);
+    // Ours: its look at what it wants next, which may start an errand on top of its work.
+    this.ambition()?.tick(this, nowMs);
     const frame = this.frames[this.frames.length - 1];
     this.debugTick(frame);
     if (!frame) {

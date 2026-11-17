@@ -15,6 +15,8 @@ const { bootPlayerBotsRuntime } = require("./runtime/PluginBoot.PlayerBots");
 const { createBotBenchmark } = require("./runtime/Benchmark.PlayerBots");
 const { startBotSites } = require("./brain/SiteSpawner.PlayerBots");
 const { attachBotExchange } = require("./brain/actions/Exchange.PlayerBots");
+const { createAmbition, worldHasAmbition } = require("./brain/Ambition.PlayerBots");
+const { createBotPotions } = require("./brain/BotPotions.PlayerBots");
 const { setActiveBotRuntime } = require("./runtime/RuntimeRegistry.PlayerBots");
 const { PVP_BOT_SETTINGS } = require("./behaviours/pvp/WildernessHotspotRegistry.PlayerBots");
 const {
@@ -208,6 +210,16 @@ function registerDuelBotAcceptance(api) {
   });
 }
 
+/**
+ * Ours: the levelling bots' minds (brain/Ambition) and what hangs off them: potions for their
+ * fights. A world may turn either off.
+ */
+function startAmbition(api, boot) {
+  const world = boot.brainWorld;
+  const ambition = (world.ambition = createAmbition({ world }));
+  if (api.getPluginConfig("PlayerBots:potions", true) !== false) createBotPotions({ world, ambition });
+}
+
 module.exports = {
   name: "PlayerBots",
   description: "Populates the world with player bots: PvP-loadout fighters and optional AI chat bots, with admin commands to manage them.",
@@ -215,6 +227,14 @@ module.exports = {
     "PlayerBots:earnOwnItems": {
       type: "boolean", label: "Levelling bots own what they use", default: true,
       help: "The bots of a progression site start with a new player's starter items and are handed nothing after that: tools, bait, arrows, runes, food and armour are what they carry, bank, buy in shops with coins they earned, or pick up. Off: they are given a tool, gear and food for their level, as other bots are.",
+    },
+    "PlayerBots:ambition": {
+      type: "boolean", label: "Levelling bots set themselves goals", default: true,
+      help: "The bots of a progression site that own what they use keep wanting the next better thing: a better tool, weapon and armour, bait, food and potions for their fights, and the next level that unlocks something. They turn more often to the work that gets them there, sell what they gather while they save, and go and buy what they can pay for at a shop or on the Grand Exchange. Off: they only look for a better tool or weapon when their work happens to.",
+    },
+    "PlayerBots:potions": {
+      type: "boolean", label: "Levelling bots drink potions", default: true,
+      help: "With goals on, a levelling bot that can well afford them buys potions for its combat style (and an antipoison once it has been poisoned), takes one of each to a fight and drinks a dose when the boost has worn off. A boost leaves these bots a point a minute, as it leaves a player. Off: they fight without potions.",
     },
     "PlayerBots:allowedActivities": {
       type: "json", label: "Bot activities allowed", defaultText: "Every activity",
@@ -260,6 +280,8 @@ module.exports = {
     setActiveBotRuntime(boot.runtime, BOT_CONFIG.behaviorMode, boot.brainRegistry);
     // Ours: the levelling bots trade on the Grand Exchange, and players' offers meet theirs first.
     attachBotExchange(api);
+    // Ours: and each has a mind of its own about what to get next (the brain asks the world for it).
+    if (worldHasAmbition()) startAmbition(api, boot);
 
     createBotBenchmark({
       api,

@@ -297,6 +297,7 @@
     {"id":"pvp_engage","mode":"pvp","capacity":64,"repeat":false,"ephemeral":true,"failureCooldownSeconds":5,"actions":[{"type":"pvpCombat","exitWhenIdle":true}]},
     {"id":"roam","mode":"roaming","capacity":1024,"repeat":true,"failureCooldownSeconds":5,"actions":[{"type":"wander"}]},
     {"id":"grand_exchange","mode":"trading","capacity":300,"repeat":false,"failureCooldownSeconds":1200,"produces":["coins"],"actions":[{"type":"exchange"}]},
+    {"id":"ambition_errand","capacity":100000,"repeat":false,"manual":true,"failureCooldownSeconds":0,"actions":[{"type":"errand"}]},
     {"id":"follow_owner","mode":"follow_owner","capacity":64,"repeat":false,"ephemeral":true,"manual":true,"failureCooldownSeconds":5,"actions":[{"type":"followOwner"}]},
     {
       "id": "bank_trip",

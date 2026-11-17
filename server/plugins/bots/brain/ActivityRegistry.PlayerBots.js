@@ -253,6 +253,10 @@ function createAction(spec, world) {
   if (spec.type === "exchange") {
     return require("./actions/Exchange.PlayerBots").createExchangeAction(spec, world);
   }
+  // Ours: an errand a levelling bot sets itself (brain/Ambition).
+  if (spec.type === "errand") {
+    return require("./actions/Errand.PlayerBots").createErrandAction(spec, world);
+  }
   if (spec.type === "wait") return createWaitAction(spec);
   throw new Error(`[bot activities] unknown action type '${spec.type}'`);
 }
