@@ -174,6 +174,13 @@ Not shared, still each world's own: bans and mutes, extra characters under one a
 changed display names, clans, and the bots (a bot's save is never handed in). Experience rates
 are each world's own too, so a character levels faster on a world with a higher rate.
 
+Skill guides and setting levels
+-------------------------------
+"View <skill> guide" on the Skills tab opens the skill guide. The original project's worlds are
+PvP worlds where that click lets any player set their combat levels instead; ours keep that
+for administrators and higher only (world setting SetSkillLevel:adminsOnly, on in world.json),
+who are asked whether to view the guide or set the level, and may set any skill.
+
 Area loot
 ---------
 A player picks up what lies around them without walking to each pile. A small window opens in

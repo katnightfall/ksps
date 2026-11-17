@@ -359,6 +359,7 @@ After changing a plugin's `description` or `config`, run `yarn --cwd server worl
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `GrandExchange:maxTradeDelay` | number (integer, >= 5000, <= 2147483647) | `3600000` | **Longest offer wait (ms).** Upper limit, in milliseconds, on how long an offer takes to complete. Applies to newly placed offers. |
+| `SetSkillLevel:adminsOnly` | boolean | `false` | **Setting skill levels is for administrators only.** Off: on a world with PvP presets any player may set their combat levels by clicking a stat on the Skills tab. On: that click opens the skill guide; an administrator (or higher) is asked whether to view the guide or set the level, and may set any skill. |
 | `SkillLevelUp:interruptActions` | boolean | `true` | **Level-ups interrupt actions.** Follows each player's pop-up preference. Turn off to keep skilling and fighting through level-ups: the blocking pop-ups are skipped, chat messages, sounds and graphics stay. |
 | `WelcomeScreen:messageOfTheWeek` | string | *Welcome to <world name>!* | **Message of the week.** Text on the scroll at the bottom of the welcome screen. Takes <col=rrggbb> and <br> tags. League worlds show their own message instead. |
 
@@ -624,7 +625,7 @@ This table lists bundled plugins that have a description. The world config page 
 | `ReportAbuse` | ReportAbuse | interface | yes | Report option on players and the chatbox Report button open the report form; submitted reports are written to a JSON-lines file. |
 | `RunAutoEnable` | RunAutoEnable | interface | yes | Settings option to turn run back on by itself once energy recovers to a chosen threshold after running out. |
 | `ScreenHighlight` | ScreenHighlight | interface | yes | Step-by-step highlight walkthrough overlay with text and Continue button that other content, such as the league tutorial, can trigger. |
-| `SetSkillLevel` | SetSkillLevel | interface | yes | On PvP worlds with presets, clicking a Skills tab stat prompts you to set that skill's level, with checks against gear, combat and the Wilderness. |
+| `SetSkillLevel` | SetSkillLevel | interface | yes | On PvP worlds with presets, clicking a Skills tab stat prompts you to set that skill's level, with checks against gear, combat and the Wilderness. A world may keep that for administrators only (SetSkillLevel:adminsOnly), so the click opens the skill guide for everyone else. |
 | `Settings` | Settings | interface | yes | All Settings browser, keybindings panel and game client layout dropdown, saving the chosen settings and XP drop options per player. |
 | `SideChannels` | SideChannels | interface | yes | Tab bar of the social tab, switching between chat channel, Your Clan, grouping and (for Group Ironmen) the Group Ironman tab, and remembering the chosen tab between logins. |
 | `SideJournalDefaults` | SideJournalDefaults | interface | yes | The side journal's tabs and the custom Character Summary, with buttons that follow each player's commands. |

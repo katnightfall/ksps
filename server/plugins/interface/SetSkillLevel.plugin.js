@@ -36,9 +36,23 @@ function isDeveloper(player) {
   return player.getRights?.()?.getId?.() === PlayerRights.DEVELOPER.getId();
 }
 
+/**
+ * Ours: world setting "SetSkillLevel:adminsOnly". Upstream's worlds are PvP worlds where anyone
+ * may set their combat stats with a click on the Skills tab. On a world where levels are
+ * earned that is not wanted: with the setting on, only administrators and above are offered it
+ * (any skill, as a choice beside the guide), and for everyone else the click opens the skill
+ * guide, as "View <skill> guide" says.
+ */
+const ADMINS_ONLY_CONFIG = "SetSkillLevel:adminsOnly";
+let api = null;
+const adminsOnly = () => api?.getPluginConfig?.(ADMINS_ONLY_CONFIG, false) === true;
+/** Rights ids are ordered: none, moderator, administrator, owner, developer. */
+const isAdmin = (player) => Number(player.getRights?.()?.getId?.() ?? 0) >= PlayerRights.ADMINISTRATOR.getId();
+
 /** Why this player cannot set stats here, or null when they can. */
 function blockReason(player, skill) {
   if (isDeveloper(player)) return null;
+  if (adminsOnly()) return isAdmin(player) ? null : "Only administrators can set skill levels.";
   if (!skill.canSetLevel()) return "Only Developers can set non-combat skill levels.";
   if (!Presets.isEnabled()) return "Setting skill levels requires enabled presets.";
   if (player.getEquipment().getItems().some((item) => (item?.getId?.() ?? 0) > 0)) {
@@ -77,7 +91,19 @@ function promptForLevel(player, skill) {
  */
 function claimStatClick(offer) {
   const { player, childId } = offer;
-  if (offer.handled || !Presets.isEnabled()) return;
+  if (offer.handled) return;
+  if (adminsOnly()) {
+    // Ours: the guide for everyone; an administrator is asked which they meant.
+    const stat = SKILLS.get(Number(childId));
+    if (!stat || !isAdmin(player) || typeof api?.sendMultiChatboxPrompt !== "function") return;
+    offer.handled = true;
+    const name = stat.getName();
+    api.sendMultiChatboxPrompt(player, `${name} (administrator)`,
+      `View ${name} guide`, () => offer.openGuide?.(),
+      `Set ${name} level`, () => promptForLevel(player, stat));
+    return;
+  }
+  if (!Presets.isEnabled()) return;
   const skill = SKILLS.get(Number(childId));
   if (!skill || (!skill.canSetLevel() && !isDeveloper(player))) return;
   offer.handled = true;
@@ -92,8 +118,16 @@ function claimStatClick(offer) {
 
 module.exports = {
   name: "SetSkillLevel",
-  description: "On PvP worlds with presets, clicking a Skills tab stat prompts you to set that skill's level, with checks against gear, combat and the Wilderness.",
-  register(api) {
+  description: "On PvP worlds with presets, clicking a Skills tab stat prompts you to set that skill's level, with checks against gear, combat and the Wilderness. A world may keep that for administrators only (SetSkillLevel:adminsOnly), so the click opens the skill guide for everyone else.",
+  config: {
+    [ADMINS_ONLY_CONFIG]: {
+      type: "boolean", label: "Setting skill levels is for administrators only", default: false,
+      help: "Off: on a world with PvP presets any player may set their combat levels by clicking a stat on the Skills tab. On: that click opens the skill guide; an administrator (or higher) is asked whether to view the guide or set the level, and may set any skill.",
+    },
+  },
+  register(pluginApi) {
+    api = pluginApi;
     api.onCustomEvent("skills:stat-clicked", claimStatClick);
   },
+  _test: { ADMINS_ONLY_CONFIG, setApi: (value) => { api = value; } },
 };

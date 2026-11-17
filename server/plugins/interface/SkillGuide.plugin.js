@@ -73,7 +73,9 @@ function viewGuide(event) {
   const guideSkill = GUIDE_SKILL_BY_STAT.get(Number(event.childId));
   if (guideSkill === undefined || Number(event.opId ?? event.action) !== VIEW_GUIDE_OP) return;
   event.handled = true;
-  const offer = { player: event.player, childId: Number(event.childId), handled: false };
+  // Ours: `openGuide` lets a plugin that claims the click still open the guide (SetSkillLevel
+  // asks an administrator which they meant).
+  const offer = { player: event.player, childId: Number(event.childId), handled: false, openGuide: () => openGuide(event.player, guideSkill) };
   api.emitCustomEvent("skills:stat-clicked", offer);
   if (!offer.handled) openGuide(event.player, guideSkill);
 }
