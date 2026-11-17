@@ -296,6 +296,35 @@ test("characters a world already had are handed in as it starts; of two of one n
   assert.deepEqual(hub.store.seed("2 - Miami", "mod_kat", save("Miami", [10]), hub.clock.now).kept, true);
 });
 
+test("a world that is stopped hands in its last saves before it goes, and lets its characters go", async (t) => {
+  const hub = await master(t);
+  const dallas = world(t, "1 - Dallas", hub);
+  const miami = world(t, "2 - Miami", hub);
+  await dallas.login("Kat");
+  await dallas.gameSaves("kat", { placeholders: false });
+  await dallas.sync.tick();
+  // Kat turns placeholders on; a minute later the world is restarted. Its shutdown save is
+  // written, and nobody logs out one by one.
+  await dallas.gameSaves("kat", { placeholders: true });
+  assert.deepEqual(dallas.sync.state().dirty, ["kat"], "not handed in yet");
+  await dallas.sync.shutdown();
+  assert.deepEqual(dallas.sync.state().dirty, [], "handed in before the world exits");
+  // Miami is up first, and Kat goes straight there.
+  assert.equal(await miami.login("Kat"), null, "let go by the shutdown");
+  assert.deepEqual(JSON.parse(miami.rows.get("kat")), { placeholders: true }, "with the setting as she left it");
+  // A master out of reach does not hold the shutdown up; the save is handed in at the next start.
+  const dir = folder(t);
+  const stateFile = path.join(dir, "master-sync.json");
+  const york = world(t, "3 - NYC", hub, { stateFile });
+  await york.login("Ann");
+  york.setDown(true);
+  await york.gameSaves("ann", { made: "in New York" });
+  const began = Date.now();
+  await york.sync.shutdown(200);
+  assert.ok(Date.now() - began < 2000);
+  assert.deepEqual(JSON.parse(fs.readFileSync(stateFile, "utf8")).dirty, ["ann"]);
+});
+
 test("a world told it is on an old reset asks again, and shares once the master agrees", async (t) => {
   let id = "new";
   const hub = await master(t, { reset: () => id });

@@ -156,6 +156,13 @@ on another world (world setting MasterSync:offlineLogins allows it; MasterSync:e
 keeps a world's characters to itself). A world that stops without a word lets its characters
 go after two and a half minutes.
 
+A world that is stopped or restarted hands in its last saves before it exits (it is given ten
+seconds for it), so a player who goes straight to another world finds there what they had. A
+changed setting (the bank's placeholders and other options, All Settings, key binds, chat
+filters, layout, auto retaliate, volumes, quick prayers) is saved within seconds of the change
+instead of at the next autosave (server/plugins/world/SettingsSave.plugin.js; world setting
+SettingsSave:enabled), so it is on the other worlds within half a minute.
+
 A character a world had before it shared anything is handed in once, as that world starts. If
 two worlds each had a character of one name, the one with more experience is kept on both.
 

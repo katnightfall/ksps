@@ -11,7 +11,8 @@
  *                  another world. (World setting "MasterSync:offlineLogins" allows it.)
  *   in the world   tells the master every half minute who is here, and hands in each save the
  *                  game makes (autosaves within seconds, the logout save at once, which also lets
- *                  the character go).
+ *                  the character go). As the world stops, the last saves are handed in before
+ *                  it exits.
  *   all the time   copies the saves other worlds handed in into its own save database, so its
  *                  hiscores rank every character of every world, and a login finds its save here
  *                  already.
@@ -389,6 +390,26 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
       return taken;
     },
 
+    /**
+     * The world is stopping, its last saves written: they are handed in before it goes, and
+     * its characters let go, so a player who moves to another world at once finds there what
+     * they had here (a setting changed a minute ago, not the copy of the last autosave).
+     * Given `limitMs` at most: a master out of reach must not hold a shutdown up, and what
+     * could not be sent is handed in when the world starts again.
+     */
+    async shutdown(limitMs = 10_000) {
+      if (isStale()) return;
+      for (const entry of dirty.values()) entry.release = true;
+      const keys = [...tracked.keys()];
+      const work = (async () => {
+        await pushAll();
+        if (keys.length) await call("POST", "/sync/release", { world, reset, keys }).catch(() => {});
+      })();
+      let timer;
+      await Promise.race([work.catch(() => {}), new Promise((resolve) => { timer = setTimeout(resolve, limitMs); })]);
+      clearTimeout(timer);
+    },
+
     /** The world has just started: nobody is here, and what it still owed is handed in. */
     async started() {
       await this.heartbeat();
@@ -431,6 +452,8 @@ module.exports = {
     const core = api.core;
     const savesDir = path.join(process.cwd(), "data", "saves");
     let sync = null;
+    let stopping = false;
+    api.onServerShutdown?.(() => { stopping = true; });
 
     api.onServerStartup(() => {
       const persistence = GameConstants.PLAYER_PERSISTENCE;
@@ -473,6 +496,13 @@ module.exports = {
           Promise.resolve(sync.rowWritten(key)).catch((error) => console.error("[master-sync] handing in a save failed", error));
         }
         return seq;
+      };
+      // The engine waits for the save database to be written before it exits (Server's
+      // shutdown awaits flush): the hand-in of those last saves is waited for in the same place.
+      const flush = persistence.flush.bind(persistence);
+      persistence.flush = async () => {
+        await flush();
+        if (stopping) await sync.shutdown();
       };
       const quietly = (work) => () => { work().catch((error) => console.error("[master-sync]", error)); };
       setInterval(quietly(() => sync.heartbeat()), HEARTBEAT_MS).unref();
