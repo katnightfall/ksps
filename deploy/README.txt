@@ -51,19 +51,52 @@ The site and its worlds
   https://rs.kat-net.us/play        the game (an old front-page link with a ?query still opens it)
   https://rs.kat-net.us/hiscores    the hiscores
 
-The worlds the landing page and the game's world picker show are the ones in deploy/worlds.json,
-and nobody else's: to list a world, add it there, commit and deploy. The front door reads the
-file again when it changes, so no player is disconnected for it.
+  https://rs.kat-net.us/admin       the master's admin page: make and run worlds (below)
 
-  { "id": "second", "name": "Kat-Net Classic", "address": "classic.kat-net.us", "secure": true,
-    "description": "one line about it" }
+rs.kat-net.us is the master: it holds the list of worlds, and the others ask it for the list.
+The worlds on the landing page and in the game's world picker are, and are only:
+
+  deploy/worlds.json      the project's own list (edit, commit, deploy)
+  the admin page's list   worlds made or added at /admin, kept on the server beside the player
+                          saves (server/data/saves/master-worlds.json; no deploy replaces it)
+
+  { "id": "second", "name": "Kat-Net Classic", "world": "Kat-Net Classic",
+    "address": "classic.kat-net.us", "secure": true, "description": "one line about it" }
 
 "address" is where that world answers (its site, its game connection and its /api on one
-address, as deploy/front.mjs or the Pterodactyl egg gives a world). The entry with "here": true
-is the world this server runs itself. Each world is asked /api/world-status for who is on it,
-at most every twenty seconds; one that does not answer shows as offline.
+address, as deploy/front.mjs or the Pterodactyl egg gives a world). "world" is the world's own
+name, which is how a world finds itself on the list. Each world is asked /api/world-status for
+who is on it, at most every twenty seconds; one that does not answer shows as offline. Both
+lists are read again when they change, so no player is disconnected for a new world.
 
-A world started from the Pterodactyl egg has no list of ours: it shows itself alone.
+A world that is not on the list (somebody else's, from the Pterodactyl egg) shows itself alone.
+
+The admin page (/admin)
+-----------------------
+Makes worlds on our Pterodactyl panel from the project's egg, starts, restarts and stops them,
+edits how they are listed, and deletes them (the server and every save on it; it asks for the
+world's name first). A world that already runs elsewhere can be added by its address.
+
+It is off until these are in the server's own settings (sudo nano /opt/tsps/.env), followed by
+"npm run remote -- restart web". They are secrets: never in the project, which is public.
+
+  MASTER_ADMIN_PASSWORD=...   12 characters or more: what you sign in with
+  PTERO_URL=https://...       the panel's address
+  PTERO_APP_KEY=ptla_...      Admin > Application API: read & write on Servers; read on Users,
+                              Nests, Eggs, Nodes, Allocations, Locations
+  PTERO_CLIENT_KEY=ptlc_...   Account > API Credentials, of a root admin account
+  PTERO_PORT_RANGE=5000-5099  optional: only these ports are given to worlds
+  PTERO_EGG_ID=, PTERO_NEST_ID=   optional: the egg is found by its name, "Kat-Net TSPS"
+  PTERO_OWNER_ID=             optional: the panel user that owns the worlds
+
+The panel must have the current egg (deploy/pterodactyl/egg-kat-net-tsps.json: import it again
+after it changes), and each node needs free allocations. A new world is told the master's
+address (MASTER_PUBLIC_URL in deploy/settings.env) and so shows the whole list.
+
+A new world is reached at its node's address and port over plain http. A page on https cannot
+open a game connection to it, so the world picker on rs.kat-net.us leaves it out and the
+landing page links to it directly. To fix that for a world, give it a name behind https (a
+subdomain through Cloudflare), then set that address and tick https under "Edit listing".
 
 Keeping up with the original project
 ------------------------------------

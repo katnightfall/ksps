@@ -43,6 +43,8 @@ case "${1:-}" in
     export CACHE_DIR="$ROOT/server/caches"
     # The worlds our landing page and the game's world picker list (deploy/worlds.mjs).
     export WORLDS_FILE="${WORLDS_FILE:-deploy/worlds.json}"
+    # This server is the master: the admin page (/admin) and the worlds made there (deploy/master/).
+    export MASTER_ADMIN=1
     # The front door: the website (client/scripts/serve-build.mjs, which it starts), and the game
     # connection and the game's /api addresses passed on to the game server, all on this one port.
     exec node "$ROOT/deploy/front.mjs"

@@ -59,6 +59,8 @@ export function makeEgg() {
                 "Account names that are developers (the highest rank) each time they log in, comma-separated. Create the account in game first: a name listed here that nobody has registered yet belongs to whoever logs in with it first."),
             variable("Public game address", "PUBLIC_WS_URL", "", "nullable|string|max:255",
                 "Only for a world list: where players reach the game from outside, for example wss://play.example.com. Leave empty otherwise."),
+            variable("Master address", "WORLDS_MASTER_URL", "", "nullable|string|max:255",
+                "Only for a world that belongs to a group of worlds: the address of the group's master (for example https://rs.kat-net.us), which this world asks for the list of worlds to show. Leave empty for a world on its own."),
             variable("Update on start", "AUTO_UPDATE", "1", "required|boolean",
                 "1: fetch the newest version of the project each time the server starts, and rebuild what changed. 0: stay on the version installed."),
             variable("Rebuild on start", "REBUILD", "0", "required|boolean",

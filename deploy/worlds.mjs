@@ -62,6 +62,13 @@ export function listFor(worlds, ownName) {
     return mine ? worlds.map((world) => ({ ...world, here: world === mine })) : [];
 }
 
+/** The master's /world-list.json answer as a list: checked entry by entry, as a file's is. */
+export function worldsFrom(answer) {
+    const entries = Array.isArray(answer?.worlds) ? answer.worlds : [];
+    const seen = new Set();
+    return entries.map(cleanWorld).filter((world) => world && !seen.has(world.id) && seen.add(world.id));
+}
+
 /** /servers.json: the list as the game's world picker reads it (client/game/login/renderer/serverList.ts). */
 export function serverList(worlds) {
     return worlds.map((world) => ({ name: world.name, address: world.address, secure: world.secure, maxPlayers: 2047 }));

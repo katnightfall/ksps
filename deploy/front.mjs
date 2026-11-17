@@ -6,9 +6,11 @@
  *
  *   a WebSocket                      -> the game server (the game connection)
  *   /api/..., /regions..., /gateway/ -> the game server (hiscores, world info, map data)
- *   /worlds.json, /servers.json      -> answered here: the worlds we list and who is on them
- *                                       (deploy/worlds.mjs), for the landing page and the
- *                                       game's world picker
+ *   /worlds.json, /servers.json,     -> answered here: the worlds we list and who is on them
+ *   /world-list.json                    (deploy/worlds.mjs), for the landing page, the game's
+ *                                       world picker and the other worlds
+ *   /admin...                        -> the master's admin page (deploy/master/), on our own
+ *                                       server only: worlds made and run through the panel
  *   anything else                    -> the website (client/scripts/serve-build.mjs, started
  *                                       here on a private port)
  *
@@ -21,7 +23,8 @@
  * or the one Cloudflare reports when the caller is Cloudflare (or its tunnel on this machine).
  *
  * Env: PORT (3000), HOST (0.0.0.0), GAME_PORT (43594), WORLDS_FILE (the list of worlds, from the
- * project's folder: deploy/worlds.json unless set), FRONT_STATIC_PORT (a website already
+ * project's folder: deploy/worlds.json unless set), MASTER_ADMIN (1 on the master: the admin page
+ * and its worlds), WORLDS_MASTER_URL (on another world: where the master is), FRONT_STATIC_PORT (a website already
  * running on that port, for tests; by default the website is started here).
  */
 import { spawn } from "node:child_process";
@@ -31,7 +34,8 @@ import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createStatusBoard, fetchJson, listFor, loadWorlds, serverList } from "./worlds.mjs";
+import { listedFrom } from "./master/registry.mjs";
+import { createStatusBoard, fetchJson, listFor, loadWorlds, serverList, worldsFrom } from "./worlds.mjs";
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || "0.0.0.0";
@@ -40,20 +44,56 @@ const LOCAL = "127.0.0.1";
 const GAME_PATH = /^\/(api|regions|gateway)(\/|\?|$)/;
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-// The worlds we list (deploy/worlds.json). The file is read again when it changes, so a new world
-// needs no restart here (a restart of this front door drops every player's connection).
+// The worlds we list. Three places they can come from:
+//   deploy/worlds.json      the project's own list; every world started from this project has it
+//   the admin page's list   on the master (MASTER_ADMIN=1): worlds made or added at /admin, kept
+//                           beside the player saves (deploy/master/registry.mjs)
+//   the master              a world told where the master is (WORLDS_MASTER_URL, which the admin
+//                           page gives every world it makes) asks it for the whole list
+// The files are read again when they change, so a new world needs no restart here (a restart of
+// this front door drops every player's connection).
 const WORLDS_FILE = path.resolve(ROOT, process.env.WORLDS_FILE || "deploy/worlds.json");
+const IS_MASTER = process.env.MASTER_ADMIN === "1";
+const REGISTRY_FILE = path.join(ROOT, "server", "data", "saves", "master-worlds.json");
+const MASTER_URL = /^https?:\/\/[^\s/]+$/.test(String(process.env.WORLDS_MASTER_URL ?? "").replace(/\/+$/, "")) && !IS_MASTER
+    ? String(process.env.WORLDS_MASTER_URL).replace(/\/+$/, "") : "";
 const LOCAL_STATUS = `http://${LOCAL}:${GAME_PORT}/api/world-status`;
 /** With no list, this world alone: its name comes from the game server's own answer. */
 const THIS_WORLD = [{ id: "here", name: "", address: "localhost", secure: false, here: true, description: "" }];
-let listed = { worlds: loadWorlds(WORLDS_FILE), stamp: -1, checked: 0 };
-function everyWorld() {
+
+const stampOf = (file) => { try { return fs.statSync(file).mtimeMs; } catch { return 0; } };
+function managedWorlds() {
+    if (!IS_MASTER) return [];
+    try { return listedFrom(JSON.parse(fs.readFileSync(REGISTRY_FILE, "utf8")).worlds ?? []); } catch { return []; }
+}
+let listed = { worlds: [], stamp: "", checked: 0 };
+/** The project's list and, on the master, the admin page's: a world of the same id is listed once. */
+function localWorlds() {
     if (Date.now() - listed.checked > 5_000) {
-        let stamp = 0;
-        try { stamp = fs.statSync(WORLDS_FILE).mtimeMs; } catch {}
-        listed = stamp === listed.stamp ? { ...listed, checked: Date.now() } : { worlds: loadWorlds(WORLDS_FILE), stamp, checked: Date.now() };
+        const stamp = `${stampOf(WORLDS_FILE)}|${IS_MASTER ? stampOf(REGISTRY_FILE) : 0}`;
+        if (stamp !== listed.stamp) {
+            const project = loadWorlds(WORLDS_FILE);
+            const ids = new Set(project.map((world) => world.id));
+            listed = { worlds: [...project, ...managedWorlds().filter((world) => !ids.has(world.id))], stamp, checked: Date.now() };
+        } else {
+            listed.checked = Date.now();
+        }
     }
     return listed.worlds;
+}
+
+// What the master last said, kept a minute; while it does not answer, what it said before, and
+// before it has ever answered, the project's own list.
+let fromMaster = { worlds: null, at: 0, pending: null };
+async function everyWorld() {
+    if (!MASTER_URL) return localWorlds();
+    if (Date.now() - fromMaster.at > 60_000 && !fromMaster.pending) {
+        fromMaster.pending = fetchJson(`${MASTER_URL}/world-list.json`, 4_000)
+            .then((answer) => { fromMaster.worlds = worldsFrom(answer); }, () => {})
+            .finally(() => { fromMaster.at = Date.now(); fromMaster.pending = null; });
+    }
+    if (fromMaster.worlds === null && fromMaster.pending) await fromMaster.pending;
+    return fromMaster.worlds ?? localWorlds();
 }
 
 // Which world is this one: the game server beside us says its name, kept a minute (and kept on
@@ -71,7 +111,7 @@ async function ownWorldName() {
 
 /** The list as this world shows it (itself marked), or [] when this world is not on it. */
 async function listedWorlds() {
-    return listFor(everyWorld(), await ownWorldName());
+    return listFor(await everyWorld(), await ownWorldName());
 }
 
 const worldBoard = createStatusBoard((world) => fetchJson(world.here ? LOCAL_STATUS : `${world.secure ? "https" : "http"}://${world.address}/api/world-status`));
@@ -81,18 +121,25 @@ function secureVisitor(request) {
     return request.headers["x-forwarded-proto"] === "https" || String(request.headers["cf-visitor"] ?? "").includes('"scheme":"https"');
 }
 
+const WORLD_LIST_PATHS = new Set(["/worlds.json", "/servers.json", "/world-list.json"]);
+
 /**
- * /worlds.json and, when this world is on our list, /servers.json. Resolves to false when the
- * request is for the website (no list of ours: its own servers.json answers, as before).
+ * /worlds.json (the landing page), /world-list.json (the bare list, which other worlds ask the
+ * master for) and, when this world is on the list, /servers.json (the game's world picker).
+ * Resolves to false when the request is for the website (no list: its own servers.json answers).
  */
 async function answerWorldList(request, response, pathname) {
-    const worlds = await listedWorlds();
-    const send = (body) => {
+    const send = (body, cors = false) => {
         const json = JSON.stringify(body);
         response.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Content-Length": Buffer.byteLength(json),
-            "Cache-Control": "public, max-age=15", "Cross-Origin-Resource-Policy": "same-origin" });
+            "Cache-Control": "public, max-age=15", "Cross-Origin-Resource-Policy": cors ? "cross-origin" : "same-origin" });
         response.end(request.method === "HEAD" ? undefined : json);
     };
+    if (pathname === "/world-list.json") {
+        send({ worlds: (await everyWorld()).map(({ here, ...world }) => world) }, true);
+        return true;
+    }
+    const worlds = await listedWorlds();
     if (pathname === "/worlds.json") {
         send(await worldBoard(worlds.length > 0 ? worlds : THIS_WORLD).catch(() => ({ worlds: [] })));
         return true;
@@ -135,24 +182,52 @@ function forwardedHeaders(request) {
     return headers;
 }
 
+const ADMIN_PATH = /^\/admin(\/|\?|$)/;
+// The master's admin page (deploy/master/server.mjs), on our own server only: a process of its
+// own on a private port, started again by itself if it stops. Nothing of a player's is in it.
+let masterPort = 0;
+async function startMaster() {
+    masterPort = Number(process.env.FRONT_MASTER_PORT) || await freePort();
+    if (process.env.FRONT_MASTER_PORT) return; // already running there (tests)
+    const run = () => {
+        // The server's .env holds the panel's keys and the admin password; deploy/settings.env wins over it.
+        const master = spawn(process.execPath, [`--env-file-if-exists=${path.join(ROOT, ".env")}`,
+            `--env-file-if-exists=${path.join(ROOT, "deploy", "settings.env")}`, path.join(ROOT, "deploy", "master", "server.mjs")], {
+            cwd: ROOT,
+            env: { ...process.env, MASTER_PORT: String(masterPort), GAME_PORT: String(GAME_PORT) },
+            stdio: "inherit",
+        });
+        master.on("exit", (code) => {
+            console.log(`[front] the admin page stopped (exit ${code}); starting it again`);
+            setTimeout(run, 3_000).unref();
+        });
+        for (const signal of ["SIGTERM", "SIGINT"]) process.once(signal, () => { master.removeAllListeners("exit"); master.kill(); });
+    };
+    run();
+}
+
 function listen(staticPort) {
-    /** Hands the request to the game server or the website behind us. */
+    /** Hands the request to the game server, the admin page or the website behind us. */
     const pass = (request, response) => {
-        const port = GAME_PATH.test(request.url ?? "") ? GAME_PORT : staticPort;
-        const upstream = http.request({ host: LOCAL, port, method: request.method, path: request.url, headers: forwardedHeaders(request) }, (answer) => {
+        const admin = masterPort > 0 && ADMIN_PATH.test(request.url ?? "");
+        const port = admin ? masterPort : GAME_PATH.test(request.url ?? "") ? GAME_PORT : staticPort;
+        const headers = forwardedHeaders(request);
+        // The admin page sets its cookie Secure on an https visit; only this proxy may say so.
+        if (admin) headers["x-forwarded-proto"] = secureVisitor(request) ? "https" : "http";
+        const upstream = http.request({ host: LOCAL, port, method: request.method, path: request.url, headers }, (answer) => {
             response.writeHead(answer.statusCode ?? 502, answer.headers);
             answer.pipe(response);
         });
         upstream.on("error", () => {
             if (!response.headersSent) response.writeHead(502, { "Content-Type": "text/plain; charset=utf-8" });
-            response.end(port === GAME_PORT ? "The game server is not answering. It may be restarting." : "The website is not answering.");
+            response.end(admin ? "The admin page is not answering. It may be starting." : port === GAME_PORT ? "The game server is not answering. It may be restarting." : "The website is not answering.");
         });
         response.on("close", () => upstream.destroy());
         request.pipe(upstream);
     };
     const server = http.createServer((request, response) => {
         const pathname = String(request.url ?? "").split("?")[0];
-        if ((request.method === "GET" || request.method === "HEAD") && (pathname === "/worlds.json" || pathname === "/servers.json")) {
+        if ((request.method === "GET" || request.method === "HEAD") && WORLD_LIST_PATHS.has(pathname)) {
             // The world list: ours to answer, unless this world is on no list (then the website's own file).
             answerWorldList(request, response, pathname).then(
                 (answered) => { if (!answered) pass(request, response); },
@@ -201,6 +276,7 @@ function freePort() {
     });
 }
 
+if (IS_MASTER) await startMaster();
 if (process.env.FRONT_STATIC_PORT) {
     listen(Number(process.env.FRONT_STATIC_PORT));
 } else {

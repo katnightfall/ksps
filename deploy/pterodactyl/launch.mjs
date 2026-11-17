@@ -336,7 +336,9 @@ function start(env) {
     };
     const front = spawn(process.execPath, [path.join(ROOT, "deploy/front.mjs")], {
         cwd: path.join(ROOT, "client"),
-        env: { ...env, PORT: String(port), HOST: "0.0.0.0", GAME_PORT: String(GAME_PORT), CACHE_DIR: path.join(ROOT, "server/caches") },
+        // WORLDS_MASTER_URL (a world in a group): the front door asks that master for the list of worlds.
+        env: { ...env, PORT: String(port), HOST: "0.0.0.0", GAME_PORT: String(GAME_PORT), CACHE_DIR: path.join(ROOT, "server/caches"),
+            WORLDS_MASTER_URL: text(env.WORLDS_MASTER_URL) },
         stdio: ["ignore", "inherit", "inherit"],
     });
     front.on("exit", (code) => {

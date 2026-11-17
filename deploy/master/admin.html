@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Worlds - admin</title>
+<style>
+:root { --gold: #e6d7a0; --green: #90c040; --edge: #3a3226; --edge-light: #5a4e3a; --quiet: #b9b09a; --dim: #8d8672; --red: #e0705f; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: #0b0a08; color: #f2ecdc; font: 15px/1.45 Arial, Helvetica, sans-serif; }
+body { min-height: 100vh; padding: 0 16px 48px;
+  background-image: radial-gradient(ellipse at 30% 30%, rgba(58,52,41,.42) 0 30%, transparent 68%), radial-gradient(ellipse at 70% 65%, rgba(46,41,32,.4) 0 26%, transparent 66%), linear-gradient(#141210, #0b0a08);
+  background-size: 118px 96px, 164px 128px, auto; background-position: 0 0, 47px 38px, 0 0; }
+a { color: var(--green); text-decoration: none; }
+a:hover { text-decoration: underline; }
+header { max-width: 980px; margin: 0 auto; padding: 28px 0 18px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 18px; }
+h1 { margin: 0; color: var(--gold); font-size: 24px; }
+header .spacer { flex: 1; }
+main { max-width: 980px; margin: 0 auto; display: grid; gap: 20px; }
+.panel { border: 3px solid var(--edge); outline: 1px solid #000; background: rgba(0,0,0,.82); box-shadow: 0 0 0 1px var(--edge-light) inset; }
+.panel > h2 { margin: 0; padding: 11px 16px; border-bottom: 1px solid var(--edge); background: #17140f; color: var(--gold); font-size: 16px; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; }
+.panel > h2 small { color: var(--quiet); font-weight: normal; font-size: 13px; }
+.body { padding: 14px 16px; }
+.quiet { color: var(--quiet); font-size: 13px; }
+.bad { color: var(--red); }
+button, input, select { font: inherit; }
+button { padding: 6px 14px; border: 2px solid var(--edge); outline: 1px solid #000; background: linear-gradient(#17140f, #060606); color: var(--green); font-weight: bold; cursor: pointer; }
+button:hover:not(:disabled), button:focus-visible { background: #2a2419; color: #fff; }
+button:disabled { opacity: .45; cursor: default; }
+button.main { border-color: #6b5a2c; background: linear-gradient(#4a3d1c, #2a2210); color: var(--gold); }
+button.danger { color: var(--red); }
+button.small { padding: 3px 10px; font-size: 13px; }
+input[type=text], input[type=password], input[type=number], select { width: 100%; padding: 7px 9px; border: 1px solid var(--edge-light); background: #0d0c0a; color: #fff; }
+input:focus, select:focus { outline: 1px solid var(--gold); }
+label { display: block; color: var(--quiet); font-size: 13px; }
+label > span { display: block; margin-bottom: 3px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px 14px; }
+.wide { grid-column: 1 / -1; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; }
+.check { display: flex; align-items: center; gap: 8px; color: #f2ecdc; font-size: 14px; }
+.check input { width: auto; }
+.world { padding: 14px 16px; display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 6px 14px; align-items: start; }
+.world + .world { border-top: 1px solid #241f17; }
+.dot { width: 10px; height: 10px; margin-top: 6px; border: 1px solid #000; border-radius: 50%; background: #7a2a22; }
+.dot.on { background: #5fd04a; box-shadow: 0 0 6px rgba(95,208,74,.7); }
+.dot.busy { background: #d0a94a; }
+.name { font-size: 16px; font-weight: bold; color: #fff; overflow-wrap: anywhere; }
+.tag { margin-left: 8px; padding: 1px 7px; border: 1px solid var(--edge-light); color: var(--quiet); font-size: 11px; font-weight: normal; vertical-align: 2px; }
+.facts { color: var(--quiet); font-size: 13px; overflow-wrap: anywhere; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; max-width: 330px; }
+.edit { grid-column: 2 / -1; margin-top: 8px; padding: 12px; border: 1px solid var(--edge); background: #0d0c0a; }
+#message { position: sticky; top: 0; z-index: 2; max-width: 980px; margin: 0 auto; }
+#message div { padding: 10px 14px; border: 1px solid var(--edge-light); background: #1d1a13; }
+#message div.bad { border-color: #7a2a22; background: #2a1512; color: #f3c4bb; }
+#login { max-width: 380px; margin: 12vh auto 0; }
+[hidden] { display: none !important; }
+@media (max-width: 620px) { .world { grid-template-columns: 14px minmax(0, 1fr); } .actions { grid-column: 2; justify-content: flex-start; max-width: none; } .edit { grid-column: 1 / -1; } }
+</style>
+</head>
+<body>
+<div id="message" role="status" aria-live="polite"></div>
+
+<section id="login" class="panel" hidden>
+  <h2>Worlds admin</h2>
+  <form class="body" id="login-form">
+    <label><span>Admin password</span><input type="password" id="password" autocomplete="current-password" required></label>
+    <div class="row"><button class="main" type="submit">Sign in</button></div>
+    <p class="quiet" id="login-note"></p>
+  </form>
+</section>
+
+<div id="app" hidden>
+  <header>
+    <h1>Worlds</h1>
+    <a href="/">Landing page</a>
+    <span class="spacer"></span>
+    <button class="small" id="refresh" type="button">Refresh</button>
+    <button class="small" id="logout" type="button">Sign out</button>
+  </header>
+  <main>
+    <section class="panel">
+      <h2>Worlds <small id="summary"></small></h2>
+      <div id="worlds"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Make a world <small id="panel-note"></small></h2>
+      <form class="body" id="create-form">
+        <div class="grid">
+          <label class="wide"><span>Name (shown on the landing page and the world's login screen)</span><input type="text" name="name" maxlength="40" required></label>
+          <label class="wide"><span>Description</span><input type="text" name="description" maxlength="120" placeholder="10x custom, US/New York"></label>
+          <label><span>Node</span><select name="nodeId" required></select></label>
+          <label><span>XP rate</span><input type="number" name="xpRate" min="1" max="1000" step="any"></label>
+          <label><span>Bots</span><input type="number" name="bots" min="0" max="2000"></label>
+          <label><span>Memory (MB)</span><input type="number" name="memoryMb" min="4096"></label>
+          <label><span>Disk (MB)</span><input type="number" name="diskMb" min="5120"></label>
+          <label><span>CPU (%, 0 = no limit)</span><input type="number" name="cpu" min="0"></label>
+          <label class="wide"><span>Developer accounts (comma-separated; register each in game first)</span><input type="text" name="developers" maxlength="200"></label>
+        </div>
+        <div class="row"><button class="main" type="submit" id="create-button">Make the world</button><span class="quiet">The panel installs and builds it: several minutes before it is online.</span></div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Add a world that already runs <small>one you host elsewhere, by its address</small></h2>
+      <form class="body" id="external-form">
+        <div class="grid">
+          <label><span>Name on the list</span><input type="text" name="name" maxlength="40" required></label>
+          <label><span>The world's own name (its "World name" setting)</span><input type="text" name="world" maxlength="40" placeholder="same as the name"></label>
+          <label><span>Address (no http://)</span><input type="text" name="address" maxlength="255" placeholder="play.example.com or 203.0.113.10:5000" required></label>
+          <label><span>Description</span><input type="text" name="description" maxlength="160"></label>
+        </div>
+        <div class="row"><label class="check"><input type="checkbox" name="secure"> It answers on https</label><button type="submit">Add it</button></div>
+      </form>
+    </section>
+  </main>
+</div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const el = (tag, props = {}, children = []) => {
+  const node = Object.assign(document.createElement(tag), props);
+  for (const child of [].concat(children)) if (child != null) node.append(child);
+  return node;
+};
+let state = null;
+let editing = null;
+
+function say(text, bad = false) {
+  $("message").replaceChildren(text ? el("div", { className: bad ? "bad" : "", textContent: text }) : "");
+  if (text && !bad) setTimeout(() => { if ($("message").textContent === text) $("message").replaceChildren(); }, 6000);
+}
+
+async function api(method, path, body) {
+  const response = await fetch("/admin/api/" + path, {
+    method, credentials: "same-origin",
+    headers: method === "GET" ? {} : { "Content-Type": "application/json", "X-TSPS-Admin": "1" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  let answer = {};
+  try { answer = await response.json(); } catch {}
+  if (response.status === 401 && path !== "login") { show(false); throw new Error("signed-out"); }
+  if (!response.ok) throw new Error(answer.error || ("The server answered " + response.status + "."));
+  return answer;
+}
+
+function show(signedIn) {
+  $("login").hidden = signedIn;
+  $("app").hidden = !signedIn;
+  if (!signedIn) $("password").focus();
+}
+
+async function load(quiet = false) {
+  try {
+    state = await api("GET", "state");
+    show(true);
+    render();
+  } catch (error) {
+    if (error.message === "signed-out") return;
+    if (!quiet) say(error.message, true);
+    if (/is off/.test(error.message)) { show(false); $("login-note").textContent = error.message; }
+  }
+}
+
+const SOURCE = { project: "project list", panel: "made here", added: "added by address" };
+
+function worldRow(world) {
+  const server = world.server;
+  const starting = server && ["starting", "installing", "stopping"].includes(server.state);
+  const facts = [];
+  facts.push(world.online ? (world.players === null ? "Online" : world.players + (world.players === 1 ? " player" : " players")) + (world.bots ? ", " + world.bots + " bots" : "")
+    : server ? "Server " + server.state : "Not answering");
+  if (world.experienceRate) facts.push(world.experienceRate + "x");
+  if (server && server.memoryMb) facts.push(server.memoryMb + " MB, " + server.cpu + "% CPU");
+  const links = el("div", { className: "facts" }, [
+    el("a", { href: world.link, target: "_blank", rel: "noopener", textContent: world.address }),
+    world.secure ? "" : " (no https: an https page's world picker leaves it out)",
+  ]);
+  const actions = el("div", { className: "actions" });
+  const act = (label, run, cls = "small") => actions.append(el("button", { type: "button", className: cls, textContent: label, onclick: run }));
+  if (server) {
+    act("Start", () => power(world, "start"));
+    act("Restart", () => power(world, "restart"));
+    act("Stop", () => power(world, "stop"));
+    actions.append(el("a", { href: server.url, target: "_blank", rel: "noopener", textContent: "Panel", className: "quiet" }));
+  }
+  if (world.source !== "project") {
+    act("Edit listing", () => { editing = editing === world.id ? null : world.id; render(); });
+    act(world.source === "panel" ? "Delete" : "Remove", () => remove(world), "small danger");
+  }
+  const row = el("div", { className: "world" }, [
+    el("span", { className: "dot" + (world.online ? " on" : starting ? " busy" : "") }),
+    el("div", {}, [
+      el("div", { className: "name" }, [world.name, el("span", { className: "tag", textContent: SOURCE[world.source] }), world.listed ? null : el("span", { className: "tag", textContent: "not listed" })]),
+      world.description ? el("div", { className: "facts", textContent: world.description }) : null,
+      el("div", { className: "facts", textContent: facts.join(" · ") }),
+      links,
+    ]),
+    actions,
+  ]);
+  if (editing === world.id) row.append(editForm(world));
+  return row;
+}
+
+function editForm(world) {
+  const field = (label, name, value, extra = {}) => el("label", {}, [el("span", { textContent: label }), el("input", Object.assign({ type: "text", name, value: value ?? "" }, extra))]);
+  const secure = el("input", { type: "checkbox", name: "secure", checked: world.secure });
+  const listed = el("input", { type: "checkbox", name: "listed", checked: world.listed });
+  const form = el("form", { className: "edit" }, [
+    el("div", { className: "grid" }, [
+      field("Name on the list", "name", world.name, { maxLength: 40, required: true }),
+      field("The world's own name", "world", world.world, { maxLength: 40 }),
+      field("Address (no http://)", "address", world.address, { maxLength: 255, required: true }),
+      field("Description", "description", world.description, { maxLength: 160 }),
+    ]),
+    el("div", { className: "row" }, [
+      el("label", { className: "check" }, [secure, "It answers on https"]),
+      el("label", { className: "check" }, [listed, "Show it on the landing page"]),
+      el("button", { type: "submit", textContent: "Save" }),
+    ]),
+    el("p", { className: "quiet", textContent: "This changes how the world is listed, not the world itself. After putting it behind https (a subdomain through Cloudflare), set the address to that name and tick https." }),
+  ]);
+  form.onsubmit = async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    try {
+      await api("PATCH", "worlds/" + world.id, { name: data.get("name"), world: data.get("world"), address: data.get("address"), description: data.get("description"), secure: secure.checked, listed: listed.checked });
+      editing = null;
+      say("Saved.");
+      await load();
+    } catch (error) { if (error.message !== "signed-out") say(error.message, true); }
+  };
+  return form;
+}
+
+function render() {
+  const worlds = state.worlds;
+  $("worlds").replaceChildren(...(worlds.length ? worlds.map(worldRow) : [el("p", { className: "body quiet", textContent: "No worlds yet." })]));
+  const online = worlds.filter((world) => world.online).length;
+  $("summary").textContent = online + " of " + worlds.length + " online";
+  const panel = state.panel;
+  const select = $("create-form").elements.nodeId;
+  const ready = panel.configured && !panel.error;
+  $("panel-note").className = ready ? "" : "bad";
+  $("panel-note").textContent = !panel.configured ? "The panel is not set up: " + panel.missing.join(", ") + " missing from the server's .env."
+    : panel.error ? panel.host + ": " + panel.error
+    : "on " + panel.host + ", egg “" + panel.egg.name + "”";
+  $("create-button").disabled = !ready;
+  if (ready && select.options.length === 0) {
+    for (const node of panel.nodes) {
+      select.append(el("option", { value: node.id, disabled: node.free === 0 || node.maintenance,
+        textContent: node.name + (node.location ? " (" + node.location + ")" : "") + " - " + (node.maintenance ? "in maintenance" : node.free + " free port" + (node.free === 1 ? "" : "s")) }));
+    }
+    const form = $("create-form").elements;
+    for (const key of ["xpRate", "bots", "memoryMb", "diskMb", "cpu"]) if (form[key].value === "") form[key].value = state.defaults[key];
+  }
+}
+
+async function power(world, signal) {
+  if (signal !== "start" && !confirm(signal[0].toUpperCase() + signal.slice(1) + " " + world.name + "? Players on it are saved and disconnected.")) return;
+  try {
+    await api("POST", "worlds/" + world.id + "/power", { signal });
+    say("Sent " + signal + " to " + world.name + ".");
+    setTimeout(() => load(true), 3000);
+  } catch (error) { if (error.message !== "signed-out") say(error.message, true); }
+}
+
+async function remove(world) {
+  const made = world.source === "panel";
+  const typed = prompt((made
+    ? "This DELETES the server on the panel with everything on it: every account and save of this world. It cannot be undone.\n\n"
+    : "This takes the world off the list. The world itself is not touched.\n\n") + "Type the world's name to go ahead: " + world.name);
+  if (typed === null) return;
+  try {
+    await api("DELETE", "worlds/" + world.id, { confirm: typed });
+    say(made ? world.name + " is deleted." : world.name + " is off the list.");
+    await load();
+  } catch (error) { if (error.message !== "signed-out") say(error.message, true); }
+}
+
+$("login-form").onsubmit = async (event) => {
+  event.preventDefault();
+  try {
+    await api("POST", "login", { password: $("password").value });
+    $("password").value = "";
+    say("");
+    await load();
+  } catch (error) { say(error.message, true); }
+};
+$("logout").onclick = async () => { try { await api("POST", "logout"); } catch {} show(false); };
+$("refresh").onclick = () => load();
+$("create-form").onsubmit = async (event) => {
+  event.preventDefault();
+  const form = event.target, data = Object.fromEntries(new FormData(form));
+  $("create-button").disabled = true;
+  say("Asking the panel to make " + data.name + "...");
+  try {
+    const world = await api("POST", "worlds", data);
+    say(world.name + " is being installed at " + world.address + ". It shows as online once it has built and started.");
+    form.elements.name.value = ""; form.elements.description.value = "";
+    form.elements.nodeId.replaceChildren();
+    await load();
+  } catch (error) { if (error.message !== "signed-out") say(error.message, true); $("create-button").disabled = false; }
+};
+$("external-form").onsubmit = async (event) => {
+  event.preventDefault();
+  const form = event.target, data = Object.fromEntries(new FormData(form));
+  try {
+    const world = await api("POST", "worlds/external", { ...data, secure: form.elements.secure.checked });
+    say(world.name + " is on the list.");
+    form.reset();
+    await load();
+  } catch (error) { if (error.message !== "signed-out") say(error.message, true); }
+};
+
+load(true);
+setInterval(() => { if (!$("app").hidden && !document.hidden && editing === null) load(true); }, 20000);
+</script>
+</body>
+</html>
