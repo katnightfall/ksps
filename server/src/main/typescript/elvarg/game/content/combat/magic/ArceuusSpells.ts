@@ -268,7 +268,8 @@ export class ArceuusSpells {
         ["arceuus library teleport", teleport(6, 9.5, [rune(557, 2), rune(563)], 1632, 3838)],
         ["draynor manor teleport", teleport(17, 16, [rune(557), rune(555), rune(563)], 3108, 3352)],
         ["battlefront teleport", teleport(23, 19, [rune(557), rune(554), rune(563)], 1348, 3739)],
-        ["mind altar teleport", teleport(28, 22, [rune(558), rune(563, 2)], 2980, 3510)],
+        // Ours: Wiki (Mind Altar Teleport): two mind runes and one law rune (it took one mind and two law).
+        ["mind altar teleport", teleport(28, 22, [rune(558, 2), rune(563)], 2980, 3510)],
         ["respawn teleport", teleport(34, 27, [rune(566), rune(563)], GameConstants.DEFAULT_LOCATION.getX(), GameConstants.DEFAULT_LOCATION.getY(), GameConstants.DEFAULT_LOCATION.getZ())],
         ["salve graveyard teleport", teleport(40, 30, [rune(566, 2), rune(563)], 3432, 3461, 0, undefined, PRIEST_IN_PERIL)],
         ["fenkenstrain's castle teleport", teleport(48, 50, [rune(557), rune(566), rune(563)], 3548, 3528, 0, undefined, PRIEST_IN_PERIL)],
