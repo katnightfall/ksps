@@ -178,6 +178,23 @@ function routeDistance(routeFinder, player, targetX, targetY) {
     locAngle: 0, blockAccessFlags: 0,
     maxWaypoints: 25, privateArea: player.getPrivateArea?.() ?? null,
   };
+  // Ours: one search, not two. Asked for the exact reach with "or as near as you can get", the
+  // route finder says which of the two it found (`alternative`), and its near answer is read off
+  // the same flood the failed exact search made: the flood does not depend on what is being
+  // looked for, so the tile is the one the second search used to end on. A failed search is the
+  // dearest kind (it floods all it can reach), and nearly every door tested here is measured
+  // against a target that cannot be reached yet, so this halves what a door scan costs.
+  const both = routeFinder.findRoute({ ...base, locShape: -2, moveNear: true });
+  if (typeof both?.alternative === "boolean") {
+    if (!both.success) {
+      return Number.MAX_SAFE_INTEGER;
+    }
+    if (!both.alternative) {
+      return 0;
+    }
+    return 1 + Math.max(Math.abs(both.endX - targetX), Math.abs(both.endY - targetY));
+  }
+  // A route finder that does not say which it found is asked both ways, as before.
   if (routeFinder.findRoute({ ...base, locShape: -2, moveNear: false }).success) {
     return 0;
   }
@@ -247,6 +264,10 @@ function findUnblockingDoor(core, routeFinder, player, candidates, targetX, targ
     if (distance < bestDistance) {
       bestDistance = distance;
       best = object;
+      // Ours: the target is reachable through this one, and no later door can do better.
+      if (distance === 0) {
+        break;
+      }
     }
   }
   if (!best) {
@@ -254,6 +275,70 @@ function findUnblockingDoor(core, routeFinder, player, candidates, targetX, targ
   }
   const stand = pickStandTile(core, routeFinder, player, best);
   return stand ? { object: best, stand } : null;
+}
+
+/**
+ * Ours: what a scan found, kept a short while for the next bot that asks the same question from
+ * the same tile. Bots walk the same routes, so they fail on the same tiles on the way to the same
+ * places (at the Al Kharid toll gate, every one of a crowd asked afresh), and a scan is a dozen
+ * and more route searches. A door found is used again only while this bot still sees it closed
+ * and has not just been through it; "no door helps" is kept only from a bot that had no door set
+ * aside, so it holds for any bot. Kept per core, so each world (and each test's) has its own.
+ */
+const FOUND_DOOR_MS = 30000;
+const NO_DOOR_MS = 20000;
+const MAX_KEPT_SCANS = 4096;
+const keptScans = new WeakMap();
+
+function scansOf(core) {
+  let kept = keptScans.get(core);
+  if (!kept) {
+    kept = new Map();
+    keptScans.set(core, kept);
+  }
+  return kept;
+}
+
+function keepScan(kept, key, picked, nowMs) {
+  if (kept.size >= MAX_KEPT_SCANS) {
+    for (const [other, entry] of kept) {
+      if (entry.until <= nowMs) {
+        kept.delete(other);
+      }
+    }
+    if (kept.size >= MAX_KEPT_SCANS) {
+      kept.clear();
+    }
+  }
+  kept.set(key, picked
+    ? { until: nowMs + FOUND_DOOR_MS, object: picked.object, stand: picked.stand }
+    : { until: nowMs + NO_DOOR_MS, object: null, stand: null });
+}
+
+/** The door that gets this bot nearer the target and where to click it from, or null. */
+function scanForDoor(core, routeFinder, player, state, targetX, targetY, nowMs) {
+  const loc = player.getLocation();
+  const recent = state.recentDoorKeys ?? {};
+  // A private area has its own doors and walls: nothing is shared out of or into one.
+  const kept = player.getPrivateArea?.() ? null : scansOf(core);
+  const key = `${loc.getX()},${loc.getY()},${loc.getZ()}>${targetX},${targetY}`;
+  const known = kept?.get(key);
+  if (known && known.until > nowMs) {
+    if (!known.object) {
+      return null;
+    }
+    if (isClosedDoor(known.object, player) && !(Number(recent[doorKey(known.object)] ?? 0) > nowMs)) {
+      return { object: known.object, stand: known.stand };
+    }
+  }
+  const candidates = findDoorCandidates(player, state, targetX, targetY, nowMs);
+  const picked = candidates.length
+    ? findUnblockingDoor(core, routeFinder, player, candidates, targetX, targetY)
+    : null;
+  if (kept && (picked || !Object.values(recent).some((until) => Number(until) > nowMs))) {
+    keepScan(kept, key, picked, nowMs);
+  }
+  return picked;
 }
 
 function clickDoor(player, state, world, attempt) {
@@ -387,8 +472,7 @@ function maybeOpenDoor({ player, state, world, request, select = false }) {
     // beyond the route finder's window (the Al Kharid mine from the gate), where no door ever
     // looks like progress: bots stood at the toll gate by the dozen and never clicked it.
     if (botLoc.getX() !== targetX || botLoc.getY() !== targetY) {
-      const beside = findDoorCandidates(player, state, targetX, targetY, nowMs);
-      if (beside.length) picked = findUnblockingDoor(core, routeFinder, player, beside, targetX, targetY);
+      picked = scanForDoor(core, routeFinder, player, state, targetX, targetY, nowMs);
     }
     targetX = request.x;
     targetY = request.y;
@@ -397,11 +481,7 @@ function maybeOpenDoor({ player, state, world, request, select = false }) {
     return false;
   }
   if (!picked) {
-    const candidates = findDoorCandidates(player, state, targetX, targetY, nowMs);
-    if (!candidates.length) {
-      return false;
-    }
-    picked = findUnblockingDoor(core, routeFinder, player, candidates, targetX, targetY);
+    picked = scanForDoor(core, routeFinder, player, state, targetX, targetY, nowMs);
   }
   if (!picked) {
     return false;
