@@ -95,3 +95,32 @@ test("control: feathers on something else make no dart and move no stage", async
   assert.equal(p.getInventory().getAmount(I.FEATHER), 10);
   assert.equal(quest().getStage(p), STAGE_DART_TIP);
 });
+
+// Ours: Wiki (The Tourist Trap, Rewards; Transcript: "You receive six bronze throwing darts from Al Shabim.").
+test("Al Shabim hands over six bronze darts with the pineapple, once", (t) => {
+  const I = core.ItemIdentifiers;
+  const channel = {
+    kind: "test", remoteAddress: "127.0.0.1", isOpen: () => true, send: () => true,
+    close() {}, onData() {}, onError() {}, onClose() {},
+  };
+  const p = new Player(new PlayerSession(channel));
+  p.setIndex(next++);
+  p.setUsername("touristqa" + p.getIndex());
+  p.setRegistered(true);
+  p.setLocation(new core.Location(3170, 3030, 0));
+  p.needsPlacement = false;
+  t.after(() => {
+    PM.emitPlayerLogout({ player: p, username: p.getUsername() });
+    p.setRegistered(false);
+  });
+  quest().setStage(p, STAGE_PROTOTYPE_DART);
+  p.getInventory().setItem(0, new core.Item(I.PROTOTYPE_DART, 1));
+  const pineappleStep = () => PM.emitCustomEvent("npc-dialogue:action", { player: p, npcId: core.NpcIdentifiers.AL_SHABIM, stepId: "NJ2t2J" });
+  pineappleStep();
+  assert.equal(p.getInventory().getAmount(I.BRONZE_DART), 6);
+  assert.equal(p.getInventory().getAmount(I.TENTI_PINEAPPLE), 1);
+  assert.equal(p.getInventory().getAmount(I.PROTOTYPE_DART), 0);
+  assert.equal(quest().getStage(p), 16);
+  pineappleStep();
+  assert.equal(p.getInventory().getAmount(I.BRONZE_DART), 6, "a second pass through the dialogue gives no more");
+});
