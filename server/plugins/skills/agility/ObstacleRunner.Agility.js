@@ -41,6 +41,9 @@
  *   { complete: true }                the obstacle counts as done here (XP, messages, the lap);
  *                                     the steps after it still play (a step off the landing)
  *   { run: (ctx) => void }            escape hatch for one-off behaviour
+ *   { npcSay: "text", npc: id, at: [x, y, z], ticks? }
+ *                                     Ours: words over a piece of scenery (Varrock's pigeon), said
+ *                                     by an NPC nobody sees that stands there for `ticks` (6)
  *
  * Coordinates are absolute tiles; an omitted plane means the player's current plane.
  */
@@ -89,12 +92,19 @@ let HitDamage;
 let HitMask;
 /** The obstacle task class, made in `init` once `api.core` gives it `Task` to extend. */
 let ObstacleTask = null;
+// Ours: what the npcSay step needs (see sceneryVoice).
+let TaskClass = null;
+let spawnNpc = null;
+let removeNpc = null;
 
 function init(api) {
   TaskManager = api.getTaskManager();
   ({ Location, Animation, Graphic, Direction, Flag, ForceMovement, HitDamage, HitMask } = api.core);
   ({ ChatType, Sounds, StatementDialogue, ItemStatementDialogue, DialogueChainBuilder } = api.core);
   ObstacleTask = createObstacleTask(api.core.Task);
+  TaskClass = api.core.Task;
+  spawnNpc = (definition) => api.spawnNpc?.(definition) ?? null;
+  removeNpc = (npc) => api.removeNpc?.(npc);
 }
 
 function isBusy(player) {
@@ -196,6 +206,40 @@ function expandSteps(steps) {
     }
   }
   return expanded;
+}
+
+/**
+ * Ours: words over a piece of scenery, the way the game itself does it: an NPC with nothing to
+ * see or click stands on the tile, says the line the tick after it arrives (so every client near
+ * has it by then) and is gone again a few ticks later. It is not the player's obstacle: it plays
+ * out whether or not the run is cut short.
+ */
+function sceneryVoice({ npcSay, npc, at, ticks = 6 }) {
+  if (!spawnNpc || !TaskClass || !TaskManager) {
+    return null;
+  }
+  const [x, y, z] = at;
+  const voice = spawnNpc({ id: npc, x, y, z: z ?? 0, wanderRadius: 0 });
+  if (!voice) {
+    return null;
+  }
+  let tick = 0;
+  TaskManager.submit(new (class extends TaskClass {
+    constructor() {
+      super(1, voice, false);
+    }
+    execute() {
+      tick += 1;
+      if (tick === 1) {
+        voice.forceChat(npcSay);
+      }
+      if (tick >= Math.max(2, ticks)) {
+        removeNpc(voice);
+        this.stop();
+      }
+    }
+  })());
+  return voice;
 }
 
 function createObstacleTask(Task) {
@@ -339,6 +383,8 @@ function createObstacleTask(Task) {
       } else if (step.fade) {
         sendFade(player, step.fade === "out");
         this.fadeOverlay = true;
+      } else if (step.npcSay) {
+        sceneryVoice(step);
       } else if (step.run) {
         step.run(this.context);
       }
@@ -504,6 +550,7 @@ function completeNow(player) {
 module.exports = {
   DIRECTION_VECTORS,
   init,
+  sceneryVoice,
   isBusy,
   isCrossingAgilityObstacle,
   holdAgilityCrossing,

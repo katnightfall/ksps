@@ -21,6 +21,14 @@ const HOLD_SLIP = 1123;
 const FALL_LANDING = 1332;
 /** The clothes line's creak, heard by everyone near it, as the player is halfway across. */
 const CLOTHES_LINE_SOUND = 413;
+/**
+ * Ours: the pigeon on the clothes line (scenery, 3211,3414) says "Squawk!" as the player jumps
+ * past it. The sound above was all there was of it; the words are an unseen NPC's (a cache NPC
+ * with no name, no options and no map dot), as the game does for scenery that speaks.
+ */
+const PIGEON_TILE = [3211, 3414, 3];
+const PIGEON_VOICE_NPC = 16668;
+const PIGEON_LINE = "Squawk!";
 
 /** Tiles the player hangs from while shimmying along the wall (obstacle 4). */
 const WALL_HOLDS = [[3190, 3413], [3190, 3412], [3190, 3411], [3190, 3410]];
@@ -138,7 +146,8 @@ module.exports = {
         { sound: JUMP_SOUND, delay: 15 },
         { move: [3210, 3414], anim: Anim.JUMP, delay: 15, speed: [30, 45], dir: "west", ticks: 0 },
         { wait: 1 },
-        { areaSound: CLOTHES_LINE_SOUND, at: [3211, 3414, 3], radius: 5 },
+        { areaSound: CLOTHES_LINE_SOUND, at: PIGEON_TILE, radius: 5 },
+        { npcSay: PIGEON_LINE, npc: PIGEON_VOICE_NPC, at: PIGEON_TILE },
         { wait: 1 },
         { tele: [3210, 3414, 3] },
         { sound: JUMP_SOUND },
