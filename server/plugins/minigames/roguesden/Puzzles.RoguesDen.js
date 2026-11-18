@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * The optional puzzle doors and the 10-coin chest. The mosaic door needs the correct tile (the
+ * The optional puzzle doors. The mosaic door needs the correct tile (the
  * Wiki's bottom-right image); the gear door is the non-reward side room. The mosaic choice is a
  * chat menu because the cache's puzzle interface is not the one a server can safely drive.
  */
@@ -67,22 +67,4 @@ function gearDoor(event) {
   return true;
 }
 
-function chest(event) {
-  const { player } = event;
-  const option = String(event.option).toLowerCase();
-  if (option === "search for traps") {
-    event.handled = true;
-    player.sendMessage("You search the chest for traps...");
-    return true;
-  }
-  if (option !== "open") return false;
-  event.handled = true;
-  if (!Common.give(player, Common.itemIds.coins, 10)) {
-    player.sendMessage(Common.message("full"));
-    return true;
-  }
-  player.sendMessage(Common.message("chestCoins"));
-  return true;
-}
-
-module.exports = { mosaicDoor, gearDoor, chest };
+module.exports = { mosaicDoor, gearDoor };
