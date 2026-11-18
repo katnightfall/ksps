@@ -642,6 +642,7 @@ test('Lumbridge tutors hand out what their transcripts say', () => {
   const { Skill } = require('../dist/game/model/Skill');
   const { ItemIdentifiers: I } = require('../dist/util/ItemIdentifiers');
   const { NpcIdentifiers: N } = require('../dist/util/NpcIdentifiers');
+  const TUTOR = require('../plugins/npcs/Tutors.plugin').RETIRED_TUTORS; // the Ranged and Magic tutors have no NPC since rev 242
   const hooks = {};
   const { ItemOnGround, State } = require('../dist/game/entity/impl/grounditem/ItemOnGround');
   const { ItemOnGroundManager } = require('../dist/game/entity/impl/grounditem/ItemOnGroundManager');
@@ -720,23 +721,23 @@ test('Lumbridge tutors hand out what their transcripts say', () => {
 
   // No runes and room for both: mind and air runes, then the shared 30-minute cooldown.
   const mage = player();
-  hooks['Magic combat tutor'].Claim({ player: mage, npcId: N.MAGIC_COMBAT_TUTOR });
-  play(mage, N.MAGIC_COMBAT_TUTOR, transcript('Magic combat tutor', hooks.started));
+  hooks['Magic combat tutor'].Claim({ player: mage, npcId: TUTOR.MAGIC });
+  play(mage, TUTOR.MAGIC, transcript('Magic combat tutor', hooks.started));
   assert.equal(mage.inventory.getAmount(I.MIND_RUNE), 30);
   assert.equal(mage.inventory.getAmount(I.AIR_RUNE), 30);
   assert.deepEqual(mage.messages, ['Mikasi gives you 30 mind runes.', 'Mikasi gives you 30 air runes.']);
-  hooks['Ranged combat tutor'].Claim({ player: mage, npcId: N.RANGED_COMBAT_TUTOR });
-  play(mage, N.RANGED_COMBAT_TUTOR, transcript('Ranged combat tutor', hooks.started));
+  hooks['Ranged combat tutor'].Claim({ player: mage, npcId: TUTOR.RANGED });
+  play(mage, TUTOR.RANGED, transcript('Ranged combat tutor', hooks.started));
   assert.equal(mage.inventory.getAmount(I.TRAINING_SHORTBOW), 0);
 
   const ranger = player();
-  hooks['Ranged combat tutor'].Claim({ player: ranger, npcId: N.RANGED_COMBAT_TUTOR });
-  play(ranger, N.RANGED_COMBAT_TUTOR, transcript('Ranged combat tutor', hooks.started));
+  hooks['Ranged combat tutor'].Claim({ player: ranger, npcId: TUTOR.RANGED });
+  play(ranger, TUTOR.RANGED, transcript('Ranged combat tutor', hooks.started));
   assert.equal(ranger.inventory.getAmount(I.TRAINING_SHORTBOW), 1);
   assert.equal(ranger.inventory.getAmount(I.TRAINING_ARROWS), 25);
 
   // The ranged tutor's pickup toggle: same ammo as the worn slot goes to the slot, not the bag.
-  hooks['npc-dialogue:choice']({ player: ranger, npcId: N.RANGED_COMBAT_TUTOR, option: 'Automatically equip it.' });
+  hooks['npc-dialogue:choice']({ player: ranger, npcId: TUTOR.RANGED, option: 'Automatically equip it.' });
   assert.equal(hooks.settings.settingId, 305);
   assert.equal(hooks.settings.value, 1);
   const { Equipment } = require('../dist/game/model/container/impl/Equipment');
@@ -754,7 +755,7 @@ test('Lumbridge tutors hand out what their transcripts say', () => {
   const wrongAmmo = { player: ranger, groundItemId: I.IRON_ARROW, groundItem: groundStack(new Item(I.IRON_ARROW, 1)), handled: false };
   hooks.pickup(wrongAmmo);
   assert.equal(wrongAmmo.handled, false, 'different ammo stays on the normal inventory pickup path');
-  hooks['npc-dialogue:choice']({ player: ranger, npcId: N.RANGED_COMBAT_TUTOR, option: 'Place it in my inventory.' });
+  hooks['npc-dialogue:choice']({ player: ranger, npcId: TUTOR.RANGED, option: 'Place it in my inventory.' });
   assert.equal(hooks.settings.value, 0);
   const disabled = { player: ranger, groundItemId: I.BRONZE_ARROW, groundItem: groundStack(new Item(I.BRONZE_ARROW, 3)), handled: false };
   hooks.pickup(disabled);

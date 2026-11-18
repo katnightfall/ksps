@@ -463,7 +463,7 @@ test("the Grand Exchange Clerk's unpaid-voucher branch never plays: Talk-to pays
 test("Lumbridge tutor conditions use actual Adventure Path participation", (t) => {
     const f = actor(t);
     login(f.p);
-    const npcId = core.NpcIdentifiers.MAGIC_COMBAT_TUTOR;
+    const npcId = require("../plugins/npcs/Tutors.plugin").RETIRED_TUTORS.MAGIC; // no NPC has it since rev 242
     assert.equal(
         PluginManager.emitNpcDialogueCondition({
             player: f.p,

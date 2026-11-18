@@ -28,6 +28,13 @@ const SETTINGS_VALUES_ATTRIBUTE = "settings:values";
 const CLAIM_COOLDOWN_MS = 30 * 60 * 1000;
 const TRAINING_ARROW_COUNT = 25;
 const RUNE_COUNT = 30;
+/**
+ * The Ranged, Magic, Cooking and Prayer tutors have had no NPC since rev 242, and the cache of
+ * 2026-11-11 gave their ids to others (3217 and 3218 Farmer Bea, 3219 the Bee dealer's parent,
+ * 3223 a swarm of killer wasps). What they did stays here under ids no NPC has, so the NPCs that
+ * took their ids are never answered as tutors.
+ */
+const RETIRED_TUTORS = Object.freeze({ RANGED: -3217, MAGIC: -3218, COOKING: -3219, PRAYER: -3223 });
 
 let core;
 let pluginApi;
@@ -45,11 +52,11 @@ function init(api) {
   core = api.core;
   const { NpcIdentifiers: N, ItemIdentifiers: I, Skill } = core;
   // Rev 242 retired the tutor ids for named successors in the same places (data/retired-npcs.json).
-  // Ranged, Magic, Cooking and Prayer have none; their retired ids are no longer spawned.
+  // Ranged, Magic, Cooking and Prayer have none (RETIRED_TUTORS).
   NPC = {
-    MELEE: N.CAPTAIN_HARLAN, RANGED: N.RANGED_COMBAT_TUTOR, MAGIC: N.MAGIC_COMBAT_TUTOR,
-    COOKING: N.COOKING_TUTOR, CRAFTING: N.CADMUS, FISHING: N.FINLAY,
-    MINING: N.MONLUM, PRAYER: N.PRAYER_TUTOR, SMITHING_APPRENTICE: N.FEORAS,
+    MELEE: N.CAPTAIN_HARLAN, RANGED: RETIRED_TUTORS.RANGED, MAGIC: RETIRED_TUTORS.MAGIC,
+    COOKING: RETIRED_TUTORS.COOKING, CRAFTING: N.CADMUS, FISHING: N.FINLAY,
+    MINING: N.MONLUM, PRAYER: RETIRED_TUTORS.PRAYER, SMITHING_APPRENTICE: N.FEORAS,
     MASTER_SMITHING: N.SANI, WOODSMAN: N.WILFRED,
   };
   ITEM = I;
@@ -467,6 +474,7 @@ function handleItemOnNpc(event) {
 }
 
 module.exports = {
+  RETIRED_TUTORS,
   name: "Tutors",
   description: "Lumbridge combat and skill tutors: hands out training weapons, runes, tools and other starter gear, with a shared 30-minute claim for ranged and magic.",
   register(api) {

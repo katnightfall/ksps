@@ -7,7 +7,7 @@ const plugin = require('../plugins/npcs/Tutors.plugin');
 const AIR_RUNE = 556;
 const MIND_RUNE = 558;
 const CLAIM_ATTRIBUTE = 'tutors.combat_claim_at';
-const MAGIC_TUTOR = 3218;
+const MAGIC_TUTOR = plugin.RETIRED_TUTORS.MAGIC; // no NPC has it since rev 242
 
 function item(id, amount = 1) {
   return {

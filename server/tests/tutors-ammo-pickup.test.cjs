@@ -6,8 +6,7 @@ Server.installProductionPathResolver();
 
 const plugin = require('../plugins/npcs/Tutors.plugin');
 
-const RANGED_TUTOR = 3217;
-const MAGIC_TUTOR = 3218;
+const { RANGED: RANGED_TUTOR, MAGIC: MAGIC_TUTOR } = plugin.RETIRED_TUTORS; // no NPC has them since rev 242
 const AMMO_PICKUP_ATTRIBUTE = 'ranged:equip-ammo-on-pickup';
 const AMMO_PICKUP_VARBIT = 5697;
 const AMMO_SLOT = 13;
