@@ -126,7 +126,7 @@
   "bundle": {
     "id": "easter-2026",
     "targetCache": {
-      "name": "osrs-242_2026-11-03",
+      "name": "osrs-242_2026-11-11",
       "game": "oldschool",
       "revision": 242
     },
@@ -145,7 +145,7 @@
         "symbol": "easter26_easter_bunny",
         "dataBase64": "XwAADitjDStkDAFnAABjHlRhbGstdG8AH2hpZGRlbgACRWFzdGVyIEJ1bm55AD0BAACscz4BAACAwwA=",
         "crc": 1101159437,
-        "id": 16876
+        "id": 16886
       },
       {
         "kind": "npc",
@@ -153,7 +153,7 @@
         "symbol": "easter26_egg_last_spot",
         "dataBase64": "ZwAAXQ4wEw0wE18AAWpLHv//Af//PNwA",
         "crc": 838921463,
-        "id": 16877
+        "id": 16887
       },
       {
         "kind": "npc",
@@ -161,7 +161,7 @@
         "symbol": "easter26_egg_last_spot_found",
         "dataBase64": "XwAADjATDTATDAFnAAAeQ2F0Y2gAH2hpZGRlbgACQXJjaGliYWxkAD0BAAAPDz4BAADqdQA=",
         "crc": 1281872835,
-        "id": 16878
+        "id": 16888
       },
       {
         "kind": "npc",
@@ -169,7 +169,7 @@
         "symbol": "easter26_egg_church_cutscene",
         "dataBase64": "XwAADgbxDQbxDAFnAAAeQ2F0Y2gAH2hpZGRlbgACQXJjaGliYWxkAD0BAADqiD4BAADqdQA=",
         "crc": 957772055,
-        "id": 16879
+        "id": 16889
       }
     ]
   },
