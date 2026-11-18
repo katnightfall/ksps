@@ -253,6 +253,18 @@ function createAction(spec, world) {
   if (spec.type === "exchange") {
     return require("./actions/Exchange.PlayerBots").createExchangeAction(spec, world);
   }
+  // Ours: an errand a levelling bot sets itself (brain/Ambition).
+  if (spec.type === "errand") {
+    return require("./actions/Errand.PlayerBots").createErrandAction(spec, world);
+  }
+  // Ours: the walk to where a group of levelling bots meets (brain/BotGroups).
+  if (spec.type === "groupMeet") {
+    return require("./actions/GroupMeet.PlayerBots").createGroupMeetAction(spec, world);
+  }
+  // Ours: a group's trip to the Wintertodt (brain/BotWintertodt).
+  if (spec.type === "wintertodt") {
+    return require("./actions/Wintertodt.PlayerBots").createWintertodtAction(spec, world);
+  }
   if (spec.type === "wait") return createWaitAction(spec);
   throw new Error(`[bot activities] unknown action type '${spec.type}'`);
 }

@@ -15,6 +15,11 @@ const { bootPlayerBotsRuntime } = require("./runtime/PluginBoot.PlayerBots");
 const { createBotBenchmark } = require("./runtime/Benchmark.PlayerBots");
 const { startBotSites } = require("./brain/SiteSpawner.PlayerBots");
 const { attachBotExchange } = require("./brain/actions/Exchange.PlayerBots");
+const { createAmbition, worldHasAmbition } = require("./brain/Ambition.PlayerBots");
+const { createBotPotions } = require("./brain/BotPotions.PlayerBots");
+const { createBotTalk } = require("./brain/BotTalk.PlayerBots");
+const { createBotGroups, worldBotsGroup } = require("./brain/BotGroups.PlayerBots");
+const { createBotWintertodt } = require("./brain/BotWintertodt.PlayerBots");
 const { setActiveBotRuntime } = require("./runtime/RuntimeRegistry.PlayerBots");
 const { PVP_BOT_SETTINGS } = require("./behaviours/pvp/WildernessHotspotRegistry.PlayerBots");
 const {
@@ -208,6 +213,30 @@ function registerDuelBotAcceptance(api) {
   });
 }
 
+/**
+ * Ours: the levelling bots' minds (brain/Ambition) and what hangs off them: potions for their
+ * fights, what they say, and the groups they form. Each asks the world for the others, so a
+ * world may turn any of them off.
+ */
+function startAmbition(api, boot) {
+  const world = boot.brainWorld;
+  const ambition = (world.ambition = createAmbition({ world }));
+  if (api.getPluginConfig("PlayerBots:potions", true) !== false) createBotPotions({ world, ambition });
+  // Its own setting is asked at every line, so the world config page turns chat off at once.
+  const talk = (world.talk = createBotTalk({ world }));
+  ambition.addTicker(talk.tick);
+  api.onPlayerLevelUp(talk.levelUp);
+  const groups = worldBotsGroup() ? (world.groups = createBotGroups({ world, runtime: boot.runtime, registry: boot.brainRegistry, ambition, talk })) : null;
+  if (groups) ambition.addTicker(groups.tick);
+  // One outing has a way of its own: the Wintertodt, across the sea. A world may turn it off;
+  // the way home stays, so a bot that was over there when the setting changed is not left there.
+  world.wintertodt = createBotWintertodt({
+    world, groups, registry: boot.brainRegistry, ambition,
+    emit: (name, payload) => api.emitCustomEvent(name, payload), spawnNpc: (spawn) => api.spawnNpc(spawn),
+    goes: !!groups && api.getPluginConfig("PlayerBots:wintertodt", true) !== false,
+  });
+}
+
 module.exports = {
   name: "PlayerBots",
   description: "Populates the world with player bots: PvP-loadout fighters and optional AI chat bots, with admin commands to manage them.",
@@ -215,6 +244,34 @@ module.exports = {
     "PlayerBots:earnOwnItems": {
       type: "boolean", label: "Levelling bots own what they use", default: true,
       help: "The bots of a progression site start with a new player's starter items and are handed nothing after that: tools, bait, arrows, runes, food and armour are what they carry, bank, buy in shops with coins they earned, or pick up. Off: they are given a tool, gear and food for their level, as other bots are.",
+    },
+    "PlayerBots:ambition": {
+      type: "boolean", label: "Levelling bots set themselves goals", default: true,
+      help: "The bots of a progression site that own what they use keep wanting the next better thing: a better tool, weapon and armour, bait, food and potions for their fights, and the next level that unlocks something. They turn more often to the work that gets them there, sell what they gather while they save, and go and buy what they can pay for at a shop or on the Grand Exchange. Off: they only look for a better tool or weapon when their work happens to.",
+    },
+    "PlayerBots:potions": {
+      type: "boolean", label: "Levelling bots drink potions", default: true,
+      help: "With goals on, a levelling bot that can well afford them buys potions for its combat style (and an antipoison once it has been poisoned), takes one of each to a fight and drinks a dose when the boost has worn off. A boost leaves these bots a point a minute, as it leaves a player. Off: they fight without potions.",
+    },
+    "PlayerBots:chat": {
+      type: "boolean", label: "Levelling bots talk", default: true,
+      help: "With goals on, a levelling bot now and then says a short line in public chat about what it is doing (what it is saving for, a level gained, something it bought) and may answer the bot beside it. A bot says at most one line of its own every few minutes, a player hears at most one such line every 20 seconds however many bots are around, and nothing is said with no player in earshot. Off: they say nothing, and form their groups in silence.",
+    },
+    "PlayerBots:chatSeconds": {
+      type: "number", label: "Seconds between bot lines a player hears", default: 20, integer: true, min: 5, max: 3600,
+      help: "A player hears at most one line from the levelling bots in this many seconds, however many bots stand around them; a group's proposal waits half as long again, and the couple of answers to a proposal that was said follow it. Beside a crowd of bots this is how often a line comes: 20 is three lines a minute, 60 is one. Raise it for quieter bots.",
+    },
+    "PlayerBots:groups": {
+      type: "boolean", label: "Levelling bots form groups", default: true,
+      help: "With goals on, a levelling bot now and then proposes something to do together (the outings in bot-groups.json, and Wintertodt for those with the Firemaking for it); bots near it, and bots further off that are after the same skill, may agree, and they travel there and do it side by side with their own tools and supplies. Off: every bot keeps to itself.",
+    },
+    "PlayerBots:wintertodt": {
+      type: "boolean", label: "Levelling bots go to the Wintertodt", default: true,
+      help: "With groups on, bots with 50 Firemaking, an axe and cooked food of their own may propose a trip to the Wintertodt: each packs at its bank, takes Veos's ship from Port Sarim, walks to the camp, and plays by the minigame's rules. Behind the doors each keeps a corner's brazier burning (chops roots and feeds them, lights it, mends it with a hammer from the crate), heals its pyromancer with a rejuvenation potion that Brew'ma mixes for it, and eats its food or drinks the potion against the cold. After a round or two it takes what it earned from the reward cart and comes home the same way. At most 40 bots of a world are on the trip at once. Brew'ma is put at her place by the crates when the first bot makes its potion, if she is not there already. Off: the Wintertodt outing is never proposed, and Firemaking is not a level bots go after; a bot that is over there when it is turned off still comes home.",
+    },
+    "PlayerBots:groupMinutes": {
+      type: "json", label: "Minutes between a bot's group proposals", defaultText: "[30, 90]",
+      help: "How often one levelling bot proposes a group outing, as [least, most] minutes; each bot draws its own time in between, e.g. [30, 90].",
     },
     "PlayerBots:allowedActivities": {
       type: "json", label: "Bot activities allowed", defaultText: "Every activity",
@@ -260,6 +317,8 @@ module.exports = {
     setActiveBotRuntime(boot.runtime, BOT_CONFIG.behaviorMode, boot.brainRegistry);
     // Ours: the levelling bots trade on the Grand Exchange, and players' offers meet theirs first.
     attachBotExchange(api);
+    // Ours: and each has a mind of its own about what to get next (the brain asks the world for it).
+    if (worldHasAmbition()) startAmbition(api, boot);
 
     createBotBenchmark({
       api,

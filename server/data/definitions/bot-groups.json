@@ -1,0 +1,11 @@
+{
+  "outings": [
+    { "id": "lumbridge_trees", "activity": "normal_trees", "x": 3196, "y": 3243, "say": "cut trees west of lumbridge", "size": [2, 4], "minutes": [8, 14] },
+    { "id": "draynor_willows", "activity": "willow_trees", "x": 3087, "y": 3234, "say": "cut willows at draynor", "size": [2, 5], "minutes": [12, 20] },
+    { "id": "swamp_copper_tin", "activity": "copper_tin_rocks", "x": 3228, "y": 3148, "say": "mine at the lumbridge swamp", "size": [2, 5], "minutes": [12, 20] },
+    { "id": "varrock_west_iron", "activity": "iron_rocks", "x": 3181, "y": 3371, "say": "mine iron at varrock west", "size": [2, 4], "minutes": [12, 20] },
+    { "id": "draynor_net_fishing", "activity": "net_fishing", "x": 3088, "y": 3230, "say": "fish at draynor", "size": [2, 5], "minutes": [10, 16] },
+    { "id": "barbarian_fly_fishing", "activity": "fly_fishing", "x": 3105, "y": 3432, "say": "fly fish at barb village", "size": [2, 5], "minutes": [12, 20] },
+    { "id": "wintertodt", "kind": "wintertodt", "gather": "anywhere", "activity": "wintertodt_trip", "mode": "woodcutting", "x": 1630, "y": 3944, "say": "do wintertodt", "size": [2, 6], "minutes": [40, 60], "waitMinutes": 4 }
+  ]
+}
