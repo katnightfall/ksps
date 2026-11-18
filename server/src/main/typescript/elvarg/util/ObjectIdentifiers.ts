@@ -17383,6 +17383,16 @@ export class ObjectIdentifiers {
     public static BLOOD_CRYSTAL_5 = 33147; // Blood crystal
     public static SHADOW_CRYSTAL = 33148; // Shadow crystal
     public static SMOKE_CRYSTAL = 33149; // Smoke Crystal
+    public static CRATE_233 = 33151; // Crate
+    public static EQUIPMENT_CRATE = 33152; // Equipment crate
+    public static BEEHIVE_11 = 33153; // Beehive
+    public static BEEHIVE_12 = 33154; // Beehive
+    public static GATE_329 = 33155; // Gate
+    public static GATE_330 = 33156; // Gate
+    public static GAP_55 = 33157; // Gap
+    public static STEPPING_STONE_66 = 33158; // Stepping stone
+    public static TREE_182 = 33160; // Tree
+    public static TREE_183 = 33161; // Tree
     public static ICY_ROCKS = 33177; // Icy rocks
     public static TROLL_STRONGHOLD_PORTAL = 33179; // Troll Stronghold Portal
     public static TROLL_STRONGHOLD_PORTAL_2 = 33180; // Troll Stronghold Portal
@@ -30695,4 +30705,9 @@ export class ObjectIdentifiers {
     public static BED_260 = 63330; // Bed
     public static MARKET_STALL_39 = 63332; // Market stall
     public static MARKET_STALL_40 = 63333; // Market stall
+    public static SHELTER_2 = 63334; // Shelter
+    public static BIRD_SNARE_14 = 63335; // Bird snare
+    public static BIRD_SNARE_15 = 63336; // Bird snare
+    public static BIRD_SNARE_16 = 63337; // Bird snare
+    public static BIRD_SNARE_17 = 63338; // Bird snare
 }

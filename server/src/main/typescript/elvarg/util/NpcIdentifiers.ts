@@ -2972,17 +2972,17 @@ export class NpcIdentifiers {
     public static CASSIE = 3214; // Cassie
     public static FRINCOS = 3215; // Frincos
     public static MELEE_COMBAT_TUTOR = 3216; // (no name in this revision)
-    public static RANGED_COMBAT_TUTOR = 3217; // (no name in this revision)
-    public static MAGIC_COMBAT_TUTOR = 3218; // (no name in this revision)
+    public static FARMER_BEA = 3217; // Farmer Bea
+    public static FARMER_BEA_2 = 3218; // Farmer Bea
     public static COOKING_TUTOR = 3219; // (no name in this revision)
-    public static CRAFTING_TUTOR = 3220; // (no name in this revision)
-    public static FISHING_TUTOR = 3221; // (no name in this revision)
-    public static MINING_TUTOR = 3222; // (no name in this revision)
-    public static PRAYER_TUTOR = 3223; // (no name in this revision)
-    public static SMITHING_APPRENTICE = 3224; // (no name in this revision)
-    public static MASTER_SMITHING_TUTOR = 3225; // (no name in this revision)
-    public static WOODSMAN_TUTOR = 3226; // (no name in this revision)
-    public static BANKER_TUTOR = 3227; // (no name in this revision)
+    public static BEE_DEALER = 3220; // Bee dealer
+    public static FARMER_BEA_3 = 3221; // Farmer Bea
+    public static SWARM_OF_WASPS = 3222; // Swarm of wasps
+    public static SWARM_OF_KILLER_WASPS = 3223; // Swarm of killer wasps
+    public static HONEY_BUZZARD = 3224; // Honey Buzzard
+    public static BLACK_HONEY_BUZZARD = 3225; // Black Honey Buzzard
+    public static SWARM_OF_WASPS_2 = 3226; // Swarm of wasps
+    public static SWARM_OF_WASPS_FURIOUS_ = 3227; // Swarm of wasps (furious)
     public static ELLIS = 3231; // Ellis
     public static WIZARD_JALARAST = 3232; // Wizard Jalarast
     public static LEECH = 3233; // Leech
@@ -5086,7 +5086,7 @@ export class NpcIdentifiers {
     public static JARR = 5520; // Jarr
     public static LE_SABR = 5521; // Le-sabrè
     public static FLAX_KEEPER = 5522; // Flax keeper
-    public static HATIUS_COSAINTUS = 5523; // (no name in this revision)
+    public static SWARM_OF_KILLER_WASPS_2 = 5523; // Swarm of killer wasps
     public static SIR_REBRAL = 5524; // Sir Rebral
     public static TOBY = 5525; // Toby
     public static THORODIN_2 = 5526; // Thorodin
@@ -7634,7 +7634,7 @@ export class NpcIdentifiers {
     public static URI_6 = 8638; // Uri
     public static COL_00FFFF_FIRE_COL_2 = 8643; // <col=00ffff>Fire</col>
     public static SARADOMINIST_RECRUITER = 8644; // Saradominist recruiter
-    public static ARTHUR_THE_CLUE_HUNTER = 8665; // (no name in this revision)
+    public static SWARM_OF_KILLER_WASPS_FURIOUS_ = 8665; // Swarm of killer wasps (furious)
     public static BANKER_55 = 8666; // Banker
     public static PUFFER_FISH_2 = 8667; // Puffer Fish
     public static ISLWYN_2 = 8675; // Islwyn
@@ -14050,4 +14050,10 @@ export class NpcIdentifiers {
     public static MONK_18 = 16873; // Monk
     public static JOYCE = 16874; // Joyce
     public static KYLE = 16875; // Kyle
+    public static HONEY_BUZZARD_2 = 16879; // Honey Buzzard
+    public static BLACK_HONEY_BUZZARD_2 = 16881; // Black Honey Buzzard
+    public static JUVENILE_SNAIL = 16882; // Juvenile Snail
+    public static LEECH_3 = 16883; // Leech
+    public static SNELMLOVER500 = 16884; // SnelmLover500
+    public static SNELMLOVER500_2 = 16885; // SnelmLover500
 }
