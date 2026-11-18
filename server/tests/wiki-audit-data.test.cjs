@@ -50,3 +50,11 @@ test("Prayer: ninja and zombie monkey bones (Wiki, Remains and each bone's page)
     assert.equal(worship(bone.bonemeal), bone.xp * 4, `${bone.obj} bonemeal`);
   }
 });
+
+test("High and Low Alchemy: bird nests with an egg and the stardust packs pay 60% and 40% of their value (Wiki: each item's page)", () => {
+  const overrides = require("../data/definitions/item-overrides.json");
+  for (const id of [5070, 5071, 5072]) assert.deepEqual(overrides[id], { highAlch: 271, lowAlch: 181 }, `bird nest ${id}, value 453`);
+  for (const id of [25533, 25535]) assert.deepEqual(overrides[id], { highAlch: 90, lowAlch: 60 }, `stardust pack ${id}, value 150`);
+  // The Wiki marks these versions "alchable = No": they stay unalchable (no override).
+  for (const id of [5013, 20499, 20501, 19812, 26392, 28922, 28826, 33524, 31992]) assert.equal(overrides[id], undefined, `item ${id}`);
+});
