@@ -130,6 +130,21 @@ module.exports = function registerHopespearsWill(api) {
     return null;
   }
 
+  /**
+   * Ours: Wiki (Hopespear's Will: the requirements box, "50 Prayer", not boostable; Trivia: "Level 50 Prayer is
+   * required to start the miniquest"). The page has no words for the refusal, so the line is ours. Without a
+   * ghostspeak amulet the ghost still only wails, as the transcript has it.
+   */
+  const PRAYER_REQUIREMENT = 50;
+  function refuseStart(event) {
+    const { player, npcId } = event;
+    if (npcId !== HOPESPEAR_NPC_ID && npcId !== HOPESPEAR_VISIBLE_NPC_ID) return;
+    if (event.clickType !== 1 || quest.getStage(player) >= STAGE_STARTED || !wearsGhostspeak(player)) return;
+    if (player.getSkillManager().getMaxLevel(Skill.PRAYER) >= PRAYER_REQUIREMENT) return;
+    event.handled = true;
+    player.sendMessage(`You need a Prayer level of ${PRAYER_REQUIREMENT} to start Hopespear's Will.`);
+  }
+
   function handleLine({ player, npcId, text }) {
     if (npcId !== HOPESPEAR_NPC_ID && npcId !== HOPESPEAR_VISIBLE_NPC_ID) return;
     if (String(text ?? "").includes(START_LINE) && quest.getStage(player) < STAGE_STARTED) {
@@ -285,6 +300,7 @@ module.exports = function registerHopespearsWill(api) {
   });
 
   api.onServerStartup(() => api.spawnNpc({ id: HOPESPEAR_NPC_ID, ...HOPESPEAR_TILE, wanderRadius: 0 }));
+  api.onBeforeNpcInteraction(refuseStart);
   api.onNpcDialogueVariant(selectVariant);
   api.onNpcDialogueCondition(answerCondition);
   api.onCustomEvent("npc-dialogue:line", handleLine);

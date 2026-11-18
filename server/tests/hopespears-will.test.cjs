@@ -164,3 +164,49 @@ test("after Land of the Goblins a grave opens the five-name menu", (t) => {
   assert.ok(current, "a dialogue is open");
   assert.equal(current.constructor.name, "OptionDialogue");
 });
+
+// Ours: Wiki (Hopespear's Will, requirements and Trivia): 50 Prayer, not boostable, to start the miniquest.
+test("Hopespear turns away a player below 50 Prayer; at 50 the talk goes ahead", (t) => {
+  const ghost = [...core.World.getNpcs()].find((npc) => npc?.getId?.() === 11391);
+  assert.ok(ghost, "Hopespear stands in the crypt");
+  const talk = (f) => {
+    const event = { player: f.p, npc: ghost, npcId: 11391, clickType: 1, handled: false };
+    PM.emitNpcInteraction(event);
+    return event;
+  };
+  const refusal = "You need a Prayer level of 50 to start Hopespear's Will.";
+  const wearAmulet = (f) => f.p.getEquipment().setItem(core.Equipment.AMULET_SLOT, new core.Item(core.ItemIdentifiers.GHOSTSPEAK_AMULET, 1));
+
+  const low = actor(t, { stage: 0, at: [3744, 4390, 0] });
+  wearAmulet(low);
+  low.p.getSkillManager().setCurrentLevel(core.Skill.PRAYER, 49, false).setMaxLevels(core.Skill.PRAYER, 49, false);
+  assert.equal(talk(low).handled, true);
+  assert.ok(low.messages.includes(refusal));
+  assert.equal(low.p.getAttribute("quest.hopespears_will.stage") || 0, 0, "not started");
+
+  // A boost does not count: the requirement is on the base level.
+  const boosted = actor(t, { stage: 0, at: [3744, 4390, 0] });
+  wearAmulet(boosted);
+  boosted.p.getSkillManager().setMaxLevels(core.Skill.PRAYER, 49, false).setCurrentLevel(core.Skill.PRAYER, 52, false);
+  talk(boosted);
+  assert.ok(boosted.messages.includes(refusal));
+
+  const ready = actor(t, { stage: 0, at: [3744, 4390, 0] });
+  wearAmulet(ready);
+  ready.p.getSkillManager().setCurrentLevel(core.Skill.PRAYER, 50, false).setMaxLevels(core.Skill.PRAYER, 50, false);
+  talk(ready);
+  assert.ok(!ready.messages.includes(refusal));
+
+  // No amulet: the ghost only wails, whatever the Prayer level (the transcript's first branch).
+  const deaf = actor(t, { stage: 0, at: [3744, 4390, 0] });
+  deaf.p.getSkillManager().setCurrentLevel(core.Skill.PRAYER, 1, false).setMaxLevels(core.Skill.PRAYER, 1, false);
+  talk(deaf);
+  assert.ok(!deaf.messages.includes(refusal));
+
+  // Once started, a drained or reset level does not lock the player out of the ghost.
+  const started = actor(t, { stage: 1, at: [3744, 4390, 0] });
+  wearAmulet(started);
+  started.p.getSkillManager().setCurrentLevel(core.Skill.PRAYER, 1, false).setMaxLevels(core.Skill.PRAYER, 1, false);
+  talk(started);
+  assert.ok(!started.messages.includes(refusal));
+});
