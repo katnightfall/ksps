@@ -194,12 +194,12 @@ test('buttons are found by component, and only while the interface is open', () 
   install();
   const p = player();
   Common.kingdomOf(p);
-  assert.equal(Interface.onButton({ player: p, buttonId: Interface.uid(11) }), true);
+  assert.equal(Interface.onButton({ player: p, buttonId: Interface.uid(Interface.BUTTONS.mine[0]) }), true);
   assert.equal(Common.kingdomOf(p).workers.mine, 0);
   Interface.open(p);
-  assert.equal(Interface.onButton({ player: p, buttonId: Interface.uid(11) }), true);
+  assert.equal(Interface.onButton({ player: p, buttonId: Interface.uid(Interface.BUTTONS.mine[0]) }), true);
   assert.equal(Common.kingdomOf(p).workers.mine, 1);
-  assert.equal(Interface.onButton({ player: p, buttonId: (390 << 16) | 11 }), false);
+  assert.equal(Interface.onButton({ player: p, buttonId: (390 << 16) | Interface.BUTTONS.mine[0] }), false);
 });
 
 test("the interface replaces Ghrim's chat: the chatbox closes as it opens", () => {

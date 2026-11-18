@@ -1,11 +1,17 @@
 "use strict";
 
 /**
- * The kingdom interface (misc_both_manage, an IF1 interface): its cs1 scripts draw each job's
- * bar from the misc_points_* varbits, the idle bar from varp 261, the fish, hardwood and herb
- * choices from misc_cooked / misc_rarewood_type / misc_herbs_or_flax and the help text from
- * varp 262; the server writes the coffer amount into its text and shows the Etceterian jobs
- * (hardwood, farm) after Royal Trouble.
+ * The kingdom interface (misc_both_manage): its scripts draw each job's bar from the
+ * misc_points_* varbits, the idle bar from varp 261, the fish, hardwood and herb choices from
+ * misc_cooked / misc_rarewood_type / misc_herbs_or_flax and the help text from varp 262; the
+ * server writes the coffer amount into its text and shows the Etceterian jobs (hardwood, farm)
+ * after Royal Trouble.
+ *
+ * The cache of 2026-11-11 rebuilt it (an IF1 interface with cs1 scripts until then): every
+ * component moved, the bars are one resized rectangle each (script 10316) and a click changes
+ * its varbit in the client before the server answers (scripts 1593, 634, 10320, 10323, 10327
+ * and their like). The server still decides: refresh() sends every value back. The idle bar is
+ * scaled to 15 subjects when royal_quest (varbit 2140) reads 30, else to 10 (script 10318).
  *
  * Add/Remove move a subject between the idle pool and a job (at most 10 on one job, 10 or 15
  * subjects in all). Deposit and Withdraw take an amount, with Advisor Ghrim's lines from the
@@ -20,26 +26,30 @@ const Common = require("./Common.ManagingMiscellania");
 const GROUP = 391; // misc_both_manage
 const uid = (child) => (GROUP << 16) | child;
 
+// Component ids by their cache names (misc_both_manage:<name>), as of osrs-242_2026-11-11.
 const COMPONENT = {
-  coffer: 92,
-  deposit: 93,
-  withdraw: 94,
-  help: 99,
-  hardwoodPanel: 139,
-  farmPanel: 141,
+  coffer: 67, // miscb_if_coffers_money
+  deposit: 68, // miscb_if_coffers_deposit
+  withdraw: 69, // miscb_if_coffers_withdraw
+  help: 31, // help_button
+  hardwoodPanel: 28, // miscb_if_rarewood
+  farmPanel: 29, // miscb_if_farm
 };
-/** [add, remove] per job, as the interface places them. */
+/** [add, remove] per job: miscb_if_<job>_up and miscb_if_<job>_down. */
 const BUTTONS = {
-  mine: [11, 12],
-  herbs: [27, 28],
-  wood: [45, 46],
-  fish: [61, 62],
-  hardwood: [116, 117],
-  farm: [143, 144],
+  mine: [41, 42],
+  herbs: [46, 47],
+  wood: [54, 55],
+  fish: [58, 59],
+  hardwood: [75, 76],
+  farm: [91, 92],
 };
-const COOKED_TOGGLE = [111, 112];
-const HARDWOOD_TYPE = { 128: 0, 131: 0, 129: 1, 132: 1, 130: 2, 133: 2 };
-const HERBS_OR_FLAX = { 155: false, 156: false, 157: true, 158: true };
+/** miscb_if_fishing_cookedtext and miscb_if_fishing_cooked. */
+const COOKED_TOGGLE = [71, 72];
+/** miscb_if_rarewood_choose<wood> and its text: mahogany, teak, both. */
+const HARDWOOD_TYPE = { 79: 0, 85: 0, 81: 1, 86: 1, 83: 2, 87: 2 };
+/** miscb_if_herbs_choose<crop> and its text: herbs, flax. */
+const HERBS_OR_FLAX = { 95: false, 99: false, 97: true, 100: true };
 const VARP_IDLE = 261;
 const VARP_HELP = 262;
 const ETCETERIAN_JOBS = new Set(["hardwood", "farm"]);

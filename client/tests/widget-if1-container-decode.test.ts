@@ -35,16 +35,18 @@ try {
     console.error = error;
 }
 assert.deepEqual(failures, [], "every widget in the cache decodes");
-assert.ok(if1Containers >= 247, `IF1 containers decoded (${if1Containers})`);
+// 236 since osrs-242_2026-11-11: Miscellania's kingdom interface (391), with 11 of them, was rebuilt
+// as IF3.
+assert.ok(if1Containers >= 236, `IF1 containers decoded (${if1Containers})`);
 
-// Miscellania's kingdom interface (391): container 3 holds the Mining label (4).
-const manage = new WidgetLoader(cache).loadWidgetGroup(391);
-const container = manage?.widgets.get((391 << 16) | 3);
-assert.ok(container, "391:3 decodes");
+// Death Plateau's dice (death_dice, 99): container 27 holds the "Roll Dice!" label (28).
+const dice = new WidgetLoader(cache).loadWidgetGroup(99);
+const container = dice?.widgets.get((99 << 16) | 27);
+assert.ok(container, "99:27 decodes");
 assert.equal(container.type, 0);
 assert.equal(container.isIf3, false);
-const label = manage?.widgets.get((391 << 16) | 4);
-assert.equal(label?.text, "Mining");
-assert.equal(label?.parentUid, (391 << 16) | 3, "children link to the container through their parent id");
+const label = dice?.widgets.get((99 << 16) | 28);
+assert.equal(label?.text, "Roll Dice!");
+assert.equal(label?.parentUid, (99 << 16) | 27, "children link to the container through their parent id");
 
 console.log("IF1 container decode test passed");
