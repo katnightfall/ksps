@@ -30,14 +30,14 @@ const CROWD = { id: "ambitioncrowd", enabled: true, progression: true, x: 3222, 
   bots: { woodcutting: 30, mining: 20, fishing: 10, combat_training: 40, agility: 5, trading: 5 } };
 
 /** A world of the test's own: the real engine, the NPCs near a bot ours to place, and a bank at the bot's elbow. */
-function worldWith({ clock = { now: 1_000_000 } } = {}) {
+function worldWith({ clock = { now: 1_000_000 }, errandsAtOnce = null } = {}) {
   const logged = [];
   const world = {
     core: { ...core, World: Object.assign(Object.create(core.World), { getNpcsNear: () => (keeperNear ? [keeperNear] : []) }) },
     log: (event, data) => logged.push([event, data]),
   };
   const book = createBotExchange({ guide: Exchange.guide, now: () => clock.now });
-  world.ambition = Ambition.createAmbition({ world, exchange: book });
+  world.ambition = Ambition.createAmbition({ world, exchange: book, errandsAtOnce });
   // The walk to a bank is the Bank action's (tried in the live trial); here the booth is where the bot stands.
   OwnItems.ownItemsFor(world).bankTrip = (ctx, key, plan) => {
     const inventory = ctx.player.getInventory();
@@ -194,6 +194,58 @@ test("what it can pay for at a shop it goes and buys, with its own coins, and pu
   p.getInventory().adds(Items.COINS, 5000);
   assert.equal(ambition.consider(brain, 10_000), null);
   assert.ok(ambition.consider(brain, 10_000 + 6 * 60_000), "and then goes on");
+});
+
+test("only so many of a world's bots are out on an errand at once; the rest work on and look again", (t) => {
+  // The world lets one go at a time (PlayerBots:errandsAtOnce; 150 when a world does not say).
+  const { world, ambition, logged } = worldWith({ errandsAtOnce: 1 });
+  const first = botOfStyle(t, ambition, "melee", { coins: 60 });
+  const second = botOfStyle(t, ambition, "melee", { coins: 60 });
+  const one = brainFor(first, world, "combat_training");
+  const two = brainFor(second, world, "combat_training");
+  // Each has looked at itself once (which is when a bot gets its mind).
+  ambition.consider(one, 2000);
+  ambition.consider(two, 2000);
+  ambition.mind(first).thinkAt = 0;
+  ambition.tick(one, 3000);
+  assert.deepEqual(one.frames.map((frame) => frame.behaviour.id), ["combat_training", Ambition.ERRAND_ACTIVITY]);
+
+  // The second can pay for the same thing, but the first is out: it stays at its work.
+  ambition.mind(second).thinkAt = 0;
+  ambition.tick(two, 3000);
+  assert.deepEqual(two.frames.map((frame) => frame.behaviour.id), ["combat_training"]);
+  const again = ambition.mind(second).thinkAt - 3000;
+  assert.ok(again >= 45_000 && again <= 150_000, `and looks again in a minute or two (${again} ms)`);
+  assert.equal(logged.filter(([event]) => event === "bot_ambition_errand").length, 1);
+
+  // The first comes back; now the second may go.
+  const sellers = OwnItems.loadOffers().offers.get(ambition.mind(first).errand.goal.itemId).flatMap((entry) => entry.npcIds);
+  keeperNear = keeper(sellers.includes(BOB) ? BOB : sellers[0], first.getLocation());
+  t.after(() => { keeperNear = null; });
+  for (let tick = 0; tick < 12 && one.frames.length > 1; tick++) one.tick(4000 + tick * 600);
+  assert.deepEqual(one.frames.map((frame) => frame.behaviour.id), ["combat_training"], "the first is back at its work");
+  ambition.mind(second).thinkAt = 0;
+  ambition.tick(two, 200_000);
+  assert.deepEqual(two.frames.map((frame) => frame.behaviour.id), ["combat_training", Ambition.ERRAND_ACTIVITY]);
+});
+
+test("a bot that set off on an errand and was never heard of again does not hold a place for good", (t) => {
+  const { world, ambition } = worldWith({ errandsAtOnce: 1 });
+  const lost = botOfStyle(t, ambition, "melee", { coins: 60 });
+  const waiting = botOfStyle(t, ambition, "melee", { coins: 60 });
+  const gone = brainFor(lost, world, "combat_training");
+  const brain = brainFor(waiting, world, "combat_training");
+  ambition.consider(gone, 2000);
+  ambition.consider(brain, 2000);
+  ambition.mind(lost).thinkAt = 0;
+  ambition.tick(gone, 3000);
+  assert.equal(gone.frames.length, 2, "it set off");
+  ambition.mind(waiting).thinkAt = 0;
+  ambition.tick(brain, 10 * 60_000);
+  assert.equal(brain.frames.length, 1, "ten minutes on its place is still taken");
+  ambition.mind(waiting).thinkAt = 0;
+  ambition.tick(brain, 21 * 60_000);
+  assert.deepEqual(brain.frames.map((frame) => frame.behaviour.id), ["combat_training", Ambition.ERRAND_ACTIVITY], "after twenty it is not");
 });
 
 test("a shop it could not buy at is left for the exchange", (t) => {

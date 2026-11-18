@@ -249,6 +249,10 @@ module.exports = {
       type: "boolean", label: "Levelling bots set themselves goals", default: true,
       help: "The bots of a progression site that own what they use keep wanting the next better thing: a better tool, weapon and armour, bait, food and potions for their fights, and the next level that unlocks something. They turn more often to the work that gets them there, sell what they gather while they save, and go and buy what they can pay for at a shop or on the Grand Exchange. Off: they only look for a better tool or weapon when their work happens to.",
     },
+    "PlayerBots:errandsAtOnce": {
+      type: "number", label: "Levelling bots out on an errand at once", default: 150, integer: true, min: 1, max: 100000,
+      help: "With goals on, at most this many of the world's levelling bots are away from their work on an errand (a walk to a shop, their bank or the Grand Exchange) at the same time; the others carry on working and look again a minute or two later. Every bot on an errand is finding its way somewhere, which is the dearest thing a bot does: with the whole of a large crowd out at once, each bot's turn to think comes round a third as often. 150 is about one in thirteen of a crowd of 1,925, and lets each bot run an errand about once an hour.",
+    },
     "PlayerBots:potions": {
       type: "boolean", label: "Levelling bots drink potions", default: true,
       help: "With goals on, a levelling bot that can well afford them buys potions for its combat style (and an antipoison once it has been poisoned), takes one of each to a fight and drinks a dose when the boost has worn off. A boost leaves these bots a point a minute, as it leaves a player. Off: they fight without potions.",

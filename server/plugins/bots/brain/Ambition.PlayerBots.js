@@ -69,6 +69,19 @@ const QUICK_FAILURE_MS = 30_000;
 // While it is out it does this many things at most (a shop, then another, then the bank), as a
 // player does a round of the shops, before it goes back to work.
 const ERRAND_STOPS = 3;
+/**
+ * How many of a world's bots may be out on an errand at once (world setting). A bot on an errand
+ * walks: to a shop, its bank, the exchange. Left to themselves the whole crowd goes at once (a
+ * new crowd of 1,925 had 1,800 out within eight minutes of starting), every one of them finding
+ * its way, and the bots' share of the game tick went on routes: each bot's turn to think came
+ * round every twelve seconds instead of every four. With a limit the errands are spread out; a
+ * bot that finds the limit reached looks again in a minute or two.
+ */
+const ERRANDS_CONFIG = "PlayerBots:errandsAtOnce";
+const ERRANDS_AT_ONCE = 150;
+const CROWDED_MS = [45_000, 150_000];
+/** An errand not heard of for this long is not counted: its bot is gone. */
+const ERRAND_FORGOTTEN_MS = 20 * 60_000;
 // The exchange is a long walk: not again for this long after a visit.
 const EXCHANGE_REST_MS = 12 * 60_000;
 // A goal whose errand failed is left alone this long.
@@ -203,7 +216,7 @@ function loadCatalogue(core, definitionsPath) {
   };
 }
 
-function createAmbition({ world, definitionsPath = path.join(process.cwd(), "data", "definitions", "bot-activities.json"), exchange = null } = {}) {
+function createAmbition({ world, definitionsPath = path.join(process.cwd(), "data", "definitions", "bot-activities.json"), exchange = null, errandsAtOnce = null } = {}) {
   const core = world.core;
   const own = ownItemsFor(world);
   const minds = new WeakMap();
@@ -217,6 +230,8 @@ function createAmbition({ world, definitionsPath = path.join(process.cwd(), "dat
   const carriers = [];
   /** What other parts do every tick of a bot with a mind (a look at its potions): (brain, nowMs) => void. */
   const tickers = [];
+  /** The bots out on an errand, and when each set off. */
+  const out = new Map();
   const skillByIndex = new Map(Skill.values().map((skill) => [skill.getIndex(), skill]));
   const book = () => exchange ?? botExchange();
   const nameOf = (player) => String(player.getUsername?.() ?? "").toLowerCase();
@@ -230,6 +245,17 @@ function createAmbition({ world, definitionsPath = path.join(process.cwd(), "dat
   const goods = () => (produce ??= new Set(loadProduce(definitionsPath)));
   let visit = null;
   const exchangeVisit = () => (visit ??= createExchangeAction({}, world, book()));
+
+  /** Whether one more bot may set off on an errand now (the world's limit, read as it is asked). */
+  function room(nowMs) {
+    const set = Number(errandsAtOnce ?? PluginManager.getPluginConfig?.(ERRANDS_CONFIG));
+    const limit = Number.isFinite(set) && set >= 1 ? Math.floor(set) : ERRANDS_AT_ONCE;
+    if (out.size < limit) return true;
+    for (const [player, since] of out) {
+      if (nowMs - since > ERRAND_FORGOTTEN_MS || !minds.get(player)?.errand) out.delete(player);
+    }
+    return out.size < limit;
+  }
 
   function mindOf(player, nowMs) {
     let mind = minds.get(player);
@@ -642,6 +668,7 @@ function createAmbition({ world, definitionsPath = path.join(process.cwd(), "dat
     const errand = mind.errand;
     if (!errand) return;
     mind.errand = null;
+    out.delete(player);
     // One that came to nothing at once (no shop it can walk to) has cost it no time: it may try something else soon.
     mind.errandAfter = nowMs + (ok || nowMs - errand.startedAt > QUICK_FAILURE_MS ? ERRAND_REST_MS : RETRY_MS);
     mind.thinkAt = Math.min(mind.thinkAt, nowMs + RETRY_MS);
@@ -700,9 +727,15 @@ function createAmbition({ world, definitionsPath = path.join(process.cwd(), "dat
         mind.thinkAt = nowMs + RETRY_MS;
         return;
       }
+      // Enough of the crowd is out already: its work goes on, and it looks again later.
+      if (!room(nowMs)) {
+        mind.thinkAt = nowMs + between(CROWDED_MS);
+        return;
+      }
       const frame = brain.frames[0];
       brain.stopAction(frame.action(), brain.context(frame, nowMs));
       mind.errand = { ...errand, startedAt: nowMs };
+      out.set(player, nowMs);
       brain.pushActivity(activity, nowMs);
       world.log?.("bot_ambition_errand", { username: player.getUsername?.(), errand: errand.kind, item: errand.goal ? itemName(errand.goal.itemId) : null });
     },
