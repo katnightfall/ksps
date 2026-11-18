@@ -71,3 +71,22 @@ test("Rapid Burst (Rosewood blowpipe) has no accuracy or damage modifier: two da
   assert.equal(special.traits.accuracyMultiplier, 1);
   assert.equal(special.traits.damageMultiplier, 1);
 });
+
+test("Cooking: roqed fish stop burning at 95 (Wiki: Roqed fish (5); Cooking/Burn level, Raids food)", () => {
+  const cooking = require("../plugins/skills/data/cooking.json");
+  const food = (name) => cooking.cookables.find((entry) => entry.name === name);
+  assert.equal(food("roqed fish").level, 75);
+  assert.equal(food("roqed fish").stopBurn, 95);
+  // Kyren fish follow their page's chart (163 to 255 out of 256), which first reaches 256 at 99: the page's "99".
+  assert.deepEqual(food("kyren fish").chance.fire, [163, 255]);
+});
+
+test("Agility: the Moss Giant Island ropeswings give 3 experience each way (Wiki: Ropeswing (Brimhaven); Agility shortcuts)", () => {
+  const { shortcuts } = require("../plugins/skills/data/agility-shortcuts.json");
+  const swings = shortcuts.filter((entry) => entry.name.startsWith("Ropeswing (Moss Giant Island"));
+  assert.equal(swings.length, 2);
+  for (const swing of swings) {
+    assert.equal(swing.level, 10);
+    assert.equal(swing.xp, 3);
+  }
+});
