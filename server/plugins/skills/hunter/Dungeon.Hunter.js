@@ -21,7 +21,7 @@ function catchBat({ player, npc, npcId }) {
   if (!def) return false;
   const I = H.core.ItemIdentifiers;
   const weapon = player.getEquipment().get(H.core.Equipment.WEAPON_SLOT).getId();
-  if (![I.BUTTERFLY_NET, I.MAGIC_BUTTERFLY_NET].includes(weapon)) {
+  if (![I.INSECT_NET, I.MAGIC_INSECT_NET].includes(weapon)) {
     player.sendMessage("You need an equipped butterfly net to catch bats."); return true;
   }
   if (!C.available(npc) || !C.nearby(player, npc) || !C.requireLevel(player, def[1])) return true;

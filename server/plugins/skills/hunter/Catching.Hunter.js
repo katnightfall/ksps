@@ -157,7 +157,7 @@ function catchNpc({ player, npc, npcId }) {
   if (!available(npc) || !nearby(player, npc)) return true;
   const I = H.core.ItemIdentifiers;
   const weapon = player.getEquipment().get(H.core.Equipment.WEAPON_SLOT).getId();
-  const net = [I.BUTTERFLY_NET, I.MAGIC_BUTTERFLY_NET].includes(weapon);
+  const net = [I.INSECT_NET, I.MAGIC_INSECT_NET].includes(weapon);
   const def = butterfly;
   const name = creatureName(def);
   const required = net ? def.level : def.hands;
@@ -171,10 +171,10 @@ function catchNpc({ player, npc, npcId }) {
   const inputs = jarred ? [[jar, 1]] : [];
   const outputs = jarred ? [[def.jar, 1]] : [];
   if (!exchange(player, inputs, outputs, false)) { player.getInventory().full(); return true; }
-  begin(player, 2, weapon === I.MAGIC_BUTTERFLY_NET ? ANIM.NET : ANIM.BUTTERFLY, () => {
+  begin(player, 2, weapon === I.MAGIC_INSECT_NET ? ANIM.NET : ANIM.BUTTERFLY, () => {
     if (!available(npc) || !nearby(player, npc) || !requireLevel(player, required)
       || player.getEquipment().get(H.core.Equipment.WEAPON_SLOT).getId() !== weapon) return;
-    const improved = weapon === I.MAGIC_BUTTERFLY_NET;
+    const improved = weapon === I.MAGIC_INSECT_NET;
     const curve = improved && def.handsLow !== undefined ? { ...def, low: def.handsLow, high: def.handsHigh } : def;
     const catchBonus = improved && (def.handsLow === undefined || def.boost === "restore") ? 20 / 256 : 0;
     if (!chance(player, curve, catchBonus, required)) {
@@ -229,7 +229,7 @@ function catchImpling(player, npc, npcId, def) {
   if (!available(npc) || !nearby(player, npc) || !active(player) || player.busy()) return;
   const I = H.core.ItemIdentifiers;
   const weapon = player.getEquipment().get(H.core.Equipment.WEAPON_SLOT).getId();
-  const net = [I.BUTTERFLY_NET, I.MAGIC_BUTTERFLY_NET].includes(weapon);
+  const net = [I.INSECT_NET, I.MAGIC_INSECT_NET].includes(weapon);
   const jarred = player.getInventory().contains(I.IMPLING_JAR);
   const puro = inPuroPuro(player);
   if (!jarred && (net || puro)) { player.sendMessage(NO_JAR_MESSAGE); return; }
@@ -249,8 +249,8 @@ function catchImpling(player, npc, npcId, def) {
   }
   C.cancel(player);
   player.getSkillManager().stopSkillable();
-  player.performAnimation(new H.core.Animation(net ? weapon === I.MAGIC_BUTTERFLY_NET ? ANIM.NET : ANIM.OLD_NET : ANIM.IMPLING_HANDS));
-  const improved = !net || weapon === I.MAGIC_BUTTERFLY_NET;
+  player.performAnimation(new H.core.Animation(net ? weapon === I.MAGIC_INSECT_NET ? ANIM.NET : ANIM.OLD_NET : ANIM.IMPLING_HANDS));
+  const improved = !net || weapon === I.MAGIC_INSECT_NET;
   if (!chance(player, def, improved ? 20 / 256 : 0, required)) {
     player.sendMessage("The creature slips away."); return;
   }

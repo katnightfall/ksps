@@ -90,7 +90,7 @@ function init(pluginApi) {
 /** The items each kind accepts, in the order they are taken (the side panel shows a magic net first). */
 function itemsOf(kind) {
   const I = core.ItemIdentifiers;
-  if (kind === "net") return [I.MAGIC_BUTTERFLY_NET, I.BUTTERFLY_NET];
+  if (kind === "net") return [I.MAGIC_INSECT_NET, I.INSECT_NET];
   return [kind === "repellent" ? I.IMP_REPELLENT : I.IMPLING_JAR];
 }
 

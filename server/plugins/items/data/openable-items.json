@@ -144,7 +144,7 @@
     {"name": "Hunter kit", "entrana": "Some forms of Hunter gear are not appreciated by the monks.", "tables": [
         { "rolls": "all", "entries": [
           {"item": "NOOSE_WAND", "weight": 1, "amount": [1, 1]},
-          {"item": "BUTTERFLY_NET", "weight": 1, "amount": [1, 1]},
+          {"item": "INSECT_NET", "weight": 1, "amount": [1, 1]},
           {"item": "BIRD_SNARE", "weight": 1, "amount": [1, 1]},
           {"item": "RABBIT_SNARE", "weight": 1, "amount": [1, 1]},
           {"item": "TEASING_STICK", "weight": 1, "amount": [1, 1]},

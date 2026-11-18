@@ -90,7 +90,7 @@ function build(coreApi) {
     },
     net: {
       pay: [[I.GOURMET_IMPLING_JAR, 3], [I.EARTH_IMPLING_JAR, 2], [I.ESSENCE_IMPLING_JAR, 1]],
-      give: [I.MAGIC_BUTTERFLY_NET, 1],
+      give: [I.MAGIC_INSECT_NET, 1],
       message: "Elnock takes the impling jars and gives you a magic butterfly net.",
     },
     generator: {
@@ -181,7 +181,7 @@ function gift(player) {
     player.sendMessage("Elnock has no more equipment to spare.");
     return false;
   }
-  const items = [[I.BUTTERFLY_NET, 1], [I.IMPLING_JAR, 7], [I.IMPLING_SCROLL, 1]];
+  const items = [[I.INSECT_NET, 1], [I.IMPLING_JAR, 7], [I.IMPLING_SCROLL, 1]];
   const needed = items.reduce((sum, [, amount]) => sum + amount, 0);
   if (player.getInventory().getFreeSlots() < needed) {
     player.sendMessage("You need more free inventory space for Elnock's equipment.");

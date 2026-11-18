@@ -69,7 +69,7 @@
     "pickupSound": 2582,
     "kits": {
       "fishing": { "items": [["KNIFE", 1], ["BIG_FISHING_NET", 1]], "messages": { "KNIFE,BIG_FISHING_NET": "You take a knife and a big net from the crates.", "BIG_FISHING_NET": "You take a big net from the crates.", "KNIFE": "You take a knife from the crates." } },
-      "hunting": { "items": [["ROPE", 1], ["BUTTERFLY_NET", 1]], "messages": { "ROPE,BUTTERFLY_NET": "You take some rope and a butterfly net from the crates.", "ROPE": "You take some rope from the crates.", "BUTTERFLY_NET": "You take a butterfly net from the crates." } },
+      "hunting": { "items": [["ROPE", 1], ["INSECT_NET", 1]], "messages": { "ROPE,INSECT_NET": "You take some rope and a butterfly net from the crates.", "ROPE": "You take some rope from the crates.", "INSECT_NET": "You take a butterfly net from the crates." } },
       "herblore": { "items": [["PESTLE_AND_MORTAR", 1], ["VIAL_OF_WATER", 2, "always"]], "messages": { "PESTLE_AND_MORTAR,VIAL_OF_WATER": "You take a pestle and mortar and some vials of water from the crates.", "VIAL_OF_WATER": "You take some vials of water from the crates." } }
     },
     "$kits": "capture: each kit gives what the player lacks (the knife only once), and two vials of water every time; messages for a single tool are estimates",

@@ -92,7 +92,7 @@ test("with nothing stored each Remove and Withdraw-all say so (captured lines)",
 });
 
 test("storing the wielded net empties the weapon slot; Remove puts it in the inventory", () => {
-  const { p, sent } = player({ weapon: I.BUTTERFLY_NET });
+  const { p, sent } = player({ weapon: I.INSECT_NET });
   npcOp(p, "Exchange");
   assert.equal(click(p, SIDE, 1), true);
   assert.equal(p.getEquipment().getItems()[core.Equipment.WEAPON_SLOT].getId(), -1);
@@ -102,24 +102,24 @@ test("storing the wielded net empties the weapon slot; Remove puts it in the inv
 
   click(p, MAIN, 3);
   assert.equal(varbit(p, S.STORED_VARBIT.net), S.NET_VALUE.NONE);
-  assert.equal(inv(p, I.BUTTERFLY_NET), 1);
+  assert.equal(inv(p, I.INSECT_NET), 1);
 
   click(p, SIDE, 4);
   assert.equal(varbit(p, S.STORED_VARBIT.net), S.NET_VALUE.BUTTERFLY, "Store-all moves it back in");
-  assert.equal(inv(p, I.BUTTERFLY_NET), 0);
+  assert.equal(inv(p, I.INSECT_NET), 0);
   assert.deepEqual(sent.messages, []);
 });
 
 test("a magic net is stored as 2 and taken before a plain one; only one net fits", () => {
-  const { p } = player({ inventory: [[I.BUTTERFLY_NET, 1], [I.MAGIC_BUTTERFLY_NET, 1]] });
+  const { p } = player({ inventory: [[I.INSECT_NET, 1], [I.MAGIC_INSECT_NET, 1]] });
   npcOp(p, "Exchange");
   click(p, SIDE, 1);
   assert.equal(varbit(p, S.STORED_VARBIT.net), S.NET_VALUE.MAGIC);
-  assert.equal(inv(p, I.MAGIC_BUTTERFLY_NET), 0);
+  assert.equal(inv(p, I.MAGIC_INSECT_NET), 0);
   click(p, SIDE, 1);
-  assert.equal(inv(p, I.BUTTERFLY_NET), 1, "the slot is full");
+  assert.equal(inv(p, I.INSECT_NET), 1, "the slot is full");
   click(p, MAIN, 3);
-  assert.equal(inv(p, I.MAGIC_BUTTERFLY_NET), 1);
+  assert.equal(inv(p, I.MAGIC_INSECT_NET), 1);
   assert.equal(varbit(p, S.STORED_VARBIT.net), S.NET_VALUE.NONE);
 });
 
@@ -174,7 +174,7 @@ test("Quick-withdraw takes everything out without opening the storage", () => {
   p.setAttribute(S.STORAGE_ATTRIBUTE.jars, 4);
   assert.equal(npcOp(p, "Quick-withdraw"), true);
   assert.deepEqual(sent.subs, []);
-  assert.deepEqual([inv(p, I.BUTTERFLY_NET), inv(p, I.IMP_REPELLENT), inv(p, I.IMPLING_JAR)], [1, 1, 4]);
+  assert.deepEqual([inv(p, I.INSECT_NET), inv(p, I.IMP_REPELLENT), inv(p, I.IMPLING_JAR)], [1, 1, 4]);
   assert.deepEqual(KINDS(p), [0, 0, 0]);
   npcOp(p, "Quick-withdraw");
   assert.equal(sent.messages.at(-1), "You have no items that can be withdrawn.");
@@ -191,11 +191,11 @@ test("storage clicks do nothing unless the storage is open", () => {
 });
 
 test("Examine names the net the panel shows: a butterfly net unless a magic one is there", () => {
-  const { p, sent } = player({ inventory: [[I.BUTTERFLY_NET, 1]] });
+  const { p, sent } = player({ inventory: [[I.INSECT_NET, 1]] });
   npcOp(p, "Exchange");
   click(p, SIDE, 1, 10);
   click(p, MAIN, 3, 10);
-  const butterfly = core.ItemDefinition.forId(I.BUTTERFLY_NET).getExamine();
+  const butterfly = core.ItemDefinition.forId(I.INSECT_NET).getExamine();
   assert.deepEqual(sent.messages, [butterfly, butterfly]);
 });
 

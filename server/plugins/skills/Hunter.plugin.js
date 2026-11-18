@@ -64,7 +64,7 @@ module.exports = {
     api.onItemAction("Rabbit snare", { Lay: Traps.activate });
     api.onObjectInteraction("Rabbit snare", { Check: Traps.check, Dismantle: Traps.dismantle, Reset: Traps.reset });
     api.onObjectInteraction("Rabbit hole", { Flush: Rabbits.flush });
-    for (const name of ["Butterfly net", "Magic butterfly net"])
+    for (const name of ["Insect net", "Magic insect net"])
       api.onItemAction(name, { "Check totals": ImplingTracker.checkTotals, "Check Totals": ImplingTracker.checkTotals });
     api.onItemAction("Ring of pursuit", { Check: Tracking.checkRing, Break: Tracking.breakRing });
     api.onNpcInteraction("Herbiboar", { Harvest: Herbiboar.harvest });

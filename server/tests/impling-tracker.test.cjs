@@ -70,7 +70,7 @@ test("the tracker has one entry per enum 1316 model", () => {
 
 test("a fresh player's tracker is live's zero lists, opened as the main modal", async (t) => {
   const f = actor(t);
-  await checkTotals(f, core.ItemIdentifiers.MAGIC_BUTTERFLY_NET);
+  await checkTotals(f, core.ItemIdentifiers.MAGIC_INSECT_NET);
   assert.deepEqual(f.sent.interfaces, [TRACKER]);
   assert.deepEqual(f.sent.scripts.find(([id]) => id === 1327),
     [1327, LIVE_SURFACE_ZERO, LIVE_PURO_AFTER.replace("Young:<br><col=ffffff>1", "Young:<br><col=ffffff>0").replace("Essence:<br><col=ffffff>1", "Essence:<br><col=ffffff>0"), ...LIVE_COMPONENTS]);
@@ -83,7 +83,7 @@ test("Puro-Puro catches of a young and an essence impling give live's Puro-Puro 
   caught(f.p, "ii_impling_type_12_johnny", false);
   caught(f.p, "ii_impling_type_1", false);
   caught(f.p, "ii_impling_type_1", false);
-  await checkTotals(f, core.ItemIdentifiers.BUTTERFLY_NET);
+  await checkTotals(f, core.ItemIdentifiers.INSECT_NET);
   const script = f.sent.scripts.find(([id]) => id === 1327);
   assert.equal(script[2], LIVE_PURO_AFTER);
   assert.equal(script[1], LIVE_SURFACE_ZERO.replace("Baby:<br><col=ffffff>0", "Baby:<br><col=ffffff>2").replace("Crystal:<br><col=ffffff>0", "Crystal:<br><col=ffffff>1"));

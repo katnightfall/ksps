@@ -13,7 +13,7 @@ before(async()=>{
   C.H.core=core;C.H.data=require('../plugins/skills/hunter/Data.Hunter').build(core);
   C.H.api={emitCustomEvent(){}};
 });
-function fixture(t,net=I.BUTTERFLY_NET,jar=false){
+function fixture(t,net=I.INSECT_NET,jar=false){
   const channel={kind:'test',remoteAddress:'127.0.0.1',isOpen:()=>true,send:()=>true,close(){},onData(){},onError(){},onClose(){}};
   const p=new Player(new PlayerSession(channel),new core.Location(2337,3604)),messages=[],xp=[];
   p.setIndex(1700);p.setUsername('butterfly-test');p.setRegistered(true);p.setNeedsPlacement(false);p.setHitpoints(10);
@@ -31,7 +31,7 @@ function fixture(t,net=I.BUTTERFLY_NET,jar=false){
   const finish=()=>{C.H.tick+=2;C.processActions();};
   return {p,npc,messages,xp,catchNpc,finish};
 }
-for(const net of [I.BUTTERFLY_NET,I.MAGIC_BUTTERFLY_NET]){
+for(const net of [I.INSECT_NET,I.MAGIC_INSECT_NET]){
   test('net '+net+' without a jar reports a net catch at level15',t=>{
     const f=fixture(t,net);f.catchNpc();assert.deepEqual(f.messages,[]);f.finish();
     assert.deepEqual(f.messages,['You catch the creature in your net and release it.']);

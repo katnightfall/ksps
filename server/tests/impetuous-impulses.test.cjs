@@ -268,7 +268,7 @@ test("confirming either wheat outcome sets the toggle", () => {
 test("Elnock's gift is once per account and needs room", () => {
   const p = player();
   assert.equal(plugin._test.gift(p), true);
-  assert.equal(p.getInventory().getAmount(ItemIds.BUTTERFLY_NET), 1);
+  assert.equal(p.getInventory().getAmount(ItemIds.INSECT_NET), 1);
   assert.equal(p.getInventory().getAmount(ItemIds.IMPLING_JAR), 7);
   assert.equal(p.getInventory().getAmount(ItemIds.IMPLING_SCROLL), 1);
   assert.equal(p.getAttribute(plugin._test.GIFT_ATTRIBUTE), true);
@@ -278,13 +278,13 @@ test("Elnock's gift is once per account and needs room", () => {
   const full = player({ items: { [ItemIds.BABY_IMPLING_JAR]: 25 } });
   assert.equal(plugin._test.gift(full), false);
   assert.equal(full.getAttribute(plugin._test.GIFT_ATTRIBUTE), undefined);
-  assert.equal(full.getInventory().getAmount(ItemIds.BUTTERFLY_NET), 0);
+  assert.equal(full.getInventory().getAmount(ItemIds.INSECT_NET), 0);
 });
 
 test("Elnock equipment exchanges require and consume all three jar stacks", () => {
   const offers = [
     ["repellent", [[ItemIds.BABY_IMPLING_JAR, 3], [ItemIds.YOUNG_IMPLING_JAR, 2], [ItemIds.GOURMET_IMPLING_JAR, 1]], ItemIds.IMP_REPELLENT],
-    ["net", [[ItemIds.GOURMET_IMPLING_JAR, 3], [ItemIds.EARTH_IMPLING_JAR, 2], [ItemIds.ESSENCE_IMPLING_JAR, 1]], ItemIds.MAGIC_BUTTERFLY_NET],
+    ["net", [[ItemIds.GOURMET_IMPLING_JAR, 3], [ItemIds.EARTH_IMPLING_JAR, 2], [ItemIds.ESSENCE_IMPLING_JAR, 1]], ItemIds.MAGIC_INSECT_NET],
     ["generator", [[ItemIds.ESSENCE_IMPLING_JAR, 3], [ItemIds.ECLECTIC_IMPLING_JAR, 2], [ItemIds.NATURE_IMPLING_JAR, 1]], ItemIds.JAR_GENERATOR],
   ];
   for (const [key, payment, reward] of offers) {
@@ -335,7 +335,7 @@ test("Elnock's Exchange: a shop_frame slot selects ii_elnex, Confirm trades it",
   assert.equal(p.getInventory().getAmount(ItemIds.JAR_GENERATOR), 0, "slot 6 is the third offer, not the net");
   elnock.selectOffer({ player: p, slot: 3 });
   elnock.confirmOffer({ player: p });
-  assert.equal(p.getInventory().getAmount(ItemIds.MAGIC_BUTTERFLY_NET), 1, "slot 3: the net, for the complete payment");
+  assert.equal(p.getInventory().getAmount(ItemIds.MAGIC_INSECT_NET), 1, "slot 3: the net, for the complete payment");
 
   elnock.selectOffer({ player: p, slot: 4 });
   assert.equal(p.varbits.get(elnock.SELECTED_VARBIT), 2, "only the offers' own slots select");
@@ -476,7 +476,7 @@ test("Puro-Puro roaming network uses mapped points, crosses cache wheat and repl
     }
     assert.ok(reached, "the seeded approach must satisfy the real adjacent-reach predicate");
     p.getSkillManager().setMaxLevel(core.Skill.HUNTER, 99).setCurrentLevels(core.Skill.HUNTER, 99);
-    p.getEquipment().setItem(core.Equipment.WEAPON_SLOT, new core.Item(I.BUTTERFLY_NET, 1));
+    p.getEquipment().setItem(core.Equipment.WEAPON_SLOT, new core.Item(I.INSECT_NET, 1));
     p.getInventory().adds(I.IMPLING_JAR, 2);
     const definition = npc.getCurrentDefinition(p);
     const option = definition.getActions().findIndex(action => action === "Catch") + 1;
@@ -696,7 +696,7 @@ test("Puro-Puro fixed implings use world spawns, cross wheat and return after a 
     }
     assert.ok(reached, "supplied approach satisfies the real reach predicate");
     p.getSkillManager().setMaxLevel(core.Skill.HUNTER, 99).setCurrentLevels(core.Skill.HUNTER, 99);
-    p.getEquipment().setItem(core.Equipment.WEAPON_SLOT, new core.Item(I.BUTTERFLY_NET, 1));
+    p.getEquipment().setItem(core.Equipment.WEAPON_SLOT, new core.Item(I.INSECT_NET, 1));
     p.getInventory().adds(I.IMPLING_JAR, 2);
     const option = npc.getCurrentDefinition(p).getActions().findIndex(action => action === "Catch") + 1;
     assert.ok(option > 0); assert.equal(p.busy(), false);

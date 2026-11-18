@@ -342,7 +342,7 @@ test("Hunter cache data, trap ownership, transactions, cancellation and persiste
     assert.equal(Crabs.bases.size,20);assert.equal(Drift.bases.size,2);
 
     // Moths use their published distinct net/barehand curves, with current levels on tick two.
-    q.levels.set(Skill.HUNTER,75);q.equipment.set(core.Equipment.WEAPON_SLOT,I.MAGIC_BUTTERFLY_NET);
+    q.levels.set(Skill.HUNTER,75);q.equipment.set(core.Equipment.WEAPON_SLOT,I.MAGIC_INSECT_NET);
     q.counts.set(I.BUTTERFLY_JAR,1);
     const moth=prey(core.NpcIdentifiers.MOONLIGHT_MOTH,q.getLocation());
     Math.random=()=>0.85;
@@ -361,7 +361,7 @@ test("Hunter cache data, trap ownership, transactions, cancellation and persiste
     iq.sendMessage=m=>said.push(m);iq.getPacketSender=()=>({...packets,sendSound:id=>sounds.push(id),sendTypedMessage:(type,m)=>said.push(type===core.ChatType.SPAM?`spam:${m}`:m)});
     iq.performAnimation=a=>grabs.push(a.getId());
     const puroTile=new core.Location(2567,4320,0),outsideTile=new core.Location(3000,3000,0);
-    iq.moveTo(puroTile);iq.equipment.set(core.Equipment.WEAPON_SLOT,I.BUTTERFLY_NET);iq.counts.set(I.IMPLING_JAR,2);
+    iq.moveTo(puroTile);iq.equipment.set(core.Equipment.WEAPON_SLOT,I.INSECT_NET);iq.counts.set(I.IMPLING_JAR,2);
     Math.random=()=>0;
     const baby=prey(N.BABY_IMPLING_2,puroTile.clone());
     Catching.catchNpc({player:iq,npc:baby,npcId:baby.getId()});
@@ -386,7 +386,7 @@ test("Hunter cache data, trap ownership, transactions, cancellation and persiste
     iq.equipment.clear();iq.counts.set(I.IMPLING_JAR,1);iq.levels.set(Skill.HUNTER,45);said.length=0;
     Catching.catchNpc({player:iq,npc:earth,npcId:earth.getId()});
     assert.deepEqual(said,["You need a Hunter level of at least 46 to catch this impling barehanded."]);
-    iq.equipment.set(core.Equipment.WEAPON_SLOT,I.BUTTERFLY_NET);iq.levels.set(Skill.HUNTER,35);said.length=0;
+    iq.equipment.set(core.Equipment.WEAPON_SLOT,I.INSECT_NET);iq.levels.set(Skill.HUNTER,35);said.length=0;
     Catching.catchNpc({player:iq,npc:earth,npcId:earth.getId()});
     assert.deepEqual(said,["You need a Hunter level of at least 36 to catch this impling."]);
     assert.equal(iq.counts.get(I.IMPLING_JAR),1,"a refused catch keeps the jar");
@@ -460,7 +460,7 @@ test("Hunter cache data, trap ownership, transactions, cancellation and persiste
     advance(15);q.moveTo(new core.Location(3100,3100));advance(1);
     assert.equal(Crabs.states(q)[crabId].value,1,"leaving resets caught traps as well as baited traps");
 
-    q.counts.clear();q.equipment.set(core.Equipment.WEAPON_SLOT,I.BUTTERFLY_NET);
+    q.counts.clear();q.equipment.set(core.Equipment.WEAPON_SLOT,I.INSECT_NET);
     const bat=prey(core.NpcIdentifiers.PSYKK_BAT,q.getLocation());
     Dungeon.catchBat({player:q,npc:bat,npcId:bat.getId()});q.levels.set(Skill.HUNTER,89);advance(2);
     assert.equal(q.counts.has(I.RAW_PSYKK_BAT_6_),false);

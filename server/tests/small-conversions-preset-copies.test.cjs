@@ -587,7 +587,7 @@ test("Elnock jar generator exchange requires the complete payment through Trade 
   levels(f, core.Skill.HUNTER);
   f.p.setHitpoints(99);
   f.p.setLocation(new core.Location(2592, 4320, 0));
-  f.p.getEquipment().setItem(core.Equipment.WEAPON_SLOT, new core.Item(I.BUTTERFLY_NET, 1));
+  f.p.getEquipment().setItem(core.Equipment.WEAPON_SLOT, new core.Item(I.INSECT_NET, 1));
   const npc = core.NPC.create(core.NpcIdentifiers.BABY_IMPLING_2, f.p.getLocation().clone());
   npc.setRegistered(true); npc.setNeedsPlacement(false);
   t.after(() => npc.setRegistered(false));
@@ -768,7 +768,7 @@ test('anchovy supplies make an impling jar that can catch a Puro-Puro impling', 
 
   // Seed the actor and location; the registered Catch hook and real inventory exchange run.
   f.p.setLocation(new core.Location(2592, 4320, 0));
-  f.p.getEquipment().setItem(core.Equipment.WEAPON_SLOT, new core.Item(I.BUTTERFLY_NET, 1));
+  f.p.getEquipment().setItem(core.Equipment.WEAPON_SLOT, new core.Item(I.INSECT_NET, 1));
   const npc = core.NPC.create(core.NpcIdentifiers.BABY_IMPLING_2, f.p.getLocation().clone());
   npc.setRegistered(true); npc.setNeedsPlacement(false);
   t.after(() => npc.setRegistered(false));
