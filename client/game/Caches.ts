@@ -56,7 +56,10 @@ export function getIndexName(indexId: number): string {
 }
 
 export async function fetchCacheInfos(): Promise<CacheInfo[]> {
-    const resp = await fetch(CACHE_PATH + "caches.json");
+    // Ours: always asked of the server again (a 304 when nothing changed). The list names the
+    // cache to load, and /caches/ is served with a day's max-age, so a copy the browser kept
+    // would hold a returning player on yesterday's cache for a day after the server moved on.
+    const resp = await fetch(CACHE_PATH + "caches.json", { cache: "no-cache" });
     return resp.json();
 }
 
