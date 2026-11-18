@@ -59,11 +59,11 @@ function someone(t, { isBot = true, at = HOME } = {}) {
 }
 
 /** A world with everyone the test makes standing in it, and a record of every line said. */
-function worldWith({ chat = true, random = Math.random, groupRandom = () => 0 } = {}) {
+function worldWith({ chat = true, chatSeconds = 20, random = Math.random, groupRandom = () => 0 } = {}) {
   const everyone = [];
   const said = [];
   const logged = [];
-  const settings = { chat };
+  const settings = { chat, chatSeconds };
   const world = {
     core: {
       ...core,
@@ -74,7 +74,7 @@ function worldWith({ chat = true, random = Math.random, groupRandom = () => 0 } 
   };
   const runtime = { entriesByUsername: new Map() };
   world.ambition = Ambition.createAmbition({ world });
-  world.talk = Talk.createBotTalk({ world, enabled: () => settings.chat, random });
+  world.talk = Talk.createBotTalk({ world, enabled: () => settings.chat, listenerQuietMs: () => settings.chatSeconds * 1000, random });
   world.groups = Groups.createBotGroups({ world, runtime, registry, ambition: world.ambition, talk: world.talk, random: groupRandom, minutes: [30, 90] });
   const join = (t, options = {}) => {
     const p = someone(t, options);
@@ -151,6 +151,32 @@ test("however many bots stand around a person, that person hears one line every 
   for (const bot of lonely) quiet.note(bot, "got", { goal: { itemId: Items.STEEL_AXE } }, 1000);
   for (let at = 1000; at <= 61_000; at += 600) for (const bot of lonely) quiet.tick(brainOf(bot), at);
   assert.deepEqual(unheard, []);
+});
+
+test("a world sets how often a person hears a line, and the page changes it at once", (t) => {
+  const { said, join, talk, settings } = worldWith({ chatSeconds: 60 });
+  join(t, { isBot: false });
+  const bots = Array.from({ length: 30 }, () => join(t));
+  for (const bot of bots) talk.note(bot, "got", { goal: { itemId: Items.STEEL_AXE } }, 1000);
+  const times = [];
+  const listen = (from, to) => {
+    for (let at = from; at <= to; at += 600) {
+      for (const bot of bots) talk.tick(brainOf(bot), at);
+      while (times.length < said.length) times.push(at);
+    }
+  };
+  // What it has to say stays fresh for a minute and a half: two lines of it are heard a minute apart.
+  listen(1000, 80_000);
+  assert.equal(said.length, 2);
+  assert.ok(times[1] - times[0] >= 60_000, "a minute between lines");
+  // Turned down to ten seconds while they talk: the next comes that soon after.
+  settings.chatSeconds = 10;
+  listen(80_600, 89_000);
+  assert.equal(said.length, 3);
+  // The shipped setting, and what a world's own answer is read as.
+  const PlayerBots = require("../plugins/bots/PlayerBots.plugin");
+  assert.equal(PlayerBots.config[Talk.CHAT_SECONDS_CONFIG].default, 20);
+  assert.equal(Talk.worldListenerQuietMs(), Talk.LISTENER_QUIET_MS, "no answer from the world: 20 seconds");
 });
 
 test("a bot beside the speaker may answer, once, and an answer is never answered", (t) => {

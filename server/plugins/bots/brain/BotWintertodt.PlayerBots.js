@@ -32,7 +32,7 @@
  * (World runs them from a person's turn, not a bot's): the Wintertodt hangs the cold, the
  * warmth meter and the reward at a round's end on who has walked into the prison, so without
  * them a bot was not there to the minigame. And Brew'ma: she is not among this server's
- * spawns, so the first bot through the doors puts her at her place by the crates if she is not
+ * spawns, so the first bot to make a potion puts her at her place by the crates if she is not
  * there (people without the Herblore may use her as well, as in the game itself).
  *
  * What it does not do: fletch the roots into kindling, or step out from under the Wintertodt's
@@ -352,12 +352,16 @@ function createBotWintertodt({ world, groups = null, registry, emit, ambition = 
       const from = crate(player, "Take-concoction");
       return from && click(player, from, "Take-concoction") ? true : giveUp();
     }
+    // Brew'ma is looked for once it has the vial, not as it steps through the doors: by then the
+    // game has woken the people of the prison around it, and one put there stands ready for the herb.
+    const mixer = brewma();
+    if (!mixer) return giveUp();
     if (herbs < unfinished) {
       if (Shared.actionOf(player) === "pick") return true;
       const roots = nearest(player, objectsNamed(Shared.OBJECT.SPROUTING_ROOTS, CORRIDOR, 10));
       return roots && click(player, roots, "Pick") ? true : giveUp();
     }
-    return useOn(player, Shared.ITEM.BRUMA_HERB, brewma()) ? true : giveUp();
+    return useOn(player, Shared.ITEM.BRUMA_HERB, mixer) ? true : giveUp();
   }
 
   /** Whether a corner can burn as it stands: lit, or unlit with its pyromancer on her feet. */
@@ -536,7 +540,7 @@ function createBotWintertodt({ world, groups = null, registry, emit, ambition = 
         bot.enteredAt = nowMs;
         bot.wasActive = Round.isActive();
         bot.corner = takeCorner(player, bot.partyCorner ?? 0);
-        say("bot_wintertodt_entered", player, { food: foodCarried(player), corner: Shared.CORNERS[bot.corner].name, brewma: !!brewma() });
+        say("bot_wintertodt_entered", player, { food: foodCarried(player), corner: Shared.CORNERS[bot.corner].name });
         return "play";
       }
       if (nowMs < bot.lookAt) return null;

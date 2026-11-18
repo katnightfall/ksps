@@ -11,15 +11,16 @@
  * It is kept rare, so a crowd of bots does not bury the people playing:
  *
  *   a bot      says at most one line of its own every few minutes (each draws its own gap)
- *   a listener hears at most one of these lines every LISTENER_QUIET_MS, however many bots
- *              stand around them: a bot about to speak stays quiet if anyone in earshot has
- *              just been spoken at
+ *   a listener hears at most one of these lines every 20 seconds (world setting
+ *              "PlayerBots:chatSeconds"), however many bots stand around them: a bot about to
+ *              speak stays quiet if anyone in earshot has just been spoken at. Beside a crowd
+ *              that is how often a line comes, so it is the setting to raise for quieter bots
  *   nobody     in earshot: nothing is said. A line no person can read is not worth sending.
  *   a reply    is one bot answering one line, once: bots do not hold conversations
  *
  * A group forming (BotGroups) is a short exchange, so its lines go by the exchange and not by
- * the bot: a proposal is said only if nobody in earshot has heard one of these lines for
- * PROPOSAL_QUIET_MS, and the few answers to a proposal that was said follow it freely. A
+ * the bot: a proposal is said only if nobody in earshot has heard one of these lines for half
+ * as long again (30 seconds), and the few answers to a proposal that was said follow it freely. A
  * proposal nobody could be told of is made in silence, and so is its party.
  *
  * World setting "PlayerBots:chat" (default on): off, the levelling bots say nothing at all.
@@ -28,11 +29,15 @@ const { ItemDefinition } = require("../../../src/main/typescript/elvarg/game/def
 const { PluginManager } = require("../../../src/main/typescript/elvarg/plugins/PluginManager");
 
 const CHAT_CONFIG = "PlayerBots:chat";
+const CHAT_SECONDS_CONFIG = "PlayerBots:chatSeconds";
 // A bot's own lines are this far apart.
 const BOT_GAP_MS = [4 * 60_000, 9 * 60_000];
-// A person hears a bot's line no more often than this, and a group's proposal no more often than that.
+// A person hears a bot's line no more often than this (unless the world sets its own), and a
+// group's proposal no more often than that: half as long again.
 const LISTENER_QUIET_MS = 20_000;
 const PROPOSAL_QUIET_MS = 30_000;
+const PROPOSAL_QUIET = PROPOSAL_QUIET_MS / LISTENER_QUIET_MS;
+const LEAST_QUIET_SECONDS = 5;
 // How far a line carries, and how near a bot must be to answer it.
 const EARSHOT = 14;
 const ANSWER_RANGE = 8;
@@ -92,7 +97,13 @@ function fill(template, fields) {
   return complete ? text : null;
 }
 
-function createBotTalk({ world, enabled = worldBotsTalk, random = Math.random } = {}) {
+/** How long a person is left in peace after a bot's line (world setting in seconds, default 20). */
+function worldListenerQuietMs() {
+  const seconds = Number(PluginManager.getPluginConfig?.(CHAT_SECONDS_CONFIG));
+  return Number.isFinite(seconds) && seconds >= LEAST_QUIET_SECONDS ? seconds * 1000 : LISTENER_QUIET_MS;
+}
+
+function createBotTalk({ world, enabled = worldBotsTalk, listenerQuietMs = worldListenerQuietMs, random = Math.random } = {}) {
   const core = world.core;
   const bots = new WeakMap();
   /** When each person was last spoken at by a bot. */
@@ -129,7 +140,8 @@ function createBotTalk({ world, enabled = worldBotsTalk, random = Math.random } 
     if (group === null && nowMs < bot.quietUntil) return false;
     const people = near(player, EARSHOT).filter((other) => other.isPlayerBot?.() !== true);
     if (people.length === 0) return false;
-    const quietMs = group === "follow" ? 0 : group === "open" ? PROPOSAL_QUIET_MS : LISTENER_QUIET_MS;
+    // Asked at every line, so the world config page changes it at once.
+    const quietMs = group === "follow" ? 0 : listenerQuietMs() * (group === "open" ? PROPOSAL_QUIET : 1);
     if (people.some((person) => nowMs - (heardAt.get(person) ?? -Infinity) < quietMs)) return false;
     for (const person of people) heardAt.set(person, nowMs);
     if (group === null) bot.quietUntil = nowMs + between(BOT_GAP_MS, random);
@@ -203,4 +215,4 @@ function createBotTalk({ world, enabled = worldBotsTalk, random = Math.random } 
   return { say, note, tick, levelUp, line, pending: (player) => bots.get(player)?.pending ?? null };
 }
 
-module.exports = { CHAT_CONFIG, LINES, LISTENER_QUIET_MS, PROPOSAL_QUIET_MS, createBotTalk, fill, worldBotsTalk };
+module.exports = { CHAT_CONFIG, CHAT_SECONDS_CONFIG, LINES, LISTENER_QUIET_MS, PROPOSAL_QUIET_MS, createBotTalk, fill, worldBotsTalk, worldListenerQuietMs };

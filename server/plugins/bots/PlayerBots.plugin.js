@@ -257,13 +257,17 @@ module.exports = {
       type: "boolean", label: "Levelling bots talk", default: true,
       help: "With goals on, a levelling bot now and then says a short line in public chat about what it is doing (what it is saving for, a level gained, something it bought) and may answer the bot beside it. A bot says at most one line of its own every few minutes, a player hears at most one such line every 20 seconds however many bots are around, and nothing is said with no player in earshot. Off: they say nothing, and form their groups in silence.",
     },
+    "PlayerBots:chatSeconds": {
+      type: "number", label: "Seconds between bot lines a player hears", default: 20, integer: true, min: 5, max: 3600,
+      help: "A player hears at most one line from the levelling bots in this many seconds, however many bots stand around them; a group's proposal waits half as long again, and the couple of answers to a proposal that was said follow it. Beside a crowd of bots this is how often a line comes: 20 is three lines a minute, 60 is one. Raise it for quieter bots.",
+    },
     "PlayerBots:groups": {
       type: "boolean", label: "Levelling bots form groups", default: true,
       help: "With goals on, a levelling bot now and then proposes something to do together (the outings in bot-groups.json, and Wintertodt for those with the Firemaking for it); bots near it, and bots further off that are after the same skill, may agree, and they travel there and do it side by side with their own tools and supplies. Off: every bot keeps to itself.",
     },
     "PlayerBots:wintertodt": {
       type: "boolean", label: "Levelling bots go to the Wintertodt", default: true,
-      help: "With groups on, bots with 50 Firemaking, an axe and cooked food of their own may propose a trip to the Wintertodt: each packs at its bank, takes Veos's ship from Port Sarim, walks to the camp, and plays by the minigame's rules. Behind the doors each keeps a corner's brazier burning (chops roots and feeds them, lights it, mends it with a hammer from the crate), heals its pyromancer with a rejuvenation potion that Brew'ma mixes for it, and eats its food or drinks the potion against the cold. After a round or two it takes what it earned from the reward cart and comes home the same way. At most 40 bots of a world are on the trip at once. Brew'ma is put at her place by the crates when the first bot goes in, if she is not there already. Off: the Wintertodt outing is never proposed, and Firemaking is not a level bots go after; a bot that is over there when it is turned off still comes home.",
+      help: "With groups on, bots with 50 Firemaking, an axe and cooked food of their own may propose a trip to the Wintertodt: each packs at its bank, takes Veos's ship from Port Sarim, walks to the camp, and plays by the minigame's rules. Behind the doors each keeps a corner's brazier burning (chops roots and feeds them, lights it, mends it with a hammer from the crate), heals its pyromancer with a rejuvenation potion that Brew'ma mixes for it, and eats its food or drinks the potion against the cold. After a round or two it takes what it earned from the reward cart and comes home the same way. At most 40 bots of a world are on the trip at once. Brew'ma is put at her place by the crates when the first bot makes its potion, if she is not there already. Off: the Wintertodt outing is never proposed, and Firemaking is not a level bots go after; a bot that is over there when it is turned off still comes home.",
     },
     "PlayerBots:groupMinutes": {
       type: "json", label: "Minutes between a bot's group proposals", defaultText: "[30, 90]",
