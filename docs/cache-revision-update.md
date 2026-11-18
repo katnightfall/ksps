@@ -295,6 +295,29 @@ id moves with it: look for such keys in persisted attributes.
 `compare:cache` reported only the Opponent Info literal; the rest were found by searching for the
 group ids (see step 4).
 
+`osrs-242_2026-11-03` → `osrs-242_2026-11-11` (Birds and the Wasps, A Shell of a Friend; OpenRS2
+2762):
+
+| Change | Effect on the old code | Fix |
+|---|---|---|
+| 42 item ids, 10 NPC ids and 5 loc ids added at the end; 14 unused loc ids filled | — | identifiers regenerated |
+| Butterfly net → Insect net (10010, its note and placeholder), Magic butterfly net → Magic insect net (11259) | The five constants are gone (a JavaScript plugin reads `undefined`: Hunter, Impetuous Impulses, `moons-of-peril.json`, `openable-items.json`); three `item-gameplay.json` entries are skipped by name, so the nets stop being weapons; data matched by name (`entrana-items.json`, `never-kept-on-death.json`, the Check totals hook) | references renamed. Messages we send still say "butterfly net": no capture shows the new wording |
+| 18 NPC ids that had no NPC, most of them retired in rev 242, were given to new ones: 3216-3227, 5523 and 8665 (Farmer Bea, the Bee dealer, wasp swarms, honey buzzards) and 16475-16478 (the swarms' multi parents) | The generator drops a constant whose id has a new name: the retired tutors' constants (Ranged, Magic, Prayer and others) are gone, and a plugin keyed on one would answer the new NPC. Data keyed by these ids still describes the old NPCs (`npc-dialogue-index.json`, `npc-examines.json`) | `Tutors.plugin.js` keeps the four tutors without a successor under ids no NPC has (`RETIRED_TUTORS`). None of the new NPCs is spawned; clear the old entries before one is (`retired-npcs.json` lists them) |
+| `misc_both_manage` (391) rebuilt as an IF3 interface: every component moved (62 by name, 102 gone), each bar is one rectangle sized by script 10316, and a click changes its varbit in the client (scripts 1593, 634 and their like) before the server answers | Managing Miscellania: every button, the coffer text and the Etceterian panels point elsewhere | `Interface.ManagingMiscellania.js`, ids by component name. The client's own change and the server's agree because both refuse the same clicks (no idle subject, ten on a job) |
+| `fossil_driftnet` (607): `confirm_bank` 13 → 14, `cancel` 14 → 15 | — | unused |
+| Native counts grew (16,886 NPCs, 63,339 locs, 34,808 items, 15,178 sequences) | The four seasonal archives target the old cache and are refused, and their private ids collide with the new native ones | importers re-run as for 242: only `targetCache` and the private ids change (NPCs +10, locs +5, the one private item +42, sequences +4) |
+| Map edits (12 squares): Lumbridge castle's first floor rearranged, the land south-east of Varrock (Birds and the Wasps), the Haunted Woods, invisible walls around Death's Office | Shortest Path routes on old collision; the bot object index names the old cache | `node scripts/export-collision-map.cjs`; the index the server rebuilt at its first start |
+| The Lost Tribe's chest (6910) is back at (3209, 3217, 1); the 3 November cache had it at (3211, 3212, 1) | none: `LostTribe.Quest.js` accepts both tiles | comments |
+| The Law Altar's exit portal moved from (2464, 4817) to (2464, 4820) | Our arrival tile (2464, 4818) is still open ground, now two tiles south of the portal instead of one north of it | left: no capture shows where live lands a player now (Runecrafting, Guardians of the Rift) |
+| Quests: A Shell of a Friend and Birds and the Wasps join the quest table | Not implemented (as Mudfoot's Big Adventure and The Writing's on the Wall) | — |
+| League task list (enum 5950): "Reach Level 99 Sailing" appended at position 1593, one description reworded. Nothing before it moves, so saved completion bits keep their tasks | `league-tasks.json` lacks the task: the client lists it, the server never completes it | `yarn generate:league-tasks` (needs the Wiki) |
+| Two new weapons (Painted shortsword, Painted shortbow) | `weapon-data` test | `sync:weapon-types` picked SWORD and SHORTBOW; it gave the shortbow the comp bows' stance (the type's most common one that is not the plain human stance), set by hand to the plain shortbows' |
+| One fewer interface is IF1 (236 containers, was 247) | client test `widget-if1-container-decode`, which used 391 as its example | the test reads `death_dice` (99) |
+
+`compare:cache` named 391 and 607 and nothing else. An id is not for ever: a retired (nameless)
+id can come back as something else, so after regenerating identifiers look at the removed
+constants for ids that now have another name, and search the data keyed by id for them.
+
 ## Bugs the tools found that predate 241
 
 Found by the stack and interface checks, present on 237 too:

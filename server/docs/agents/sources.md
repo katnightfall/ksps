@@ -32,21 +32,21 @@ every captured id against the cache - live may be a newer revision than `server/
 
 ## Pinned cache research reference
 
-Use [Joshua-F/osrs-dumps at 853150e3f75e1463391b470f98caf5d3bf796339](https://github.com/Joshua-F/osrs-dumps/tree/853150e3f75e1463391b470f98caf5d3bf796339)
+Use [Joshua-F/osrs-dumps at ea06305a06cc7985124a177d032638a4988a66b0](https://github.com/Joshua-F/osrs-dumps/tree/ea06305a06cc7985124a177d032638a4988a66b0)
 for readable client scripts, interface layouts and named cache definitions. This
-2026-11-03 revision 242 snapshot (with its gamevals) matches `server/target.txt` (`osrs-242_2026-11-03`).
-Its [snapshot commit](https://github.com/Joshua-F/osrs-dumps/commit/853150e3f75e1463391b470f98caf5d3bf796339)
-identifies [OpenRS2 cache 2757](https://archive.openrs2.org/caches/runescape/2757) as its source.
+2026-11-11 revision 242 snapshot (its names are the cache's gamevals) matches `server/target.txt` (`osrs-242_2026-11-11`).
+Its [snapshot commit](https://github.com/Joshua-F/osrs-dumps/commit/ea06305a06cc7985124a177d032638a4988a66b0)
+identifies [OpenRS2 cache 2762](https://archive.openrs2.org/caches/runescape/2762) as its source.
 
-- [script/](https://github.com/Joshua-F/osrs-dumps/tree/853150e3f75e1463391b470f98caf5d3bf796339/script):
+- [script/](https://github.com/Joshua-F/osrs-dumps/tree/ea06305a06cc7985124a177d032638a4988a66b0/script):
   readable CS2 control flow, script arguments and varp/varbit dependencies.
-- [interface/](https://github.com/Joshua-F/osrs-dumps/tree/853150e3f75e1463391b470f98caf5d3bf796339/interface):
+- [interface/](https://github.com/Joshua-F/osrs-dumps/tree/ea06305a06cc7985124a177d032638a4988a66b0/interface):
   component layouts, on-load scripts and event listeners.
-- [config/](https://github.com/Joshua-F/osrs-dumps/tree/853150e3f75e1463391b470f98caf5d3bf796339/config)
-  and [symbols/](https://github.com/Joshua-F/osrs-dumps/tree/853150e3f75e1463391b470f98caf5d3bf796339/symbols):
+- [config/](https://github.com/Joshua-F/osrs-dumps/tree/ea06305a06cc7985124a177d032638a4988a66b0/config)
+  and [symbols/](https://github.com/Joshua-F/osrs-dumps/tree/ea06305a06cc7985124a177d032638a4988a66b0/symbols):
   definitions, enums, database rows and name-to-id mappings.
 
-For example, [adventurepath_init](https://github.com/Joshua-F/osrs-dumps/blob/853150e3f75e1463391b470f98caf5d3bf796339/script/%5Bclientscript%2Cadventurepath_init%5D.cs2)
+For example, [adventurepath_init](https://github.com/Joshua-F/osrs-dumps/blob/ea06305a06cc7985124a177d032638a4988a66b0/script/%5Bclientscript%2Cadventurepath_init%5D.cs2)
 shows how selected path/task variables restore the journal and trigger redraws.
 Use these dumps alongside `yarn dump:cs2`, `dump:widget` and `dump:enum`; confirm ids
 and layouts against the active local cache. Client scripts do not establish server
