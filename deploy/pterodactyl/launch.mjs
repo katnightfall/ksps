@@ -38,6 +38,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { BRIDGE_PATH, questHelperToken } from "../quest-helper.mjs";
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const STATE_FILE = path.join(ROOT, ".egg-state.json");
 const WORLD_FILE = path.join(ROOT, "server/data/definitions/world.json");
@@ -122,8 +124,11 @@ export function heapMb(env) {
     return DEFAULT_HEAP_MB;
 }
 
-/** What the game is started with, over the environment it is given. */
-export function gameEnv(env) {
+/**
+ * What the game is started with, over the environment it is given. `ownSettings`: the text of
+ * the server's own .env files, for the settings that a line there keeps from being set here.
+ */
+export function gameEnv(env, ownSettings = "") {
     const game = {
         ...env,
         WEBSOCKET_PORT: String(GAME_PORT),
@@ -136,6 +141,16 @@ export function gameEnv(env) {
     for (const key of ["DEV_USERNAME", "WORLD_WEBSOCKET_URL"]) if (!text(game[key])) delete game[key];
     if (text(env.PUBLIC_WS_URL)) game.WORLD_WEBSOCKET_URL = text(env.PUBLIC_WS_URL);
     if (text(env.BOT_COUNT) === "0") game.DISABLE_PLAYER_BOTS = "1";
+    // Quest Helper's engine is a Java program, and there is no Java here. A world of a master
+    // asks the master's (deploy/quest-helper.mjs), under a token made from the key the two
+    // already share. A world told of an engine of its own, in the panel or its .env, keeps it.
+    for (const key of ["QUEST_HELPER_URL", "QUEST_HELPER_TOKEN"]) if (!text(game[key])) delete game[key];
+    const master = text(env.WORLDS_MASTER_URL).replace(/\/+$/, "");
+    const own = game.QUEST_HELPER_URL || game.QUEST_HELPER_TOKEN || /^\s*QUEST_HELPER_(URL|TOKEN|PORT)\s*=\s*\S/m.test(ownSettings);
+    if (!own && /^https?:\/\/[^\s/]+$/.test(master) && text(env.MASTER_PROXY_KEY)) {
+        game.QUEST_HELPER_URL = `${master}${BRIDGE_PATH}`;
+        game.QUEST_HELPER_TOKEN = questHelperToken(text(env.MASTER_PROXY_KEY));
+    }
     return game;
 }
 
@@ -331,10 +346,12 @@ function start(env) {
     }
     let stopping = false;
     let game = null;
+    // The .env files the game reads (below): what is set there is the owner's own.
+    const ownSettings = [".env", "server/.env"].map((file) => { try { return fs.readFileSync(path.join(ROOT, file), "utf8"); } catch { return ""; } }).join("\n");
     const startGame = () => {
         game = spawn(process.execPath, ["--env-file-if-exists=../.env", "--env-file-if-exists=.env",
             `--max-old-space-size=${heapMb(env)}`, "--max-semi-space-size=16", "./dist/Server.js"],
-        { cwd: path.join(ROOT, "server"), env: gameEnv(env), stdio: ["ignore", "inherit", "inherit"] });
+        { cwd: path.join(ROOT, "server"), env: gameEnv(env, ownSettings), stdio: ["ignore", "inherit", "inherit"] });
         game.on("exit", (code, signal) => {
             if (!stopping && code === RESTART_CODE) { say("The game asked to be started again."); startGame(); return; }
             if (!stopping) say(`The game server stopped (${signal ?? `exit ${code}`}).`);

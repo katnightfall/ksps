@@ -77,7 +77,7 @@
     {"raw":"raids_fish2_raw","cooked":"raids_fish2_cooked","burnt":"raids_fish_burnt","level":30,"xp":16,"stopBurn":50,"name":"leckish fish"},
     {"raw":"raids_fish3_raw","cooked":"raids_fish3_cooked","burnt":"raids_fish_burnt","level":45,"xp":19,"stopBurn":65,"name":"brawk fish"},
     {"raw":"raids_fish4_raw","cooked":"raids_fish4_cooked","burnt":"raids_fish_burnt","level":60,"xp":22,"stopBurn":75,"name":"mycil fish"},
-    {"raw":"raids_fish5_raw","cooked":"raids_fish5_cooked","burnt":"raids_fish_burnt","level":75,"xp":25,"stopBurn":85,"name":"roqed fish"},
+    {"raw":"raids_fish5_raw","cooked":"raids_fish5_cooked","burnt":"raids_fish_burnt","level":75,"xp":25,"stopBurn":95,"name":"roqed fish"},
     {"raw":"raids_fish6_raw","cooked":"raids_fish6_cooked","burnt":"raids_fish_burnt","level":90,"xp":28,"chance":{"fire":[163,255],"range":[163,255]},"name":"kyren fish"},
     {"raw":"raids_bat0_raw","cooked":"raids_bat0_cooked","burnt":"raids_bat_burnt","level":1,"xp":10,"stopBurn":21,"name":"guanic bat"},
     {"raw":"raids_bat1_raw","cooked":"raids_bat1_cooked","burnt":"raids_bat_burnt","level":15,"xp":13,"stopBurn":35,"name":"prael bat"},

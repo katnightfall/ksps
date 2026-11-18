@@ -13,6 +13,9 @@
  *                                       server only: worlds made and run through the panel
  *   /sync/...                        -> the same process: its worlds' shared characters
  *                                       (deploy/master/characters.mjs), for worlds with its key
+ *   /quest-helper/...                -> on the master: Quest Helper's engine, which runs here once
+ *                                       for every world (deploy/quest-helper.mjs), for worlds
+ *                                       with its key
  *   anything else                    -> the website (client/scripts/serve-build.mjs, started
  *                                       here on a private port)
  *
@@ -38,7 +41,10 @@ import path from "node:path";
 import tls from "node:tls";
 import { fileURLToPath } from "node:url";
 
+import { timingSafeEqual } from "node:crypto";
+
 import { listedFrom } from "./master/registry.mjs";
+import { BRIDGE_MAX_BODY, BRIDGE_PATH, BRIDGE_PORT, BRIDGE_ROUTES, questHelperToken } from "./quest-helper.mjs";
 import { masterResetId } from "./reset-accounts.mjs";
 import { createStatusBoard, fetchJson, listFor, loadWorlds, masterRoute, serverList, signVisitor, throughMaster, verifyVisitor, VISITOR_HEADER, worldsFrom } from "./worlds.mjs";
 
@@ -225,7 +231,7 @@ for (const range of ["2400:cb00::/32", "2606:4700::/32", "2803:f800::/32", "2405
 // The key the master signs a visitor's address with for the worlds it carries (worlds.mjs
 // signVisitor). The master's is made by its admin page (deploy/master/server.mjs) and kept in
 // its folder; a world is given the same key as MASTER_PROXY_KEY and believes only what it signs.
-const PROXY_KEY_FILE = path.join(ROOT, "server", "data", "saves", "master", "proxy-key");
+const PROXY_KEY_FILE = process.env.FRONT_PROXY_KEY_FILE || path.join(ROOT, "server", "data", "saves", "master", "proxy-key"); // the env: tests
 const OWN_PROXY_KEY = IS_MASTER ? "" : String(process.env.MASTER_PROXY_KEY ?? "").trim();
 let masterKey = { key: "", checked: 0 };
 function proxyKey() {
@@ -291,6 +297,8 @@ function worldTarget(world) {
 // /admin is the admin page; /sync/ is where the master's worlds hand in and fetch their
 // characters (deploy/master/characters.mjs). Both are the master's own process.
 const ADMIN_PATH = /^\/(admin(\/|\?|$)|sync\/)/;
+// Quest Helper's engine beside us (deploy/quest-helper.mjs); FRONT_QUEST_HELPER_PORT is for tests.
+const QUEST_HELPER_PORT = Number(process.env.FRONT_QUEST_HELPER_PORT) || Number(process.env.QUEST_HELPER_PORT) || BRIDGE_PORT;
 // The master's admin page (deploy/master/server.mjs), on our own server only: a process of its
 // own on a private port, started again by itself if it stops. Nothing of a player's is in it.
 let masterPort = 0;
@@ -355,9 +363,37 @@ function listen(staticPort) {
         response.on("close", () => upstream.destroy());
         request.pipe(upstream);
     };
+    /**
+     * The master, answering its worlds' game servers for Quest Helper's engine, which runs here
+     * once for all of them (deploy/quest-helper.mjs) and listens on this machine only. A caller
+     * without the token made from the worlds' shared key is turned away here, before the engine
+     * (two requests at a time is all it takes) hears of it.
+     */
+    const questHelper = (request, response, route) => {
+        if (!BRIDGE_ROUTES.has(route)) return refuse(response, 404, "Not found.");
+        if (route !== "/health") {
+            const expected = Buffer.from(`Bearer ${questHelperToken(proxyKey())}`);
+            const given = Buffer.from(String(request.headers.authorization ?? ""));
+            if (expected.length <= "Bearer ".length || given.length !== expected.length || !timingSafeEqual(given, expected)) return refuse(response, 401, "{}");
+        }
+        if (Number(request.headers["content-length"] ?? 0) > BRIDGE_MAX_BODY) return refuse(response, 413, "{}");
+        const headers = {};
+        for (const name of ["authorization", "content-type", "content-length", "transfer-encoding"]) {
+            if (request.headers[name] !== undefined) headers[name] = request.headers[name];
+        }
+        const upstream = http.request({ host: LOCAL, port: QUEST_HELPER_PORT, method: request.method, path: route, headers, timeout: 20_000 }, (answer) => {
+            response.writeHead(answer.statusCode ?? 502, { "Content-Type": answer.headers["content-type"] ?? "application/json", "Cache-Control": "no-store" });
+            answer.pipe(response);
+        });
+        upstream.on("timeout", () => upstream.destroy(new Error("timeout")));
+        upstream.on("error", () => refuse(response, 503, "Quest Helper's engine is not answering on the master. It may be starting, or still being built."));
+        response.on("close", () => upstream.destroy());
+        request.pipe(upstream);
+    };
     let certificate = readCertificate();
     const server = (certificate ? https : http).createServer(certificate ? { cert: certificate.cert, key: certificate.key } : {}, (request, response) => {
         const pathname = String(request.url ?? "").split("?")[0];
+        if (IS_MASTER && pathname.startsWith(`${BRIDGE_PATH}/`)) return questHelper(request, response, pathname.slice(BRIDGE_PATH.length));
         if ((request.method === "GET" || request.method === "HEAD") && WORLD_LIST_PATHS.has(pathname)) {
             // The world list: ours to answer, unless this world is on no list (then the website's own file).
             answerWorldList(request, response, pathname).then(

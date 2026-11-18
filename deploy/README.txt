@@ -267,6 +267,34 @@ What to know:
     player arriving from the master's address: an IP ban there would then ban them all.
   * Accounts and saves are each world's own.
 
+Quest Helper
+------------
+The Quest Helper panel in the game is driven by the real Quest Helper's Java code, which a small
+program of the original project's runs (tools/quest-helper-bridge, "the engine"). A world with no
+engine to ask tells the player "Quest Helper token is not configured on the server". Our worlds
+run in containers with no Java, so the engine runs once, on the master, for all of them
+(deploy/quest-helper.mjs):
+
+  * The master's game service starts it beside the parked port (deploy/run.sh), keeps it running
+    and says what it is doing in the game log:   npm run remote -- logs game
+  * It needs nothing installed and nothing set. The first start downloads a JDK 21 and the Quest
+    Helper source the engine is written against, and builds the engine: several minutes, about
+    750 MB, kept in /opt/tsps-deploy/home/quest-helper, outside the project, where no deploy
+    touches it. Later starts are immediate. A deploy that changes tools/quest-helper-bridge is
+    noticed within a quarter of a minute, built beside the running engine and swapped in.
+  * A world asks it at <master>/quest-helper/... (deploy/front.mjs passes the request on to the
+    engine, which listens on the master itself only). The token is made from the key the master
+    and its worlds already share (the proxy key), on both sides, so there is no new secret:
+    deploy/pterodactyl/launch.mjs gives a world of a master the address and the token when it
+    starts. A world that was running before this was deployed needs one restart to be given them.
+  * A world with a QUEST_HELPER_URL or QUEST_HELPER_TOKEN of its own (in the panel or its .env)
+    keeps its own engine and is not pointed at the master's.
+  * QUEST_HELPER_BRIDGE=0 in deploy/settings.env, then "npm run remote -- restart game": the
+    master runs no engine. QUEST_HELPER_HEAP_MB (2048) in the game service's environment is the
+    engine's memory.
+  * The engine serves two requests at a time and 128 players' guides at once, for all the worlds
+    together (the original project's limits).
+
 Keeping up with the original project
 ------------------------------------
   npm run sync                        fetch what is new in github.com/RSPSApp/tsps, merge it into

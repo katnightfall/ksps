@@ -79,7 +79,8 @@ tick after):
 - **Landings:** a landing on an obstacle's last tick plays out; the runner doesn't reset it.
 - **Varrock:** the rough wall's climb (828, 15 cycles in) a tick after arriving, on the roof two
   ticks later with the grab (2585) and sound 2468; three jumps along the clothes line (sound 2461)
-  with the line's creak (area sound 413) halfway; the wall's run-up, jump, five holds two ticks
+  with the pigeon's sound (area sound 413) and its "Squawk!" halfway (ours: the words are an unseen
+  NPC's, on the pigeon's tile for six ticks: the runner's `npcSay` step); the wall's run-up, jump, five holds two ticks
   apart (sound 2459), two side-steps (sound 2451) and the jump onto the roof; the balcony's run-up,
   leap (4789, sound 2461) and grab; the edge's hop (741, sound 2461), jump down and landing with
   the lap.

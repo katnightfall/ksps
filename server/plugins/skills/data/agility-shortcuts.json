@@ -1233,7 +1233,7 @@
       "name": "Ropeswing (Moss Giant Island, to the island)",
       "object": 23568,
       "level": 10,
-      "xp": 8,
+      "xp": 3,
       "route": [2709,3209,0],
       "steps": [
         {"use":"ropeSwing","args":[[2704,3209]]}
@@ -1243,7 +1243,7 @@
       "name": "Ropeswing (Moss Giant Island, back)",
       "object": 23569,
       "level": 10,
-      "xp": 8,
+      "xp": 3,
       "route": [2705,3205,0],
       "steps": [
         {"use":"ropeSwing","args":[[2709,3205]]}
