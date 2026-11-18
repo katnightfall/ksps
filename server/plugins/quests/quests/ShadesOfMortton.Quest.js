@@ -326,6 +326,12 @@ module.exports = function registerShadesOfMorttonQuest(api) {
   const MULTI_ATTRIBUTE = "shades-of-mortton:multi";
   const PERM_GIFT_ATTRIBUTE = "shades-of-mortton:perm-gift";
   const MADE_PERM_SERUM_ATTRIBUTE = "shades-of-mortton:made-perm-serum";
+  // Ours: OSRS Wiki, Shades of Mort'ton (Rewards) and Diary (Shades of Mort'ton): the Apothecary in
+  // Varrock takes the Diary of Herbi Flax for 335 Herblore experience, once. The words are
+  // Transcript:Apothecary's, which also records varp 340 gaining bit 30 at the trade.
+  const DIARY_TRADED_ATTRIBUTE = "shades-of-mortton:diary-traded";
+  const DIARY_TRADE_HERBLORE_XP = 335;
+  const MULTI_DIARY_TRADED = 1 << 30;
 
   const DIARY_TITLE = "Diary of Herbi Flax";
   // Capture 1846 ticks 7163-7166: the book opens on the page 11 spread.
@@ -561,6 +567,9 @@ module.exports = function registerShadesOfMorttonQuest(api) {
     }
     if (player.getAttribute(MADE_PERM_SERUM_ATTRIBUTE)) {
       value |= MULTI_PERM_SERUM;
+    }
+    if (player.getAttribute(DIARY_TRADED_ATTRIBUTE)) {
+      value |= MULTI_DIARY_TRADED;
     }
     return value;
   }
@@ -1134,9 +1143,64 @@ module.exports = function registerShadesOfMorttonQuest(api) {
     villagerReward(player, is208);
   }
 
+  /** Ours: the Apothecary's training for the diary (Wiki: Diary (Shades of Mort'ton); Transcript:Apothecary). */
+  function tradeDiaryForTraining(player) {
+    const { DialogueChainBuilder, NpcDialogue, StatementDialogue } = api.core;
+    if (player.getAttribute(DIARY_TRADED_ATTRIBUTE) || !held(player, DIARY_ITEM_ID)) {
+      player.getPacketSender().sendInterfaceRemoval();
+      return;
+    }
+    player.getInventory().deleteNumber(DIARY_ITEM_ID, 1);
+    player.setAttribute(DIARY_TRADED_ATTRIBUTE, true);
+    setMulti(player);
+    player.getSkillManager().addExperiences(Skill.HERBLORE, DIARY_TRADE_HERBLORE_XP);
+    player.getDialogueManager().startDialogues(new DialogueChainBuilder()
+      .add(new StatementDialogue(0, "The apothecary trains you in herblore."))
+      .add(new NpcDialogue(1, NpcIdentifiers.APOTHECARY, "Ok, that's all I can teach you. Many thanks for the diary.")));
+  }
+
+  /** Ours: the Diary of Herbi Flax used on the Apothecary (Transcript:Apothecary, "Giving him the Diary"). */
+  function showDiaryToApothecary(player) {
+    const { DialogueChainBuilder, NpcDialogue, PlayerDialogue, OptionDialogue, ItemStatementDialogue, ActionDialogue } = api.core;
+    const apothecary = NpcIdentifiers.APOTHECARY;
+    const chain = new DialogueChainBuilder()
+      .add(new ItemStatementDialogue(0, DIARY_ITEM_ID, "You show the Serum book to the Apothecary."));
+    if (player.getAttribute(DIARY_TRADED_ATTRIBUTE)) {
+      chain.add(new NpcDialogue(1, apothecary, "Hmm, this is an interesting tome... But you've already sold me one, thanks!"));
+      player.getDialogueManager().startDialogues(chain);
+      return;
+    }
+    const yes = "Yes, I'll trade it for herblore training.";
+    // "hold if it": the live game's own slip (the transcript marks it sic).
+    const no = "No thanks, I want to keep hold if it a bit longer.";
+    chain
+      .add(new NpcDialogue(1, apothecary,
+        "Do you want to trade the diary yet? I'd like to pass the information on to the scientific community in Varrock."))
+      .add(new OptionDialogue(2, {
+        executeOption(option) {
+          const accepted = Number(option) === 1;
+          const reply = new DialogueChainBuilder().add(new PlayerDialogue(0, accepted ? yes : no));
+          if (accepted) {
+            reply
+              .add(new NpcDialogue(1, apothecary, "Great..."))
+              .add(new ActionDialogue(2, { execute: () => tradeDiaryForTraining(player) }));
+          } else {
+            reply.add(new NpcDialogue(1, apothecary, "Oh, that's a shame... Come back if you change your mind."));
+          }
+          player.getDialogueManager().startDialogues(reply);
+        },
+      }, yes, no));
+    player.getDialogueManager().startDialogues(chain);
+  }
+
   /** Serum cures Ulsquire and Razmire so their quest dialogue opens up, and changes the NPC. */
   function handleItemOnNpc(event) {
     const npcId = event.npcId ?? event.target?.getId?.();
+    if (event.itemId === DIARY_ITEM_ID && npcId === NpcIdentifiers.APOTHECARY) {
+      event.handled = true;
+      showDiaryToApothecary(event.player);
+      return;
+    }
     const is207 = SERUM_207_ITEM_IDS.includes(event.itemId);
     const is208 = SERUM_208_ITEM_IDS.includes(event.itemId);
     if (!is207 && !is208) return;
@@ -1596,6 +1660,7 @@ module.exports = function registerShadesOfMorttonQuest(api) {
   api.persistAttribute(MULTI_ATTRIBUTE);
   api.persistAttribute(PERM_GIFT_ATTRIBUTE, false);
   api.persistAttribute(MADE_PERM_SERUM_ATTRIBUTE, false);
+  api.persistAttribute(DIARY_TRADED_ATTRIBUTE, false);
 
   quest = registerQuest(api, {
     key: "shades_of_mortton",
