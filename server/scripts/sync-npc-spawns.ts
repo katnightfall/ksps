@@ -46,7 +46,7 @@ import path = require("path");
 import { CachePipeline } from "../src/main/typescript/elvarg/game/cache/CachePipeline";
 import { CacheDefinitions } from "../src/main/typescript/elvarg/game/cache/CacheDefinitions";
 
-const { versionIds, alignLayers, parsePoint, parseInfoboxMaps, parseBox, inBoxes, nameKey, planAdditions, reconcileIdentities, squareOf, parseLocLines, locationName, chooseWanderRadius } = require("./npc-spawn-matching.cjs");
+const { versionIds, alignLayers, parsePoint, parseInfoboxMaps, parseBox, inBoxes, nameKey, planAdditions, reconcileIdentities, squareOf, parseLocLines, locationName, chooseWanderRadius, walksByReady, hasOwnWalk } = require("./npc-spawn-matching.cjs");
 
 const WIKI_API = "https://oldschool.runescape.wiki/api.php";
 const USER_AGENT = "tsps-npc-spawns (https://github.com/RSPSApp/tsps)";
@@ -198,6 +198,21 @@ function isAttackable(id: number): boolean {
     return forms.some((form) => ((CacheDefinitions.getNpc(form) as any)?.actions ?? []).includes("Attack"));
 }
 
+let readyWalks: Map<number, Set<number>> | undefined;
+
+/**
+ * Ours: whether the NPC, or any form its multinpc parent shows, has a walk animation of its own
+ * (hasOwnWalk in npc-spawn-matching.cjs): one whose walk animation is its ready animation
+ * stands still like one without a walk animation.
+ */
+function hasWalk(id: number): boolean {
+    const count = CacheDefinitions.getCounts().npcs;
+    readyWalks ??= walksByReady(Array.from({ length: count }, (_, npcId) => CacheDefinitions.getNpc(npcId)));
+    const npc: any = CacheDefinitions.getNpc(id);
+    const forms = [id, ...((npc?.transforms ?? []) as number[]).filter((form) => form >= 0 && form < count)];
+    return forms.some((form) => hasOwnWalk(CacheDefinitions.getNpc(form) as any, readyWalks));
+}
+
 /**
  * The radius a new spawn inherits from the existing spawns: a non-attackable NPC's established
  * explicit radius wins over the implicit default; otherwise the effective majority. Undefined
@@ -207,7 +222,7 @@ function wanderRadius(spawns: Spawn[], id: number, name: string): number | undef
     return chooseWanderRadius(
         spawns,
         { id, name },
-        { walkSeqId: (CacheDefinitions.getNpc(id) as any)?.walkSeqId, attackable: isAttackable(id) },
+        { walkSeqId: (CacheDefinitions.getNpc(id) as any)?.walkSeqId, ownWalk: hasWalk(id), attackable: isAttackable(id) },
         nameKey,
     );
 }

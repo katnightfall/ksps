@@ -62,7 +62,7 @@ yarn sync:npc-spawns --box 2520,2170,2660,2310 --box 2560,8560,2640,8660 --tag W
 **Wander radius:**
 1. For a non-attackable NPC, an established explicit radius wins over the implicit default when at least two explicit spawns agree and they are the majority: 0 for fishing spots, bankers, tool leprechauns and other stationary NPCs.
 2. Otherwise what existing spawns of that NPC mostly use, counting a missing radius as the loader's default 5 (by id, else by name).
-3. Otherwise 0 for an NPC without a walk animation in the cache.
+3. Otherwise 0 for an NPC without a walk animation in the cache: it has none, or (ours) its walk animation is its ready animation again while other NPCs with that ready animation walk with another (Perdu: 2155 for both, the other dwarves with a walking stick walk with 2154). Butterflies and others that move with their one animation are not caught by that. `tests/npc-spawns-stand-still.test.cjs` holds every spawn row to it.
 4. Otherwise the loader's default (5).
 
 The Wiki map's `r` only sizes its marker, so it isn't used: Mortimer's map has `r=4`, and he wanders one tile (rsprox captures).

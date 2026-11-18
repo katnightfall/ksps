@@ -302,6 +302,38 @@ function dominantRadius(counts) {
 }
 
 /**
+ * Ours: the walk animations the cache's NPCs pair with each ready (standing) animation, for
+ * hasOwnWalk. `types` is every NPC definition: { idleSeqId, walkSeqId, basTypeId }.
+ */
+function walksByReady(types) {
+  const walks = new Map();
+  for (const type of types) {
+    if (!type || type.basTypeId !== -1 || type.idleSeqId < 0) continue;
+    if (!walks.has(type.idleSeqId)) walks.set(type.idleSeqId, new Set());
+    walks.get(type.idleSeqId).add(type.walkSeqId);
+  }
+  return walks;
+}
+
+/**
+ * Ours: whether an NPC has a walk animation of its own. The cache gives an NPC that never
+ * moves either no walk animation or its ready animation again (Perdu: 2155 for both, where the
+ * other dwarves with that ready animation walk with 2154), and a wander radius then slides it
+ * from tile to tile in its standing pose. Things that fly or float (a butterfly, a will o' the
+ * wisp) also have one animation for both and do move, so a repeated ready animation only counts
+ * when another NPC with that ready animation has a walk animation that differs from it.
+ */
+function hasOwnWalk({ idleSeqId, walkSeqId, basTypeId = -1 }, readyWalks) {
+  if (basTypeId !== -1) return true;
+  if (walkSeqId === -1) return false;
+  if (walkSeqId !== idleSeqId) return true;
+  for (const walk of readyWalks.get(idleSeqId) ?? []) {
+    if (walk !== -1 && walk !== idleSeqId) return false;
+  }
+  return true;
+}
+
+/**
  * The radius a Wiki-added spawn inherits from the spawns already placed.
  *
  * A non-attackable NPC prefers its established explicit radius (at least two witnesses and a
@@ -311,8 +343,11 @@ function dominantRadius(counts) {
  * not measured by a capture that may only contain a fight.
  *
  * Returns `undefined` for the default 5, so new rows stay as short as the existing ones.
+ *
+ * Ours: `ownWalk` false (hasOwnWalk says so of every form the NPC shows) stands it still, as a
+ * missing walk animation does.
  */
-function chooseWanderRadius(spawns, { id, name }, { walkSeqId, attackable = false } = {}, keyOf = nameKey) {
+function chooseWanderRadius(spawns, { id, name }, { walkSeqId, ownWalk = true, attackable = false } = {}, keyOf = nameKey) {
   // By id, else by name: the id's own spawns decide (explicit majority, then effective majority) before any
   // same-name id is consulted, so a few explicit rows on another id never pin this one's roaming default.
   for (const matches of [
@@ -328,7 +363,7 @@ function chooseWanderRadius(spawns, { id, name }, { walkSeqId, attackable = fals
     const effective = dominantRadius(radiusCounts(spawns, matches, false));
     if (effective.found) return effective.radius === DEFAULT_WANDER_RADIUS ? undefined : effective.radius;
   }
-  return walkSeqId === -1 ? 0 : undefined;
+  return walkSeqId === -1 || !ownWalk ? 0 : undefined;
 }
 
-module.exports = { versionIds, SURFACE_LAYERS, alignLayers, parsePoint, parseInfoboxMaps, parseBox, inBoxes, nameKey, distance, planAdditions, reconcileIdentities, squareOf, parseLocLines, locationName, DEFAULT_WANDER_RADIUS, chooseWanderRadius };
+module.exports = { versionIds, SURFACE_LAYERS, alignLayers, parsePoint, parseInfoboxMaps, parseBox, inBoxes, nameKey, distance, planAdditions, reconcileIdentities, squareOf, parseLocLines, locationName, DEFAULT_WANDER_RADIUS, chooseWanderRadius, walksByReady, hasOwnWalk };
