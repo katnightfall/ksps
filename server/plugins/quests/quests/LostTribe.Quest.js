@@ -159,8 +159,8 @@ module.exports = function registerLostTribeQuest(api) {
   const HAM_TRAPDOOR_OPEN = ObjectIdentifiers.TRAPDOOR_36; // 6435, Climb-down
   const HAM_LADDER = ObjectIdentifiers.LADDER_67; // 6436, 3118,9643
   const SIGMUND_CHEST_LOCATIONS = new Set([
-    `${ObjectIdentifiers.CHEST_38}:3209,3217,1`, // legacy location
-    `${ObjectIdentifiers.CHEST_38}:3211,3212,1`, // current post-3 November 2026 location
+    `${ObjectIdentifiers.CHEST_38}:3209,3217,1`, // before 3 November 2026, and again since the cache of 11 November
+    `${ObjectIdentifiers.CHEST_38}:3211,3212,1`, // in the cache of 3 November 2026 only
   ]);
   const HAM_CRATE = ObjectIdentifiers.CRATE_65; // 6911, 3152,9645
   const LIBRARY_BOOKCASE = ObjectIdentifiers.BOOKCASE_25; // 6916, 3207,3496
