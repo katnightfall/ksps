@@ -96,6 +96,9 @@ const FOOD_KEPT = 30;
 // A shop up to this much dearer than the exchange is still where it buys: the item is in its
 // hands at once, and the exchange is two walks.
 const SHOP_PREFERENCE = 1.25;
+// Coins it never spends on a goal: a toll gate's fee and a little over, so that an errand never
+// leaves it unable to pay its way back (the gate into Al Kharid stops a bot with empty pockets).
+const SPARE_COINS = 20;
 // Bait: fewer than LOW and more is wanted, BUY at a time (or what its coins buy, MIN at least).
 const BAIT_LOW = 20;
 const BAIT_BUY = 150;
@@ -461,7 +464,8 @@ function createAmbition({ world, definitionsPath = path.join(process.cwd(), "dat
     const player = brain.player;
     const state = brain.ensureState?.() ?? brain.state ?? null;
     const have = holdings(player);
-    const coins = purse(player);
+    // What it has to spend: its purse less what it keeps by.
+    const coins = Math.max(0, purse(player) - SPARE_COINS);
     const modes = modesOf(brain);
     const current = brain.frames?.[0]?.behaviour?.mode ?? null;
     for (const [key, until] of mind.cool) if (until <= nowMs) mind.cool.delete(key);
@@ -479,7 +483,7 @@ function createAmbition({ world, definitionsPath = path.join(process.cwd(), "dat
     const open = goals.filter((goal) => !mind.cool.has(goal.key));
     mind.saving = open.find((goal) => goal.cost > coins) ?? null;
     // Its wish: while it is short of the coins it sells what it gathers (Choose asks OwnItems).
-    if (mind.saving && state && !own.wishing(player, state, nowMs)) own.wish(state, mind.saving.itemId, mind.saving.cost, nowMs);
+    if (mind.saving && state && !own.wishing(player, state, nowMs)) own.wish(state, mind.saving.itemId, mind.saving.cost + SPARE_COINS, nowMs);
 
     const manager = player.getSkillManager();
     ledger.set(nameOf(player), Skill.values().reduce((sum, skill) => sum + manager.getMaxLevel(skill), 0));
@@ -562,7 +566,7 @@ function createAmbition({ world, definitionsPath = path.join(process.cwd(), "dat
 
   /** Takes coins from the bot, its backpack first and then its bank. Returns whether it had them. */
   function spend(player, coins) {
-    if (purse(player) < coins) return false;
+    if (purse(player) - SPARE_COINS < coins) return false;
     let left = coins;
     const pack = Math.min(left, carried(player, COINS));
     if (pack > 0) {
@@ -625,6 +629,8 @@ function createAmbition({ world, definitionsPath = path.join(process.cwd(), "dat
     const player = brain.player;
     const frame = brain.frames[0];
     if (brain.frames.length !== 1 || brain.paused) return false;
+    // Only from work of the site's own: not from a trip another part has it on (the Wintertodt, across the sea).
+    if (brain.rotation && !brain.rotation.activityIds.includes(frame.behaviour.id)) return false;
     if (frame.behaviour.mode === cat().modes.trading) return false;
     const combat = player.getCombat?.();
     if (combat?.getTarget?.() || combat?.getAttacker?.()) return false;

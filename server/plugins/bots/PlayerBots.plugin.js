@@ -19,6 +19,7 @@ const { createAmbition, worldHasAmbition } = require("./brain/Ambition.PlayerBot
 const { createBotPotions } = require("./brain/BotPotions.PlayerBots");
 const { createBotTalk } = require("./brain/BotTalk.PlayerBots");
 const { createBotGroups, worldBotsGroup } = require("./brain/BotGroups.PlayerBots");
+const { createBotWintertodt } = require("./brain/BotWintertodt.PlayerBots");
 const { setActiveBotRuntime } = require("./runtime/RuntimeRegistry.PlayerBots");
 const { PVP_BOT_SETTINGS } = require("./behaviours/pvp/WildernessHotspotRegistry.PlayerBots");
 const {
@@ -225,10 +226,15 @@ function startAmbition(api, boot) {
   const talk = (world.talk = createBotTalk({ world }));
   ambition.addTicker(talk.tick);
   api.onPlayerLevelUp(talk.levelUp);
-  if (worldBotsGroup()) {
-    const groups = (world.groups = createBotGroups({ world, runtime: boot.runtime, registry: boot.brainRegistry, ambition, talk }));
-    ambition.addTicker(groups.tick);
-  }
+  const groups = worldBotsGroup() ? (world.groups = createBotGroups({ world, runtime: boot.runtime, registry: boot.brainRegistry, ambition, talk })) : null;
+  if (groups) ambition.addTicker(groups.tick);
+  // One outing has a way of its own: the Wintertodt, across the sea. A world may turn it off;
+  // the way home stays, so a bot that was over there when the setting changed is not left there.
+  world.wintertodt = createBotWintertodt({
+    world, groups, registry: boot.brainRegistry, ambition,
+    emit: (name, payload) => api.emitCustomEvent(name, payload), spawnNpc: (spawn) => api.spawnNpc(spawn),
+    goes: !!groups && api.getPluginConfig("PlayerBots:wintertodt", true) !== false,
+  });
 }
 
 module.exports = {
@@ -254,6 +260,10 @@ module.exports = {
     "PlayerBots:groups": {
       type: "boolean", label: "Levelling bots form groups", default: true,
       help: "With goals on, a levelling bot now and then proposes something to do together (the outings in bot-groups.json, and Wintertodt for those with the Firemaking for it); bots near it, and bots further off that are after the same skill, may agree, and they travel there and do it side by side with their own tools and supplies. Off: every bot keeps to itself.",
+    },
+    "PlayerBots:wintertodt": {
+      type: "boolean", label: "Levelling bots go to the Wintertodt", default: true,
+      help: "With groups on, bots with 50 Firemaking, an axe and cooked food of their own may propose a trip to the Wintertodt: each packs at its bank, takes Veos's ship from Port Sarim, walks to the camp, and plays by the minigame's rules. Behind the doors each keeps a corner's brazier burning (chops roots and feeds them, lights it, mends it with a hammer from the crate), heals its pyromancer with a rejuvenation potion that Brew'ma mixes for it, and eats its food or drinks the potion against the cold. After a round or two it takes what it earned from the reward cart and comes home the same way. At most 40 bots of a world are on the trip at once. Brew'ma is put at her place by the crates when the first bot goes in, if she is not there already. Off: the Wintertodt outing is never proposed, and Firemaking is not a level bots go after; a bot that is over there when it is turned off still comes home.",
     },
     "PlayerBots:groupMinutes": {
       type: "json", label: "Minutes between a bot's group proposals", defaultText: "[30, 90]",

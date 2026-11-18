@@ -219,7 +219,7 @@ test("the outings shipped are things the crowd can do, at a place, with somethin
   assert.ok(outings.length >= 4);
   for (const outing of outings) {
     const activity = registry.byId.get(outing.activity);
-    assert.ok(activity && activity.mode, `${outing.id}: a known activity`);
+    assert.ok(activity && (activity.mode || outing.kind !== "outing"), `${outing.id}: a known activity`);
     assert.ok(outing.size[0] >= 2 && outing.say.length > 3 && outing.minutes[0] > 0, outing.id);
   }
   assert.ok(registry.byId.get(Groups.MEET_ACTIVITY).manual, "the walk to the meeting place is never drawn from the rotation");

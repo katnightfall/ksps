@@ -23,6 +23,7 @@ function createChooseAction(spec, compileAction) {
       // Ours: what the option does with the goods, for a bot that lives off them.
       sells: (option.actions ?? []).some((step) => step?.type === "sellItems"),
       banks: (option.actions ?? []).some((step) => step?.type === "cook") && (option.actions ?? []).some((step) => step?.type === "bank"),
+      burns: (option.actions ?? []).some((step) => step?.type === "lightFire"),
     }))
     .filter((option) => option.weight > 0 && option.actions.length > 0);
   if (!options.length) {
@@ -39,6 +40,11 @@ function createChooseAction(spec, compileAction) {
    */
   function weighed(ctx) {
     if (!earnsOwnItems(ctx.player)) return options;
+    // Ours: after Firemaking (the level brain/Ambition has it going for), its logs are for burning.
+    if (ctx.world?.ambition?.mind(ctx.player)?.focus?.skill?.getName?.() === "Firemaking") {
+      const burning = options.filter((option) => option.burns);
+      if (burning.length) return burning;
+    }
     if (ownItemsFor(ctx.world).wishing(ctx.player, ctx.state, ctx.nowMs)) {
       const selling = options.filter((option) => option.sells);
       if (selling.length) return selling;

@@ -15,6 +15,7 @@
  *   sets off   with enough of them (the outing's `size`), the proposer says so and each walks
  *              to the meeting place by itself; with too few it is called off ("nvm")
  *   meets      there they wait for each other, a minute at most from the first to arrive
+ *              (an outing may give its own `waitMinutes`: after a long road they come in further apart)
  *   works      then each does the outing's activity there, side by side, for its `minutes`;
  *              after that each bot's own rotation takes it where it will
  *
@@ -84,7 +85,8 @@ function loadOutings(file) {
     const [least, most] = outing.size ?? [2, 5];
     const [short, long] = outing.minutes ?? [12, 20];
     if (!(least >= 2 && most >= least) || !(short > 0 && long >= short)) throw new Error(`[bot groups] outing '${outing.id}' has a bad size or minutes`);
-    return { kind: "outing", ...outing, z: outing.z ?? 0, size: [least, most], minutes: [short, long] };
+    const waitMs = outing.waitMinutes > 0 ? outing.waitMinutes * 60_000 : WAIT_MS;
+    return { kind: "outing", ...outing, z: outing.z ?? 0, size: [least, most], minutes: [short, long], waitMs };
   });
 }
 
@@ -120,8 +122,11 @@ function createBotGroups({
   function couldCome(brain, outing, nowMs) {
     const player = brain?.player;
     if (!player || brain.rotation?.best !== true || !earnsOwnItems(player) || bots.get(player)?.party) return false;
+    // At work of the site's own: not one away on a trip of another kind (the Wintertodt).
+    if (!brain.rotation.activityIds.includes(brain.frames[0]?.behaviour?.id)) return false;
     const activity = registry.byId.get(outing.activity);
-    if (!activity || !brain.rotation.activityIds.includes(activity.id) || !registry.hasRoom(activity.id)) return false;
+    // An outing's activity is one of the site's own; a kind of its own brings its own.
+    if (!activity || !(kinds.has(outing.kind) || brain.rotation.activityIds.includes(activity.id)) || !registry.hasRoom(activity.id)) return false;
     if (!activity.requires.every((condition) => condition.check({ player }))) return false;
     if (kinds.get(outing.kind)?.eligible?.(player) === false) return false;
     return ambition.free(brain, nowMs);
@@ -133,10 +138,10 @@ function createBotGroups({
     const focus = ambition.mind(leader)?.focus?.mode ?? null;
     const open = outings.filter((outing) => couldCome(brain, outing, nowMs));
     if (open.length === 0) return null;
-    const weight = (outing) => (registry.byId.get(outing.activity)?.mode === focus ? FOCUS_WEIGHT : 1);
+    const weight = (outing) => ((outing.mode ?? registry.byId.get(outing.activity)?.mode) === focus ? FOCUS_WEIGHT : 1);
     let roll = random() * open.reduce((sum, outing) => sum + weight(outing), 0);
     const outing = open.find((candidate) => (roll -= weight(candidate)) < 0) ?? open[0];
-    const mode = registry.byId.get(outing.activity).mode;
+    const mode = outing.mode ?? registry.byId.get(outing.activity).mode;
     const party = {
       outing, leader, members: new Set([leader]), pledges: [], arrived: new Set(),
       phase: "gathering", closesAt: nowMs + GATHER_MS, goAt: 0, workMs: between(outing.minutes, random) * 60_000, expiresAt: Infinity,
@@ -151,10 +156,12 @@ function createBotGroups({
       const other = entry?.player;
       if (!other || other === leader || !entry.brain || !couldCome(entry.brain, outing, nowMs)) continue;
       const there = other.getLocation();
-      if (there.getZ() !== here.getZ()) continue;
-      const distance = apart(here, there);
+      // An outing that gathers "anywhere" (a long trip each makes by itself, to meet at the far end) asks every bot that could come.
+      const anywhere = outing.gather === "anywhere";
+      if (there.getZ() !== here.getZ() && !anywhere) continue;
+      const distance = there.getZ() === here.getZ() ? apart(here, there) : Infinity;
       const likeMinded = ambition.mind(other)?.focus?.mode === mode;
-      const chance = distance <= NEAR ? NEAR_CHANCE : likeMinded && distance <= LIKE_MINDED_RANGE ? LIKE_MINDED_CHANCE : 0;
+      const chance = distance <= NEAR ? NEAR_CHANCE : anywhere || (likeMinded && distance <= LIKE_MINDED_RANGE) ? LIKE_MINDED_CHANCE : 0;
       if (random() >= chance) continue;
       party.pledges.push({ player: other, at: nowMs + between(REPLY_MS, random), heard: distance <= NEAR });
       botFor(other, nowMs).party = party;
@@ -198,6 +205,7 @@ function createBotGroups({
     speak(party, party.leader, "go", nowMs);
     for (const member of party.members) {
       const brain = brainOf(member);
+      botFor(member, nowMs).proposeAt = nowMs + party.workMs + proposalGap();
       if (kind) {
         kind.launch(party, member, brain, nowMs);
         continue;
@@ -206,7 +214,6 @@ function createBotGroups({
       // Its rotation waits for the walk there and the outing's minutes.
       brain.switchAt = nowMs + TRAVEL_MS + party.workMs;
       brain.pushActivity(meet, nowMs);
-      botFor(member, nowMs).proposeAt = nowMs + party.workMs + proposalGap();
     }
     world.log?.("bot_group_set_off", {
       leader: party.leader.getUsername?.(), outing: outing.id, members: [...party.members].map((member) => member.getUsername?.()),
@@ -261,7 +268,7 @@ function createBotGroups({
         if (!party.arrived.has(player)) {
           party.arrived.add(player);
           if (party.goAt === 0) {
-            party.goAt = nowMs + WAIT_MS;
+            party.goAt = nowMs + outing.waitMs;
             speak(party, player, "arrived", nowMs);
           }
           world.log?.("bot_group_arrived", { username: player.getUsername?.(), outing: outing.id, there: party.arrived.size, of: party.members.size });

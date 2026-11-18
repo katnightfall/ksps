@@ -261,6 +261,10 @@ function createAction(spec, world) {
   if (spec.type === "groupMeet") {
     return require("./actions/GroupMeet.PlayerBots").createGroupMeetAction(spec, world);
   }
+  // Ours: a group's trip to the Wintertodt (brain/BotWintertodt).
+  if (spec.type === "wintertodt") {
+    return require("./actions/Wintertodt.PlayerBots").createWintertodtAction(spec, world);
+  }
   if (spec.type === "wait") return createWaitAction(spec);
   throw new Error(`[bot activities] unknown action type '${spec.type}'`);
 }
