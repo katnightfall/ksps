@@ -250,10 +250,6 @@ function mosaicDoor(event) {
   return require("./Puzzles.RoguesDen").mosaicDoor(event);
 }
 
-function chest(event) {
-  return require("./Puzzles.RoguesDen").chest(event);
-}
-
 function mazeSafe(event) {
   return require("./Safes.RoguesDen").crackMaze(event);
 }
@@ -283,7 +279,10 @@ function attach(api) {
     if (id === ids.mazeDoor) return mazeDoor(event);
     if (id === ids.gearDoor) return gearDoor(event);
     if (id === ids.mosaicDoor) return mosaicDoor(event);
-    if (id === ids.chest) return chest(event);
+    // Ours: the 10-coin chest (loc 11735) is no longer taken here. This hook claimed that loc everywhere, so every
+    // 10-coin chest in the world (East Ardougne, Rellekka, the Wilderness) gave 10 coins on Open with no Thieving
+    // level, experience or wait. The maze's chest is an ordinary one (Wiki: Chest (10 coins) lists the Rogues' Den),
+    // answered with the others by skills/thieving/TrappedChests.Thieving.js.
     if (id === ids.mazeSafe) return mazeSafe(event);
     if (id === ids.lobbySafe) return lobbySafe(event);
     if (id === ids.wallSpikes || id === ids.wallGas || id === ids.wallCrusher

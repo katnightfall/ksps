@@ -238,3 +238,14 @@ test("a full inventory does not lose the certificate opportunity", (t) => {
   assert.equal(inventory.getAmount(I.LEVEL_1_CERTIFICATE), 1);
   assert.equal(digSite().getStage(p), 2);
 });
+
+// Ours: Wiki (The Dig Site, Rewards): 2 gold bars with the 15,300 Mining and 2,000 Herblore experience.
+test("completing The Dig Site hands over two gold bars", (t) => {
+  const { p } = player(t, "digbars");
+  const GOLD_BAR = core.ItemIdentifiers.GOLD_BAR;
+  assert.equal(p.getInventory().getAmount(GOLD_BAR), 0);
+  assert.equal(digSite().complete(p, { scroll: false, announce: false }), true);
+  assert.equal(p.getInventory().getAmount(GOLD_BAR), 2);
+  assert.equal(digSite().complete(p, { scroll: false, announce: false }), false, "only once");
+  assert.equal(p.getInventory().getAmount(GOLD_BAR), 2);
+});

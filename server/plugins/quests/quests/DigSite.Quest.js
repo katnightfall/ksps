@@ -30,7 +30,7 @@
 module.exports = function registerDigSiteQuest(api) {
   const { Animation, DialogueChainBuilder, Item, ItemIdentifiers, ItemStatementDialogue,
     NpcDialogue, NpcIdentifiers, ObjectIdentifiers, PlayerDialogue, Skill, Task, TaskManager } = api.core;
-  const { registerQuest, refreshQuestList, startTranscript } = require("../QuestRuntime");
+  const { registerQuest, refreshQuestList, startTranscript, giveReward } = require("../QuestRuntime");
 
   const EXAMINER_NPC_IDS = new Set([
     NpcIdentifiers.EXAMINER,
@@ -339,6 +339,9 @@ module.exports = function registerDigSiteQuest(api) {
   function grantReward(player) {
     player.getSkillManager().addExperiences(Skill.MINING, 15300);
     player.getSkillManager().addExperiences(Skill.HERBLORE, 2000);
+    // Ours: Wiki (The Dig Site, Rewards: "2 gold bars"; walkthrough: Terry Balando "gives you two gold bars as a
+    // reward"). They were missing. What does not fit in the inventory goes on the floor.
+    giveReward(player, ItemIdentifiers.GOLD_BAR, 2);
   }
 
   function isQuestStarted(player, key) {
@@ -627,7 +630,7 @@ module.exports = function registerDigSiteQuest(api) {
     ],
     rewardItemId: ItemIdentifiers.ANCIENT_TALISMAN,
     rewardItemLabel: "Ancient talisman",
-    otherRewards: ["Access to the Dig Site's deeper dig shafts"],
+    otherRewards: ["2 gold bars", "Access to the Dig Site's deeper dig shafts"],
     buildJournal,
     onReward: grantReward,
   });

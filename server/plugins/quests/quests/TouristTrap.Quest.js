@@ -51,7 +51,7 @@ module.exports = function registerTouristTrapQuest(api) {
   const { Skill, Location, Equipment, ItemIdentifiers, NpcIdentifiers, DialogueChainBuilder, ItemStatementDialogue } = api.core;
   const CAPTAIN_KEY_LINE = "The mercenary captain drops a metal key on the floor. You quickly grab the key and add it to your inventory.";
   const CAPTAIN_KEY_BOX = "The mercenary captain drops a metal key on the floor.<br>You quickly grab the key and add it to your inventory.";
-  const { registerQuest, refreshQuestList, startTranscript } = require("../QuestRuntime");
+  const { registerQuest, refreshQuestList, startTranscript, giveReward } = require("../QuestRuntime");
 
   const IRENA_NPC_IDS = new Set([
     NpcIdentifiers.IRENA,
@@ -574,6 +574,10 @@ module.exports = function registerTouristTrapQuest(api) {
       // Quest Helper still needs the technical plans for the anvil, so only the
       // prototype dart changes hands.
       player.getInventory().deleteNumber(PROTOTYPE_DART_ITEM_ID, 1);
+      // Ours: Wiki (The Tourist Trap, Rewards: "6 bronze darts"; Transcript: "You receive six bronze throwing darts
+      // from Al Shabim."). The box was shown and nothing was given. Handed over here, with the stage change, so
+      // they come once; what does not fit goes on the floor.
+      giveReward(player, ItemIdentifiers.BRONZE_DART, 6);
       advance(player, STAGE_HAS_PINEAPPLE);
       return;
     }
@@ -1066,6 +1070,7 @@ module.exports = function registerTouristTrapQuest(api) {
     otherRewards: [
       "4,650 XP in two chosen skills (Agility, Fletching, Smithing or Thieving)",
       "The ability to smith darts",
+      "6 bronze darts (from Al Shabim)",
     ],
     buildJournal,
   });

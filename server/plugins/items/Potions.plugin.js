@@ -1420,16 +1420,19 @@ registerPotion({
 registerPotion({
   name: "Bastion potion",
   chains: [doseChain("BASTION_POTION_4_", "BASTION_POTION_3_", "BASTION_POTION_2_", "BASTION_POTION_1_")],
+  // Ours: OSRS Wiki, Bastion potion: "combines the properties of a ranging and super defence potion": Ranged 4 + 10%
+  // (was 5 + 15%, a super ranging's), Defence 5 + 15%.
   effect: (player) => {
-    boostSkill(player, Skill.RANGED, 5, 0.15);
+    boostSkill(player, Skill.RANGED, 4, 0.1);
     boostSkill(player, Skill.DEFENCE, 5, 0.15);
   },
 });
 registerPotion({
   name: "Battlemage potion",
   chains: [doseChain("BATTLEMAGE_POTION_4_", "BATTLEMAGE_POTION_3_", "BATTLEMAGE_POTION_2_", "BATTLEMAGE_POTION_1_")],
+  // Ours: OSRS Wiki, Battlemage potion: "Magic will be boosted by 4" (a magic potion's; was 4 + 15%), Defence 5 + 15%.
   effect: (player) => {
-    boostSkill(player, Skill.MAGIC, 4, 0.15);
+    boostSkill(player, Skill.MAGIC, 4, 0);
     boostSkill(player, Skill.DEFENCE, 5, 0.15);
   },
 });
@@ -1807,8 +1810,9 @@ registerDivinePotion({
   effect: (player) =>
     applyDivine(
       player,
+      // Ours: OSRS Wiki, Divine bastion potion: a ranging potion's Ranged (4 + 10%; was 5 + 15%) and a super defence's Defence.
       (p) => {
-        boostSkill(p, Skill.RANGED, 5, 0.15);
+        boostSkill(p, Skill.RANGED, 4, 0.1);
         boostSkill(p, Skill.DEFENCE, 5, 0.15);
       },
       [Skill.RANGED, Skill.DEFENCE]
@@ -1820,8 +1824,9 @@ registerDivinePotion({
   effect: (player) =>
     applyDivine(
       player,
+      // Ours: OSRS Wiki, Divine battlemage potion: "increases the player's Magic level by 4" (was 4 + 15%).
       (p) => {
-        boostSkill(p, Skill.MAGIC, 4, 0.15);
+        boostSkill(p, Skill.MAGIC, 4, 0);
         boostSkill(p, Skill.DEFENCE, 5, 0.15);
       },
       [Skill.MAGIC, Skill.DEFENCE]
