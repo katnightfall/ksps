@@ -5,8 +5,10 @@ module.exports = function registerRosewoodBlowpipeSpecialAttack(api) {
   const DRAIN = 25;
   const SPECIAL_ANIMATION = new Animation(13145);
   const SPECIAL_VFX = new Graphic(3486);
-  const ACCURACY_MULTIPLIER = 0.8;
-  const DAMAGE_MULTIPLIER = 1.1;
+  // Ours: OSRS Wiki, Rosewood blowpipe (Changes, 22 July 2026: "Rapid Burst has had its 10% damage and -20% accuracy
+  // bonuses removed") and Special attacks (attack and damage roll modifiers: None). Were 0.8 and 1.1.
+  const ACCURACY_MULTIPLIER = 1;
+  const DAMAGE_MULTIPLIER = 1;
 
   // Note: upstream used item id 31586 for the charged blowpipe; our constant named
   // ROSEWOOD_BLOWPIPE is 31583, so the charged ids below follow our naming.

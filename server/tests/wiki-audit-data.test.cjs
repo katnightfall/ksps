@@ -58,3 +58,16 @@ test("High and Low Alchemy: bird nests with an egg and the stardust packs pay 60
   // The Wiki marks these versions "alchable = No": they stay unalchable (no override).
   for (const id of [5013, 20499, 20501, 19812, 26392, 28922, 28826, 33524, 31992]) assert.equal(overrides[id], undefined, `item ${id}`);
 });
+
+test("Rapid Burst (Rosewood blowpipe) has no accuracy or damage modifier: two darts for 25% energy (Wiki: Rosewood blowpipe, Changes of 22 July 2026; Special attacks)", () => {
+  require("../dist/Server").Server.installProductionPathResolver();
+  const core = require("../dist/plugins/PluginManager").PluginManager.getCoreApi();
+  let special = null;
+  require("../plugins/combat/specials/RosewoodBlowpipe.SpecialAttack")({ core, registerCombatSpecial: (config) => { special = config; } });
+  assert.equal(special.drainAmount, 25);
+  assert.equal(special.accuracyMultiplier, 1);
+  assert.equal(special.strengthMultiplier, 1);
+  assert.equal(special.traits.hitCount, 2);
+  assert.equal(special.traits.accuracyMultiplier, 1);
+  assert.equal(special.traits.damageMultiplier, 1);
+});
