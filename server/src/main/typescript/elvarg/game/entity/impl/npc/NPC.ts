@@ -129,7 +129,7 @@ export class NPC extends Mobile {
     private movementCoordinator: NPCMovementCoordinator = new NPCMovementCoordinator(this);
     private hitpoints: number;
     private maxHitpointsOverride = -1;
-    private combatOverride: { stats?: number[]; maxHit?: number; attackSpeed?: number } | null = null;
+    private combatOverride: { stats?: number[]; maxHit?: number; attackSpeed?: number; rangedDefence?: { light?: number; heavy?: number } } | null = null;
     private combatOverrideViews: Map<NpcDefinition, NpcDefinition> | null = null;
     /** Multiplies this NPC's attack and defence rolls (raid scaling); 1 leaves them alone. */
     private rollFactor = 1;
@@ -487,10 +487,15 @@ export class NPC extends Mobile {
     /**
      * Gives this one NPC its own combat stats (NpcDefinition.getStats layout), max hit and/or
      * attack speed, e.g. a raid scaling its monsters by party; null restores the definition's.
+     * `stats[14]` is the standard ranged defence bonus; `rangedDefence` gives the light and heavy
+     * ones where they differ from it and the definition has none of its own.
      */
-    public setCombatOverride(override: { stats?: number[]; maxHit?: number; attackSpeed?: number } | null): NPC {
+    public setCombatOverride(override: { stats?: number[]; maxHit?: number; attackSpeed?: number; rangedDefence?: { light?: number; heavy?: number } } | null): NPC {
         this.combatOverride = override
-            ? { stats: override.stats ? [...override.stats] : undefined, maxHit: override.maxHit, attackSpeed: override.attackSpeed }
+            ? {
+                stats: override.stats ? [...override.stats] : undefined, maxHit: override.maxHit, attackSpeed: override.attackSpeed,
+                rangedDefence: override.rangedDefence ? { ...override.rangedDefence } : undefined,
+            }
             : null;
         this.combatOverrideViews = null;
         return this;
@@ -501,9 +506,24 @@ export class NPC extends Mobile {
         if (!this.combatOverride || !definition) return definition;
         let view = this.combatOverrideViews?.get(definition);
         if (!view) {
-            const { stats, maxHit, attackSpeed } = this.combatOverride;
+            const { stats, maxHit, attackSpeed, rangedDefence } = this.combatOverride;
             view = Object.create(definition) as NpcDefinition;
-            if (stats) view.getStats = () => stats;
+            if (stats) {
+                view.getStats = () => stats;
+                // Ours (upstream issue #6239): the ranged defence bonus was still read from the
+                // definition's own stats, so an override's stats[14] counted for nothing (the
+                // Chambers' abyssal portal, whose definition has no stats, defended ranged with 0
+                // where the raid gives it 140). The definition's light and heavy bonuses still
+                // apply while the override leaves its standard one alone.
+                view.getRangedDefenceBonus = (type: "light" | "standard" | "heavy") => {
+                    if (type !== "standard") {
+                        const own = rangedDefence?.[type];
+                        if (typeof own === "number") return own;
+                        if ((stats[14] ?? 0) === (definition.getStats()[14] ?? 0)) return definition.getRangedDefenceBonus(type);
+                    }
+                    return stats[14] ?? 0;
+                };
+            }
             if (maxHit != null) view.getMaxHit = () => maxHit;
             if (attackSpeed != null) view.getAttackSpeed = () => attackSpeed;
             (this.combatOverrideViews ??= new Map()).set(definition, view);
@@ -700,8 +720,14 @@ export class NPC extends Mobile {
         return this.getCurrentDefinition().getAttackAnim();
     }
 
-    public getAttackSound(): Sound {
-        return Sound.NPC_ATTACKING;
+    /**
+     * Ours (upstream issue #4745): none here. An NPC's attack sound is NpcCombatSounds' (a private synth
+     * to the player it attacks). This used to answer one fixed sound (394, which the cache names
+     * defiler_hit) that every melee swing of every NPC sent as an area sound of range 0: the client
+     * drops those, so nothing was heard, and each swing walked the whole player list to send it.
+     */
+    public getAttackSound(): Sound | null {
+        return null;
     }
 
     public getBlockAnim(): number {

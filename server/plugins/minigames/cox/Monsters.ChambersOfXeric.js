@@ -26,7 +26,8 @@
 
 /** Base stats, in NpcDefinition.getStats order: levels att/str/def/rng/mag, accuracy 5 melee 7 magic 9 ranged, defences 10-14 stab/slash/crush/magic/ranged. */
 const MONSTERS = [
-  { name: "Abyssal portal", ids: [7533], hp: 250, stats: [1, 1, 176, 1, 176, 0, 0, 0, 0, 0, 0, 0, 0, 60, 140], maxHit: 0 },
+  // Wiki (Abyssal portal): ranged defence +140 light and standard, +110 heavy; its definition has no stats of its own.
+  { name: "Abyssal portal", ids: [7533], hp: 250, stats: [1, 1, 176, 1, 176, 0, 0, 0, 0, 0, 0, 0, 0, 60, 140], rangedDefence: { heavy: 110 }, maxHit: 0 },
   { name: "Deathly mage", ids: [7560], hp: 120, stats: [1, 1, 155, 1, 210, 0, 0, 120, 0, 0, 0, 0, 0, 0, 0], maxHit: 22 },
   { name: "Deathly ranger", ids: [7559], hp: 120, stats: [1, 1, 155, 210, 155, 0, 0, 0, 0, 120, 0, 0, 0, 0, 0], maxHit: 70 },
   { name: "Glowing crystal", ids: [7568], hp: 120, stats: [1, 1, 100, 1, 100, 0, 0, 0, 0, 0, -5, 180, 180, 0, 0], maxHit: 0 },
@@ -135,7 +136,7 @@ function scale(id, raidInputs) {
     if (ID.OLM_MAGE_CLAW.has(id)) stats[LEVELS.MAGIC] = Math.trunc(stats[LEVELS.MAGIC] / 2);
   }
   const maxHit = maxHitAt(base, inputs.challenge, baseOffensive, offensive);
-  return { hitpoints: hp, stats, maxHit };
+  return { hitpoints: hp, stats, maxHit, rangedDefence: base.rangedDefence };
 }
 
 /**
@@ -176,7 +177,7 @@ function apply(npc, raidInputs) {
   if (!scaled) return null;
   npc.setMaxHitpoints(scaled.hitpoints);
   npc.setHitpoints(scaled.hitpoints);
-  npc.setCombatOverride?.({ stats: scaled.stats, maxHit: scaled.maxHit || undefined });
+  npc.setCombatOverride?.({ stats: scaled.stats, maxHit: scaled.maxHit || undefined, rangedDefence: scaled.rangedDefence });
   const restore = STAT_RESTORE_TICKS.get(npc.getId());
   if (restore) npc.setStatRestoreTicks(restore);
   return scaled;
@@ -196,7 +197,7 @@ function maxHitFor(npc, base, statIndex) {
 /** Gives a spawned NPC another form's scaled stats and max hit (Tekton enraged), keeping its hitpoints. */
 function restat(npc, id, raidInputs) {
   const scaled = scale(id, raidInputs);
-  if (scaled) npc.setCombatOverride?.({ stats: scaled.stats, maxHit: scaled.maxHit || undefined });
+  if (scaled) npc.setCombatOverride?.({ stats: scaled.stats, maxHit: scaled.maxHit || undefined, rangedDefence: scaled.rangedDefence });
   return scaled;
 }
 

@@ -5,6 +5,7 @@ import type { NPC } from "../entity/impl/npc/NPC";
 import type { Player } from "../entity/impl/player/Player";
 import { Sound } from "../Sound";
 import { Sounds } from "../Sounds";
+import { NpcDefinition } from "./NpcDefinition";
 
 /** A sound and its delay in client ticks (20 ms each). */
 type SoundEntry = readonly [sound: number, delay: number];
@@ -25,6 +26,8 @@ const FILE = "data/definitions/npc-combat-sounds.json";
  */
 export class NpcCombatSounds {
     private static data: Record<string, NpcSounds> | null = null;
+    /** Sounds by name and animation (shareKey); null where the recorded NPCs of that key disagree. */
+    private static shared: Map<string, SoundEntry[] | null> | null = null;
 
     /** The player hits `npc`: they hear its hit sound. */
     public static hit(npc: NPC, attacker: Player): void {
@@ -48,9 +51,50 @@ export class NpcCombatSounds {
     }
 
     private static pick(npc: NPC, kind: keyof NpcSounds): SoundEntry | undefined {
-        const entries = NpcCombatSounds.load()[npc.getCurrentDefinition().getId()]?.[kind];
+        const definition = npc.getCurrentDefinition();
+        const own = NpcCombatSounds.load()[definition.getId()]?.[kind];
+        const entries = own?.length ? own : NpcCombatSounds.sharedEntries(definition, kind);
         if (!entries?.length) return undefined;
         return entries[entries.length === 1 ? 0 : Math.floor(Math.random() * entries.length)];
+    }
+
+    /**
+     * Ours (upstream issue #4745): the table is keyed by NPC id, and the recordings met only some ids of
+     * most monsters (4 of the 12 Cyclops ids, say), which left the rest silent. An NPC with no sound of
+     * its own for an event takes the one recorded for an NPC of the same name that plays the same
+     * animation for it: the attack animation for an attack, the death animation for a death, the block
+     * and death animations for a hit. Where recorded NPCs of one name and animation differ, none is
+     * shared.
+     */
+    private static sharedEntries(definition: NpcDefinition, kind: keyof NpcSounds): SoundEntry[] | undefined {
+        const key = NpcCombatSounds.shareKey(definition, kind);
+        if (key == null) return undefined;
+        return NpcCombatSounds.sharedIndex().get(key) ?? undefined;
+    }
+
+    private static shareKey(definition: NpcDefinition | undefined, kind: keyof NpcSounds): string | null {
+        const name = definition?.getName?.();
+        if (!name || name === "null") return null;
+        const animation = kind === "attack" ? definition.getAttackAnim?.() : definition.getDeathAnim?.();
+        if (!(animation > 0)) return null;
+        return kind === "hit" ? `${name}|hit|${definition.getDefenceAnim?.()}|${animation}` : `${name}|${kind}|${animation}`;
+    }
+
+    private static sharedIndex(): Map<string, SoundEntry[] | null> {
+        if (NpcCombatSounds.shared) return NpcCombatSounds.shared;
+        const index = new Map<string, SoundEntry[] | null>();
+        for (const [id, sounds] of Object.entries(NpcCombatSounds.load())) {
+            const definition = NpcDefinition.forId(Number(id));
+            for (const kind of ["hit", "attack", "death"] as const) {
+                const entries = sounds[kind];
+                const key = entries?.length ? NpcCombatSounds.shareKey(definition, kind) : null;
+                if (key == null) continue;
+                const known = index.get(key);
+                if (known === undefined) index.set(key, entries!);
+                else if (known !== null && JSON.stringify(known) !== JSON.stringify(entries)) index.set(key, null);
+            }
+        }
+        return NpcCombatSounds.shared = index;
     }
 
     private static play(player: Player, entry: SoundEntry | undefined): void {

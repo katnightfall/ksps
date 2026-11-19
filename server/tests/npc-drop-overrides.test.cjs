@@ -50,11 +50,79 @@ test("the generated files hold no hand edits: each override changes something th
   });
   assert.deepEqual(dead, [], "the dump maps these tables itself now: remove them from the overrides");
   for (const name of Object.keys(overrides.subtables)) assert.equal(subtables[name], undefined, `${name} is in the dump now`);
+  // A whole table is only added while the dump has none by that id, and an NPC only moved on to it
+  // while the dump still maps it to the tables the override names.
+  for (const id of Object.keys(overrides.addTables).filter((key) => key !== "$comment")) {
+    assert.equal(dump.tables[id], undefined, `${id} is in the dump now: remove it from the overrides`);
+  }
+  for (const [id, change] of Object.entries(overrides.replaceNpcTables).filter(([key]) => key !== "$comment")) {
+    assert.deepEqual(dump.npcs[id]?.tables, change.from, `${id}: the dump maps it differently now, check the override`);
+    assert.deepEqual(_test.tablesByNpc.get(Number(id)).map((table) => table.table_id), change.tables);
+  }
   for (const [id, change] of Object.entries(overrides.tables)) {
     for (const section of change.removeSections ?? []) {
       assert.ok(dump.tables[id].entries.some((entry) => entry.section === section), `${id} has no ${section} section in the dump now`);
     }
   }
+});
+
+test("the Wilderness Slayer Cave's black dragons roll that cave's table, the others the regular one (upstream issue #6216)", (t) => {
+  const { __internals } = require("../plugins/npcs/NpcDrops.plugin");
+  const spawns = require("../data/definitions/npc-spawns.json");
+  const names = (table) => (table.entries || []).map((entry) => entry.name);
+  // Wiki (Black dragon): ids 7861-7863 are the level 247 dragons of the Wilderness Slayer Cave.
+  const cave = spawns.filter((spawn) => spawn.name === "Black dragon" && spawn.x >= 3328 && spawn.x <= 3455 && spawn.y >= 10048 && spawn.y <= 10175);
+  assert.equal(cave.length, 3);
+  for (const spawn of cave) assert.ok([7861, 7862, 7863].includes(spawn.id), `the cave's dragon at ${spawn.x}, ${spawn.y} is a cave variant`);
+  for (const id of [7861, 7862, 7863]) {
+    const tables = _test.tablesByNpc.get(id);
+    assert.equal(tables.length, 1);
+    const [table] = tables;
+    assert.equal(table.table_id, "black_dragon_wilderness_slayer_cave");
+    assert.ok(!names(table).includes("Adamant javelin"), "the regular table's 30 adamant javelins are not the cave's");
+    assert.ok(!names(table).includes("Dragon token"), "nor is the Recipe for Disaster token");
+    // Wiki: every main row is out of 128 and the rows fill it exactly.
+    const main = table.entries.filter((entry) => !entry.always);
+    assert.ok(main.every((entry) => entry.out_of === 128));
+    assert.equal(main.reduce((sum, entry) => sum + entry.weight, 0), 128);
+    assert.deepEqual(table.entries.find((entry) => entry.name === "Adamant platebody").weight, 20);
+    assert.deepEqual(table.entries.find((entry) => entry.name === "Dragon javelin tips").quantity, [25, 25]);
+    assert.equal(table.entries.find((entry) => entry.name === "Adamantite bar").noted, true);
+    assert.equal(table.tertiary.find((entry) => entry.name === "Draconic visage").out_of, 5000, "1/5,000 in the cave, 1/10,000 elsewhere");
+    assert.equal(__internals.tableForNpc(id), table);
+  }
+  for (const id of [252, 253, 254, 255, 256, 257, 258, 259]) {
+    const [table] = _test.tablesByNpc.get(id);
+    assert.equal(table.table_id, "black_dragon");
+    assert.equal(table.tertiary.find((entry) => entry.name === "Draconic visage").out_of, 10000);
+  }
+  // A kill: bones and hide every time, and the first main row (20/128 adamant platebody) on a low roll.
+  t.mock.method(Math, "random", () => 0);
+  const player = { getEquipment: () => ({ get: () => null, getItems: () => [] }) };
+  const rolled = __internals.rollTable(_test.tablesByNpc.get(7861)[0], player, null).map((drop) => drop.itemId);
+  assert.ok(rolled.includes(536) && rolled.includes(1747), "dragon bones and black dragonhide");
+  assert.ok(rolled.includes(1123), "adamant platebody");
+});
+
+test("a dump that learns a variant is left alone: tables are added and NPCs moved only where it still lacks them", () => {
+  const { __internals } = require("../plugins/npcs/NpcDrops.plugin");
+  const edited = {
+    tables: { regular: { entries: [] }, known: { entries: [{ item_id: 1 }] } },
+    npcs: { 1: { tables: ["regular"] }, 2: { tables: ["known"] }, 3: { tables: ["regular"] } },
+  };
+  __internals.applyOverrides(edited, {}, {
+    addTables: { cave: { entries: [{ item_id: 2 }] }, known: { entries: [{ item_id: 3 }] } },
+    replaceNpcTables: {
+      1: { from: ["regular"], tables: ["cave"] },
+      2: { from: ["regular"], tables: ["cave"] },
+      3: { from: ["regular"], tables: ["missing"] },
+    },
+  });
+  assert.deepEqual(edited.tables.cave.entries, [{ item_id: 2 }]);
+  assert.deepEqual(edited.tables.known.entries, [{ item_id: 1 }], "the dump's own table wins");
+  assert.deepEqual(edited.npcs[1].tables, ["cave"]);
+  assert.deepEqual(edited.npcs[2].tables, ["known"], "the dump maps it elsewhere already");
+  assert.deepEqual(edited.npcs[3].tables, ["regular"], "an unknown table is refused");
 });
 
 test("Yama's normal kill leaves out what his contracts reward", () => {

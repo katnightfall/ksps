@@ -187,12 +187,32 @@ function isNotedQuantity(raw) {
 }
 
 /**
- * npc-drop-overrides.json on top of the dump: NPCs removed or added, entries added to tables, and
- * shared tables the dumper doesn't export. Where the dump already has an NPC or shared table, the
+ * npc-drop-overrides.json on top of the dump: NPCs removed or added, whole tables added and NPCs
+ * moved on to them, entries added to tables, and shared tables the dumper doesn't export. Where the dump already has an NPC or shared table, the
  * dump's wins, so a dumper that learns to export it makes the override a no-op.
  */
 function applyOverrides(dump, subtables, overrides) {
   for (const id of Object.keys(overrides.removeNpcs ?? {})) delete dump.npcs[id];
+  // Ours (upstream issue #6216): whole tables the dumper does not export (a page's second
+  // dropversion it misses), and the NPC ids that roll them in place of the table the dump gives
+  // them. A table the dump has by that id wins; an NPC is re-mapped only while the dump still
+  // maps it to exactly the `from` tables, so a dump that learns the variant is left alone.
+  for (const [tableId, table] of Object.entries(overrides.addTables ?? {})) {
+    if (tableId === "$comment") continue;
+    dump.tables[tableId] ??= structuredClone(table);
+  }
+  for (const [id, change] of Object.entries(overrides.replaceNpcTables ?? {})) {
+    if (id === "$comment") continue;
+    const existing = dump.npcs[id];
+    const mapped = existing?.tables ?? [];
+    const from = change.from ?? [];
+    if (!existing || mapped.length !== from.length || mapped.some((table, index) => table !== from[index])) continue;
+    if ((change.tables ?? []).some((table) => !dump.tables[table])) {
+      console.error(`[NpcDrops] npc-drop-overrides.json maps npc ${id} to an unknown table`);
+      continue;
+    }
+    existing.tables = [...change.tables];
+  }
   for (const [id, npc] of Object.entries(overrides.addNpcs ?? {})) {
     if (id === "$comment") continue;
     const existing = dump.npcs[id];

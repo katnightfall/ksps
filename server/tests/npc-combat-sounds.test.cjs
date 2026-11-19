@@ -77,3 +77,90 @@ test('an NPC with no captured sounds, and a logged-out listener, stay silent', (
   assert.deepEqual(p.sent, []);
   assert.deepEqual(gone.sent, []);
 });
+
+// ------------------------------------------------------------------ upstream issue #4745
+// The recordings met only some ids of most monsters, and the table is keyed by id: the Cyclopes of the
+// Warriors' Guild (12 ids, 4 recorded) were silent for most players. An NPC without a sound of its own takes
+// the one recorded for an NPC of the same name playing the same animation.
+const sharing = () => {
+  const { CachePipeline } = require('../dist/game/cache/CachePipeline');
+  const { NpcDefinitionLoader } = require('../dist/game/definition/loader/impl/NpcDefinitionLoader');
+  const { NpcDefinition } = require('../dist/game/definition/NpcDefinition');
+  CachePipeline.initialize();
+  new NpcDefinitionLoader().load();
+  return { NpcDefinition, real: (id) => ({ getCurrentDefinition: () => NpcDefinition.forId(id) }) };
+};
+const CYCLOPES = [2463, 2464, 2465, 2466, 2467, 2468, 2137, 2138, 2139, 2140, 2141, 2142];
+
+test('a monster id the recordings never met sounds like its recorded namesake with the same animations', () => {
+  const { NpcDefinition, real } = sharing();
+  for (const id of CYCLOPES) assert.equal(NpcDefinition.forId(id).getName(), 'Cyclops', `${id}`);
+  const recorded = CYCLOPES.filter((id) => data[id]?.hit?.length && data[id]?.attack?.length);
+  const unrecorded = CYCLOPES.filter((id) => !data[id]);
+  assert.ok(recorded.length > 0 && unrecorded.length > 0, 'some recorded, some not');
+  const [hit] = data[recorded[0]].hit;
+  const [attack] = data[recorded[0]].attack;
+  for (const id of unrecorded) {
+    const definition = NpcDefinition.forId(id);
+    const source = NpcDefinition.forId(recorded[0]);
+    if (definition.getAttackAnim() !== source.getAttackAnim() || definition.getDeathAnim() !== source.getDeathAnim()
+      || definition.getDefenceAnim() !== source.getDefenceAnim()) continue;
+    const p = player();
+    NpcCombatSounds.hit(real(id), p);
+    NpcCombatSounds.attack(real(id), p);
+    assert.deepEqual(p.sent, [[hit[0], 0, hit[1]], [attack[0], 0, attack[1]]], `Cyclops ${id}`);
+  }
+  // At least one unrecorded Cyclops shares every animation, so the loop above checked something.
+  assert.ok(unrecorded.some((id) => NpcDefinition.forId(id).getAttackAnim() === NpcDefinition.forId(recorded[0]).getAttackAnim()));
+});
+
+test('an id with a recorded sound keeps its own, and another name with the same animation takes nothing', () => {
+  const { NpcDefinition, real } = sharing();
+  const id = CYCLOPES.find((entry) => data[entry]?.hit?.length);
+  const p = player();
+  NpcCombatSounds.hit(real(id), p);
+  assert.ok(data[id].hit.some(([sound]) => sound === p.sent[0][0]));
+  // An unrecorded NPC of another name: silent, whatever it shares with a Cyclops.
+  const cyclops = NpcDefinition.forId(id);
+  const stranger = { getCurrentDefinition: () => ({
+    getId: () => 999999, getDeathSound: () => -1, getName: () => 'Not a cyclops',
+    getAttackAnim: () => cyclops.getAttackAnim(), getDeathAnim: () => cyclops.getDeathAnim(), getDefenceAnim: () => cyclops.getDefenceAnim(),
+  }) };
+  const q = player();
+  NpcCombatSounds.hit(stranger, q);
+  NpcCombatSounds.attack(stranger, q);
+  NpcCombatSounds.death(stranger, [q]);
+  assert.deepEqual(q.sent, []);
+});
+
+test('where recorded NPCs of one name and animation disagree, their unrecorded namesakes stay silent', (t) => {
+  const { real } = sharing();
+  const [first, second] = CYCLOPES.filter((id) => data[id]?.hit?.length);
+  const unrecorded = CYCLOPES.find((id) => !data[id]);
+  const saved = { data: NpcCombatSounds.data, shared: NpcCombatSounds.shared };
+  t.after(() => Object.assign(NpcCombatSounds, saved));
+  // The same two recorded ids, now with different hit sounds.
+  NpcCombatSounds.data = { [first]: { hit: [[1, 0]] }, [second]: { hit: [[2, 0]] } };
+  NpcCombatSounds.shared = null;
+  const p = player();
+  NpcCombatSounds.hit(real(unrecorded), p);
+  assert.deepEqual(p.sent, []);
+  // And agreeing again, it is shared.
+  NpcCombatSounds.data = { [first]: { hit: [[1, 0]] }, [second]: { hit: [[1, 0]] } };
+  NpcCombatSounds.shared = null;
+  NpcCombatSounds.hit(real(unrecorded), p);
+  assert.deepEqual(p.sent, [[1, 0, 0]]);
+});
+
+test("an NPC's melee swing sends no sound of its own: its attack sound is the recorded one, to its target", (t) => {
+  sharing();
+  const { PluginManager } = require('../dist/plugins/PluginManager');
+  const { MeleeCombatMethod } = require('../dist/game/content/combat/method/impl/MeleeCombatMethod');
+  const core = PluginManager.getCoreApi();
+  const cyclops = new core.NPC(CYCLOPES[0], new core.Location(2847, 3541, 2));
+  assert.equal(cyclops.getAttackSound(), null);
+  const area = t.mock.method(core.Sounds, 'playAreaSound', () => {});
+  cyclops.performAnimation = () => {};
+  new MeleeCombatMethod().start(cyclops, {});
+  assert.equal(area.mock.callCount(), 0, 'no area sound (it was one of range 0, which the client drops)');
+});

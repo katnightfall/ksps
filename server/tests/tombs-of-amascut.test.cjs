@@ -1106,3 +1106,46 @@ test('active encounter logout distinguishes a crystal eject from a death and rej
     party.disband();
   }
 });
+
+test("the enraged Warden's Defence goes back up to 180 and its defence roll with it (Wiki; upstream issue #6239)", () => {
+  toaApi();
+  const Raid = require('../plugins/minigames/toa/RaidState.TombsOfAmascut');
+  const { PluginManager } = require('../dist/plugins/PluginManager');
+  const { NPC } = require('../dist/game/entity/impl/npc/NPC');
+  const { AccuracyFormulasDpsCalc } = require('../dist/game/content/combat/formula/AccuracyFormulasDpsCalc');
+  const core = PluginManager.getCoreApi();
+  CachePipeline.initialize();
+  new NpcDefinitionLoader().load();
+  const rooms = new Map();
+  const register = Raid.registerRoom;
+  Raid.registerRoom = (key, RoomClass) => rooms.set(key, RoomClass);
+  try {
+    require('../plugins/minigames/toa/Wardens.TombsOfAmascut')(recordingApi().api);
+  } finally {
+    Raid.registerRoom = register;
+  }
+  toaApi();
+  const Final = rooms.get('WARDENS_P3');
+  for (const id of [Npcs.ELIDINIS_WARDEN_7, Npcs.TUMEKENS_WARDEN_7]) {
+    const warden = new NPC(id, new core.Location(3936, 5165, 1));
+    warden.performAnimation = () => {};
+    // Wiki (Elidinis' Warden, Tumeken's Warden): Defence 150 with +40 slash in the final phase.
+    assert.equal(warden.getDefenceLevel(), 150);
+    assert.equal(AccuracyFormulasDpsCalc.defenseMeleeRoll(warden, core.BonusManager.ATTACK_SLASH), (150 + 9) * (40 + 64));
+    // Drained to its floor before the enrage.
+    warden.setDefenceLevel(120);
+    const room = Object.assign(Object.create(Final.prototype), {
+      phase: 2, warden, siphons: [], phantoms: [], amascut: null, soundAll() {}, later() {}, challengePlayers: () => [],
+    });
+    room.startLastPhase();
+    assert.equal(room.phase, 3);
+    assert.equal(warden.getDefenceLevel(), 180, 'reset to 180 on entering the enraged state');
+    assert.equal(AccuracyFormulasDpsCalc.defenseMeleeRoll(warden, core.BonusManager.ATTACK_SLASH), (180 + 9) * (40 + 64));
+    // It can be lowered again, down to 120 (the room puts it back to that floor when a hit lands).
+    warden.setDefenceLevel(100);
+    room.skullAttack = false;
+    room.raid = { failTask() {} };
+    room.filterWardenHit({ getAttacker: () => null, getCombatType: () => null });
+    assert.equal(warden.getDefenceLevel(), 120);
+  }
+});

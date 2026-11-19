@@ -670,6 +670,28 @@ function rollRewards(run, runeBonus, boost = null) {
   return [...rewards].map(([id, amount]) => new Item(id, amount));
 }
 
+/**
+ * Ours (upstream issue #4407): the chest's elite clue goes through the shared clue services, as
+ * other chests' clues do: a scroll box once X Marks the Spot is done (Wiki, Scroll box (elite):
+ * "scroll boxes are obtained in place of clue scrolls"), and none for a player already holding
+ * all they may of that tier, who gets the "sneaking suspicion" line if they have it switched on.
+ */
+function clueThroughServices(player, rewards) {
+  for (let index = rewards.length - 1; index >= 0; index--) {
+    if (rewards[index].getId() !== Items.CLUE_SCROLL_ELITE_) continue;
+    const allowed = { player, tier: "elite", allowed: null };
+    pluginApi.emitCustomEvent("treasure-trails:can-receive", allowed);
+    if (allowed.allowed === false) {
+      pluginApi.emitCustomEvent("treasure-trails:missed-clue", { player, tier: "elite" });
+      rewards.splice(index, 1);
+      continue;
+    }
+    const award = { player, itemId: Items.CLUE_SCROLL_ELITE_, box: false };
+    pluginApi.emitCustomEvent("treasure-trails:clue-item", award);
+    if (award.itemId !== Items.CLUE_SCROLL_ELITE_) rewards[index] = new Item(award.itemId, rewards[index].getAmount());
+  }
+}
+
 /** The remaining equipment piece won on a boosted 1 in `odds` (as rollRewards says), or -1. */
 function boostedEquipment(equipment, odds, boost) {
   const weights = equipment.map((id) => Math.max(0, boost(id)));
@@ -763,6 +785,7 @@ function searchChest(player, clickType) {
   const diary = { player, diary: "morytania", tier: "hard", complete: false };
   pluginApi.emitCustomEvent("diary:is-complete", diary);
   const rewards = rollRewards(run, diary.complete === true, chestBoost(player));
+  clueThroughServices(player, rewards);
   // Other plugins' items join the loot, in its window (His Faithful Servants' strange icon comes
   // first: BarrowsMiniQuest.bin tick 885, trail_rewardinv's slot 0).
   pluginApi.emitCustomEvent("barrows:chest-rewards", { player, run, rewards });
@@ -815,7 +838,9 @@ function trackBrotherHit({ attacker, target, hit }) {
   const run = index === -1 ? null : target.getAttribute(ATTRIBUTE);
   if (!run || run.looted) return;
   if (hit.getTotalDamage() > 0) run.brotherDamage = true;
-  if (MELEE_BROTHERS.has(index) && String(hit.getCombatType?.()) === "MELEE") run.meleeBrotherAttacked = true;
+  // Ours (upstream issue #4407): the combat type is a number (CombatType.MELEE), never the text "MELEE",
+  // so no melee attack was ever counted and "Can't Touch Me" was given to every run that killed the four.
+  if (MELEE_BROTHERS.has(index) && hit.getCombatType?.() === pluginApi.core.CombatType.MELEE) run.meleeBrotherAttacked = true;
 }
 
 function answerKillCount({ player, counts }) {
@@ -955,13 +980,18 @@ function processPlayer({ player }) {
       if (phase === "tunnels") syncTunnels(player, getRun(player));
     }
   }
+  // Ours (upstream issue #4407): the door's monster comes for a player who went through, wherever
+  // they have got to since. It used to need them still standing on the far side's tile three
+  // ticks later, so clicking on at once skipped the spawn (Wiki: "Upon opening any of the doors
+  // in these tunnels, a monster will spawn and attack the player").
+  if (state.crossing && player.getLocation().equals(state.crossing.to)) state.crossing.crossed = true;
   if (state.crossing && --state.crossing.ticks <= 0) {
     const crossing = state.crossing;
     state.crossing = null;
     player.removeFlag(IGNORE_CLIPPING_FLAG);
     if (phase === "tunnels") {
       for (const leaf of crossing.leaves) player.getPacketSender().sendObject(asObject(leaf));
-      if (player.getLocation().equals(crossing.to)) spawnEncounter(player, roomAt(crossing.to));
+      if (crossing.crossed) spawnEncounter(player, roomAt(crossing.to));
     }
   }
   if (phase === "crypt" || phase === "tunnels") {
@@ -1129,5 +1159,6 @@ module.exports = {
     api.registerNpcCombatMethodProvider(Npcs.AHRIM_THE_BLIGHTED, AhrimCombat);
   },
   _test: { rollRewards, searchChest, searchCrypt, chestCount, phaseOf, syncMinimap, processPlayer, dig, useDoor, doorSides, getTunnelMap, getRun, IGNORE_CLIPPING_FLAG,
+    trackBrotherHit, session,
     useLockpickOnDoor, inspectLockpick, refuseMoundDig, WARNINGS_ATTRIBUTE, playerDeath, crumbleWarnedLockpickOnDeath, crumbleKeptLockpicksOnDeath },
 };

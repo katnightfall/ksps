@@ -1875,7 +1875,7 @@ class WardensFinalRoom extends WardenRoomBase {
 
   startLastPhase() {
     if (this.phase !== 2) return;
-    const { Animation } = Shared.core();
+    const { Animation, Skill } = Shared.core();
     this.phase = 3;
     this.skullAttack = false;
     this.skullTimer = 0;
@@ -1883,6 +1883,10 @@ class WardensFinalRoom extends WardenRoomBase {
     this.clearSiphons();
     this.soundAll(SOUND.SELF_HEAL);
     warden.setHitpoints(Math.min(warden.getMaxHitpoints(), warden.getHitpoints() + Math.floor(warden.getMaxHitpoints() * ENRAGE_HEAL)));
+    // Ours (upstream issue #6239): the enrage puts its Defence back up to 180, above the 150 it
+    // starts on (Wiki). A level can't be set above the NPC's base, so the base is raised first;
+    // without that this reset it to 150.
+    warden.setMaxLevelBoost(Skill.DEFENCE, Math.max(0, DEFENCE.FINAL_ENRAGED - DEFENCE.FINAL));
     warden.setDefenceLevel(DEFENCE.FINAL_ENRAGED);
     warden.performAnimation(new Animation(ANIMATION.LAST_PHASE));
     this.amascut?.performAnimation(new Animation(ANIMATION.AMASCUT_ENRAGE, 1));
