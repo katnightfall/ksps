@@ -99,7 +99,8 @@ test("a name of underscores and spaces only is refused: it is not a second way i
   const fresh = await login("_", "any-password");
   assert.equal(fresh.accepted, false, "nor is it a new account");
   // A real name with an underscore in it is the name with a space, as ever.
-  const spaced = await login("Mod_Kat", "pw");
+  // (Not a name with "mod" in it: new names may not pass for a moderator's, tests/character-slots-login.test.cjs.)
+  const spaced = await login("Sir_Kat", "pw");
   assert.equal(spaced.accepted, true);
 });
 
