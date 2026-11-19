@@ -1023,8 +1023,10 @@ Animal Wrangler's Hunter and cooking ones) do not.
 - **Corner Cutter** (tier 2): Agility rolls always succeed (`agility:roll`), a lap counts twice
   and its completion bonus pays 25% more (`agility:lap-reward`; the obstacles' own XP is not
   raised: ours), and a mark of grace spawns with 10,000 coins
-  (`agility:mark`). Not here: the Sage's greaves, and the doubled pyramid tops, hallowed marks,
-  Brimhaven vouchers and crystal shards (their plugins hand them out without a seam).
+  (`agility:mark`). The golden pyramid and the Prifddinas course's crystal shards
+  (`agility:course-item`), the Brimhaven Agility Arena's tickets and vouchers and the Hallowed
+  Sepulchre's marks (`minigame:points`, after the tier passive's) come twofold (upstream issue
+  #5586). Not here: the Sage's greaves.
 - **Dodgy Deals** (tier 2): every pickpocket lands (`alwaysSucceeds` on
   `thieving:pickpocket-target`) and the pouch limit is tripled, the loot is noted and multiplied
   by the NPCs of the same name alive within 5 tiles of the player (the Wiki's 11x11; coins a pouch

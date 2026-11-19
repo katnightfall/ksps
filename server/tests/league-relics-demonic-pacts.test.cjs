@@ -2422,8 +2422,11 @@ test("Hotfoot: Prifddinas's portal shard comes tenfold (agility:course-item), wi
   assert.equal(who.relic.sent.messages.at(-1), portal.message);
   for (const player of others(who)) {
     giveCourseItem(player, { key: "prifddinas" }, portal);
-    assert.equal(player.getInventory().getAmount(I.CRYSTAL_SHARD), 1, player.getUsername());
+    // Ours (upstream issue #5586): the same pick is Corner Cutter on Raging Echoes, whose shards come twofold (Wiki).
+    const cornerCutter = Common.hasRelic(player, "corner-cutter");
+    assert.equal(player.getInventory().getAmount(I.CRYSTAL_SHARD), cornerCutter ? 2 : 1, player.getUsername());
   }
+  assert.equal(Common.hasRelic(who.other, "corner-cutter"), true, "the Raging Echoes character with this pick holds Corner Cutter");
   giveCourseItem(who.relic, { key: "seers" }, portal);
   assert.equal(who.relic.getInventory().getAmount(I.CRYSTAL_SHARD), 11, "another course's find is its own");
   const full = character("full-hotfoot", "league", HOTFOOT);

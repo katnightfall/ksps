@@ -104,3 +104,31 @@ test("a login on a pyramid floor sends agility_pyramid_level for that floor; one
     assert.equal(p.getPacketSender().getVarbit(1550), level, `${location.getX()},${location.getY()},${location.getZ()}`);
   }
 });
+
+// Ours (upstream issue #5586): the top is handed out through "agility:course-item", so a league relic can
+// double it (Raging Echoes' Corner Cutter); with nobody answering, one comes as before.
+test("the golden pyramid's amount can be changed over agility:course-item; what has no room goes to the floor", (t) => {
+  const asked = [];
+  const doubling = { emitCustomEvent(name, request) { if (name === "agility:course-item") { asked.push([request.course, request.itemId, request.amount]); request.amount *= 2; } } };
+  const p = player(t);
+  p.setLocation(SUMMIT());
+  Pyramid.takePyramidTop({ player: p, core, api: doubling });
+  assert.deepEqual(asked, [["pyramid", PYRAMID_TOP, 1]]);
+  assert.equal(p.getInventory().getAmount(PYRAMID_TOP), 2, "both tops");
+
+  const tight = player(t);
+  tight.setLocation(SUMMIT());
+  const filler = core.ItemIdentifiers.BRONZE_DAGGER;
+  for (let slot = 0; slot < 27; slot++) tight.getInventory().addItem(new core.Item(filler, 1));
+  assert.equal(tight.getInventory().getFreeSlots(), 1);
+  const dropped = [];
+  const realRegister = core.ItemOnGroundManager.registerLocation;
+  core.ItemOnGroundManager.registerLocation = (owner, item) => { dropped.push([item.getId(), item.getAmount()]); };
+  try {
+    Pyramid.takePyramidTop({ player: tight, core, api: doubling });
+  } finally {
+    core.ItemOnGroundManager.registerLocation = realRegister;
+  }
+  assert.equal(tight.getInventory().getAmount(PYRAMID_TOP), 1, "one fits");
+  assert.deepEqual(dropped, [[PYRAMID_TOP, 1]], "the other is on the floor");
+});

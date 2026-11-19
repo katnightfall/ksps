@@ -481,6 +481,21 @@ test("Corner Cutter: sure agility, two laps and 25% more a lap, 10,000 coins wit
   assert.deepEqual([lap.count, lap.xp], [2, 49.375]);
   const mark = emit("agility:mark", { player: who.relic, location: new Location(3200, 3200, 0), items: [[I.MARK_OF_GRACE, 1]] });
   assert.deepEqual(mark.items, [[I.MARK_OF_GRACE, 1], [I.COINS, 10000]]);
+  // Ours (upstream issue #5586): "Pyramid tops, hallowed marks, Brimhaven vouchers and crystal shards ... are doubled" (Wiki).
+  const find = (player, course, itemId) => emit("agility:course-item", { player, course, itemId, amount: 1 }).amount;
+  const award = (player, minigame, points) => emit("minigame:points", { player, minigame, points }).points;
+  assert.equal(find(who.relic, "pyramid", I.PYRAMID_TOP), 2, "two golden pyramids");
+  assert.equal(find(who.relic, "prifddinas", I.CRYSTAL_SHARD), 2, "two crystal shards from the portal");
+  assert.equal(find(who.relic, "gnome", I.CRYSTAL_SHARD), 1, "only the courses the Wiki names");
+  // Against a Raging Echoes character at the same tier with another tier 2 relic (so the same tier passive).
+  const sameTier = character("forager", "league", { 1: 2 }, 5);
+  assert.equal(award(who.relic, "brimhaven-agility-arena", 1), 2 * award(sameTier, "brimhaven-agility-arena", 1), "twice the tickets and vouchers");
+  assert.equal(award(who.relic, "hallowed-sepulchre", 3), 2 * award(sameTier, "hallowed-sepulchre", 3), "twice the hallowed marks");
+  assert.equal(award(who.relic, "pest-control", 4), award(sameTier, "pest-control", 4), "no other minigame");
+  for (const player of others(who)) {
+    assert.equal(find(player, "pyramid", I.PYRAMID_TOP), 1, `${player.getUsername()}: one golden pyramid`);
+    assert.equal(find(player, "prifddinas", I.CRYSTAL_SHARD), 1, `${player.getUsername()}: one crystal shard`);
+  }
   for (const player of others(who)) {
     assert.equal(emit("agility:roll", { player, objectId: 1, success: false }).success, false, `${player.getUsername()} rolls as usual`);
     assert.deepEqual(emit("agility:lap-reward", { player, course: "gnome", count: 1, xp: 39.5 }).count, 1);
