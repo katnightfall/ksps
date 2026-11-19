@@ -1427,6 +1427,10 @@ export class ClientConnection {
       protocolName.length < 1 ||
       protocolName.length > 12 ||
       !Misc.isValidName(protocolName) ||
+      // Ours: a name of underscores and spaces only is no name. It was let in as its own account
+      // (its key is empty), while every save database files it under "player": the save of the
+      // account named Player. One save then had two logins that could be in the world together.
+      DisplayNames.key(typedName).length < 1 ||
       password.length < 1 ||
       password.length > 64
     ) {

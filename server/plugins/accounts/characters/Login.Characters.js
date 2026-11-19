@@ -176,7 +176,8 @@ class LoginSession {
       }
       const name = String(rawName ?? "").trim();
       const protocolName = Misc.formatNameForProtocol(name);
-      if (protocolName.length < 1 || protocolName.length > 12 || !Misc.isValidName(name)) {
+      // Ours: nor a name of underscores and spaces only (the login refuses it too: its save would be "player"'s).
+      if (protocolName.length < 1 || protocolName.length > 12 || !Misc.isValidName(name) || DisplayNames.key(name).length < 1) {
         this.send(encodeCharacterResult(false, 2, "Names are 1 to 12 letters, numbers and spaces."));
         return;
       }
