@@ -252,6 +252,24 @@ export const WORLD_ZONE_BOUNDARIES: Record<WorldZoneTag, Boundary[]> = Object.as
     "all-buildings-safe": [],
 });
 
+/**
+ * The "PvP world" switch: pluginConfig "Wilderness:pvpWorld" (or `plugins.Wilderness.pvpWorld`; the Wilderness plugin
+ * declares it, so the world config page lists it). On, the whole world is PvP ground, exactly as a `pvp` zone with no
+ * bounds in `zones` makes it; `safe` and `all-buildings-safe` zones still carve safe ground out of it.
+ */
+// Ours (upstream issue #4383): a world could only become a PvP world by adding that zone to world.json by hand, and
+// world.local.json replaces the zone list whole, so a deployment had to restate every zone to add one. The switch
+// is read here, not written into `zones`, so turning it off again leaves nothing behind.
+export const PVP_WORLD_SETTING = "Wilderness:pvpWorld";
+
+function pvpWorldSwitch(): boolean {
+    return definition.pluginConfig?.[PVP_WORLD_SETTING] === true;
+}
+
+function hasGlobalZone(tag: WorldZoneTag): boolean {
+    return definition.zones.some((zone) => zone.minX === undefined && zone.tags.includes(tag));
+}
+
 function zoneBoundaries(zone: WorldZone): Boundary[] {
     if (zone.minX === undefined) {
         return [0, 1, 2, 3].map((z) => new Boundary(0, 0x3fff, 0, 0x3fff, z));
@@ -300,6 +318,9 @@ function syncRuntime(): void {
             if (tag !== "f2p") (WORLD_ZONE_BOUNDARIES[tag] ??= []).push(...boundaries);
         }
     }
+    if (pvpWorldSwitch() && !hasGlobalZone("pvp")) {
+        WORLD_ZONE_BOUNDARIES.pvp.push(...zoneBoundaries({ tags: ["pvp"] }));
+    }
     indexFreeLand();
 }
 
@@ -343,7 +364,7 @@ export function isMembersArea(x: number, y: number): boolean {
 }
 
 export function hasGlobalWorldTag(tag: WorldZoneTag): boolean {
-    return definition.zones.some((zone) => zone.minX === undefined && zone.tags.includes(tag));
+    return hasGlobalZone(tag) || (tag === "pvp" && pvpWorldSwitch());
 }
 
 syncRuntime();

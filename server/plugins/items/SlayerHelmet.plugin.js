@@ -506,9 +506,10 @@ function removeImbue(player, item, slot) {
   player.getPacketSender().sendSoundEffect(UNCHARGE_SOUND, 1, 0, 255);
 }
 
-/** As BrokenItems: a PvP death is one in the Wilderness to a player killer. */
+/** As BrokenItems: a PvP death is one to a player killer in the Wilderness or on other PvP ground. */
+// Ours (upstream issue #6002): asked of the death itself, so Bounty Hunter's arena counts.
 function isPvpDeath(player, killer) {
-  return killer != null && killer !== player && pluginApi.core.Wilderness.isIn(player) === true;
+  return pluginApi.core.PlayerDeathTask.isPvpDeath(player, killer);
 }
 
 /** An imbued black mask a PvP death would take, imbue and all; preset copies were never paid for and stay as they are. */

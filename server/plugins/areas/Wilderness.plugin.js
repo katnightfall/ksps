@@ -736,6 +736,11 @@ module.exports = {
   name: "Wilderness",
   description: "The Wilderness: PvP attack rules, the overlay, teleport limits and web slashing.",
   config: {
+    // Read by WorldDefinition as the world loads (the PvP ground must exist before any plugin asks for it).
+    "Wilderness:pvpWorld": {
+      type: "boolean", label: "PvP world", default: false,
+      help: "Makes this a PvP world: players can attack each other everywhere, within the unlevelled PvP combat level difference outside the Wilderness. Zones tagged safe or all-buildings-safe in world.json stay safe; a world with neither has no safe ground. The same as a pvp zone with no bounds. Restart to change.",
+    },
     [PVP_WORLD_LEVEL_DIFFERENCE_CONFIG]: {
       type: "number", label: "Unlevelled PvP combat level difference", default: PVP_WORLD_ATTACK_RANGE, integer: true, min: 0,
       help: "Maximum combat level difference on unlevelled PvP ground on PvP worlds. Levelled Wilderness tiles keep their usual range.",
@@ -748,6 +753,11 @@ module.exports = {
     require("./wilderness/FountainOfRune.Wilderness")(api);
     require("./wilderness/DemonicRuins.Wilderness")(api);
     pluginApi = api;
+    // The switch itself is applied by WorldDefinition as the world loads; this is the owner's warning.
+    if (api.getPluginConfig("Wilderness:pvpWorld", false) === true
+        && WORLD_ZONE_BOUNDARIES.safe.length === 0 && WORLD_ZONE_BOUNDARIES["all-buildings-safe"].length === 0) {
+      console.warn("[wilderness] PvP world with no zone tagged safe or all-buildings-safe in world.json: no ground is safe, banks and the spawn included");
+    }
     const levelDifference = api.getPluginConfig(PVP_WORLD_LEVEL_DIFFERENCE_CONFIG, PVP_WORLD_ATTACK_RANGE);
     unlevelledPvpRange = Number.isInteger(levelDifference) && levelDifference >= 0 ? levelDifference : PVP_WORLD_ATTACK_RANGE;
     const state = createState();

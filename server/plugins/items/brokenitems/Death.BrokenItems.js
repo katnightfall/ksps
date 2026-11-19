@@ -3,8 +3,9 @@ const { PlayerDeathTask } = require("../../../src/main/typescript/elvarg/game/ta
 
 /**
  * What a PvP death does to the breakable items it doesn't protect (Wiki: Items Kept on Death,
- * (broken), (l)). A PvP death is one in the Wilderness to a player killer; anywhere else, or
- * to a monster, nothing breaks and the item goes to the grave like any other untradeable.
+ * (broken), (l)). A PvP death is one to a player killer in the Wilderness or on other PvP ground
+ * (PlayerDeathTask.isPvpDeath); anywhere else, or to a monster, nothing breaks and the item goes to
+ * the grave like any other untradeable.
  *
  * - Up to level 20 Wilderness, the item stays with the victim in its broken form.
  * - Above level 20, a lockable item is lost unless locked; a locked one becomes mangled.
@@ -18,11 +19,14 @@ const Common = require("./Common.BrokenItems");
 
 const DEEP_WILDERNESS_LEVEL = 20;
 
+// Ours (upstream issue #6002): PvP ground as the death itself reads it, so Bounty Hunter's arena counts.
 function isPvpDeath(player, killer) {
-  return killer != null && killer !== player && Common.getCore().Wilderness.isIn(player);
+  return PlayerDeathTask.isPvpDeath(player, killer);
 }
 
+/** The Wilderness level of the death; 0 on PvP ground outside the Wilderness, whatever its map row. */
 function wildernessLevel(player) {
+  if (!Common.getCore().Wilderness.isIn(player)) return 0;
   const location = player.getLocation();
   return Number(Common.getCore().Wilderness.levelAt(location.getX(), location.getY())) || 0;
 }

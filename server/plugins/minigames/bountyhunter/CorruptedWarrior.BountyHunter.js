@@ -64,7 +64,18 @@ function convertArmour(event) {
   if (counterpart === undefined || !WARRIOR_IDS.includes(event.npcId)) return;
   event.handled = true;
   const inventory = player.getInventory();
-  inventory.setItem(slot, new core.Item(counterpart, inventory.get(slot).getAmount()));
+  const item = inventory.get(slot);
+  // Ours (upstream issue #6002): a piece charged with coins converts only where both forms hold the same amount
+  // (BountyHunterEquipment answers), and the piece stays the same item, so what it holds and a preset copy's
+  // restrictions go with it; a new item used to drop both.
+  const request = { player, item, to: counterpart, allowed: true, message: null };
+  pluginApi.emitCustomEvent("bounty-hunter:can-convert", request);
+  if (!request.allowed) {
+    player.getDialogueManager().startDialogues(new core.DialogueChainBuilder()
+      .add(new core.ItemStatementDialogue(0, itemId, request.message ?? "The Corrupted Warrior can't convert that.")));
+    return;
+  }
+  item.setId(counterpart);
   inventory.refreshItems();
   player.getDialogueManager().startDialogues(new core.DialogueChainBuilder()
     .add(new core.ItemStatementDialogue(0, counterpart,

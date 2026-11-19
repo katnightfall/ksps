@@ -182,6 +182,53 @@ function cosmeticOnDeath(query) {
   }
 }
 
+/**
+ * What a PvP death makes of an unprotected ornamented item (Wiki: Items Kept on Death, Mechanics), or null where it
+ * leaves the item as it is: { base, kit }, the plain item's id and the kit that comes off it (0: none).
+ * - A tradeable item with a kit or recolour is "dropped to the PKer as the tradeable, non-ornamented item".
+ * - A kit that dismantling gives back comes off: a tradeable one "also drops ... to the PKer", an untradeable one (the
+ *   Bounty Hunter kits: "the item will be lost to the killer but the kit will be sent to the gravestone") stays the
+ *   victim's, and so does any other untradeable kit that was used up making the item ("The untradeable modification
+ *   goes to the victim's gravestone"). A tradeable kit or recolour that dismantling does not give back is gone with
+ *   the death (Volcanic abyssal whip: "Dropped to the PKer as base item, recolour is destroyed").
+ * - An untradeable item with a tradeable kit (Rune defender (t), Graceful (Trailblazer)) loses the kit to the PKer
+ *   and meets the death as the plain item.
+ * Where nothing would change hands (an untradeable item whose kit is untradeable or does not come back: a dyed
+ * Graceful piece, Fighter torso (or)) the item is left alone, as are preset copies and Barrows pieces, which have a
+ * death rule of their own.
+ */
+// Ours (upstream issue #6002): before this every ornamented item counted as an untradeable and came back to its
+// owner from a PvP death, skulled or not: an Armadyl godsword (or), a Volcanic abyssal whip, Elder chaos (or) robes.
+function pvpDeathParts(item) {
+  if (!item || restricted(item)) return null;
+  const id = Number(item.getId?.());
+  const entry = byResult.get(id);
+  if (!entry || Barrows.baseItemId(id) != null || Barrows.baseItemId(entry.base) != null) return null;
+  const tradeable = (itemId) => new core.Item(itemId, 1).isPlayerTradeable();
+  const comesOff = entry.kit > 0 && (entry.refund || (entry.consumeKit && !tradeable(entry.kit)));
+  const kit = comesOff ? entry.kit : 0;
+  const baseTradeable = tradeable(entry.base);
+  if (!baseTradeable && !(kit > 0 && tradeable(kit))) return null;
+  return { base: entry.base, kit, baseTradeable };
+}
+
+/** `player-death:pvp-item-parts` (PlayerDeathTask): the plain item, the same Item so its metadata stays, and its kit. */
+function splitOnPvpDeath(query) {
+  // A bot's gear is not loot (DeathLoot.PlayerBots decides what its death gives).
+  if (query?.player?.isPlayerBot?.() === true || query.parts) return;
+  const parts = pvpDeathParts(query.item);
+  if (!parts) return;
+  const { item } = query;
+  const amount = item.getAmount();
+  item.setId(parts.base);
+  query.parts = parts.kit > 0 ? [item, new core.Item(parts.kit, amount)] : [item];
+}
+
+/** `items:lost-to-pvp-killer` { item, wildernessLevel, lost }: the Items Kept on Death screen's PvP preview. */
+function answerLostToPvpKiller(query) {
+  if (pvpDeathParts(query?.item)?.baseTradeable) query.lost = true;
+}
+
 /** Revert from the item's Revert/Dismantle option, returning the kit for entries that specify it. */
 function revertItem(event) {
   if (event.option !== "Revert" && event.option !== "Dismantle" && event.option !== "Detach") {
@@ -222,7 +269,7 @@ function revertItem(event) {
 module.exports = {
   name: "OrnamentKits",
   description: "Lets ornament kits and colour recolours be applied to their base items and reverted, with refunds where the Wiki says the kit is returned.",
-  _test: { loadKits: () => loadKits(), findEntry, applyKit, revertItem },
+  _test: { loadKits: () => loadKits(), findEntry, applyKit, revertItem, pvpDeathParts },
   register(api) {
     pluginApi = api;
     core = api.core;
@@ -276,6 +323,8 @@ module.exports = {
     api.onItemOnItem(cleanDye, { noted: false });
     api.onItemAction(revertItem);
     api.onCustomEvent("player-death:cosmetic", cosmeticOnDeath);
+    api.onCustomEvent("player-death:pvp-item-parts", splitOnPvpDeath);
+    api.onCustomEvent("items:lost-to-pvp-killer", answerLostToPvpKiller);
     api.log("registered", { pairs: byKitAndBase.size, variants: byResult.size });
   },
 };

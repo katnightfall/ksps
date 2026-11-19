@@ -31,6 +31,11 @@ individual switches and settings, with nested values replaced in full. For examp
 `"Prayer": false` disables the plugin and keeps its shipped settings. Plugins can read
 their options by short name, such as `api.getPluginConfig("sequentialBurying", false)`.
 
+`plugins.Wilderness.pvpWorld: true` makes a world a PvP world: every tile is PvP ground, as a
+`zones` entry `{ "tags": ["pvp"] }` with no bounds makes it. Zones tagged `safe` or
+`all-buildings-safe` stay safe; a world with neither has no safe ground, banks and the spawn
+included. The switch needs a restart.
+
 On PvP worlds, `plugins.Wilderness.pvpWorldLevelDifference` sets the server's attack limit
 on unlevelled ground. The client overlay still displays the standard 15-level range there.
 
@@ -322,6 +327,7 @@ After changing a plugin's `description` or `config`, run `yarn --cwd server worl
 | --- | --- | --- | --- |
 | `RevenantCaves:entryFee` | number (integer, >= 0, <= 2147483647) | `100000` | **Revenant Caves entry fee.** Coins paid once to enter, lost on a death in the caves or to a player in the Wilderness. 100,000 as in OSRS; 0 lets everyone in for free. |
 | `TutorialIsland:allowSkip` | boolean | `true` | **Allow skipping Tutorial Island.** The Gielinor Guide offers new players to skip the island, which misses some starter items and steps. Turn off to make everyone complete it. |
+| `Wilderness:pvpWorld` | boolean | `false` | **PvP world.** Makes this a PvP world: players can attack each other everywhere, within the unlevelled PvP combat level difference outside the Wilderness. Zones tagged safe or all-buildings-safe in world.json stay safe; a world with neither has no safe ground. The same as a pvp zone with no bounds. Restart to change. |
 | `Wilderness:pvpWorldLevelDifference` | number (integer, >= 0) | `15` | **Unlevelled PvP combat level difference.** Maximum combat level difference on unlevelled PvP ground on PvP worlds. Levelled Wilderness tiles keep their usual range. |
 
 #### Plugin area `bosses` (`pluginConfig`)
@@ -681,6 +687,7 @@ This table lists bundled plugins that have a description. The world config page 
 | `Bonds` | Bonds | items | yes | Old school bonds: tradeable and untradeable forms, bond pouch interface, redeeming for membership days, converting and gifting bonds. |
 | `Bonecrusher` | Bonecrusher | items | yes | Bonecrusher: while charged and active in the inventory, crushes the bones a kill drops for Prayer XP, in full with the elite Morytania diary. (members only) |
 | `BottomlessMilkBucket` | BottomlessMilkBucket | items | yes | Bottomless milk bucket: holds up to 10,000 uses of one kind of milk, with Check, Fill and Empty; quests and dairy cows use it a use at a time. (members only) |
+| `BountyHunterEquipment` | BountyHunterEquipment | items | yes | Bounty Hunter Store equipment: Activate charges a piece of Ancient Warriors' equipment with coins, Uncharge takes them back, an unprotected piece lost to a player goes inactive and pays its coins to the killer, and an imbued weapon is lost as the plain weapon. (members only) |
 | `BountyHunterWeapons` | BountyHunterWeapons | items | yes | Restricts imbued Bounty Hunter weapons, like the dark bow (BH), abyssal daggers (BH) and Zuriel's staff (bh), to permitted PvP minigames and combat rings. (members only) |
 | `BowOfFaerdhinen` | BowOfFaerdhinen | items | yes | Bow of Faerdhinen: uses one charge per shot, hit or miss, and has its inactive form, built on the shared crystal-weapon charge code. (members only) |
 | `BraceletOfClay` | BraceletOfClay | items | yes | Bracelet of clay: softens mined clay and gives two soft clay per success at the soft clay rocks, crumbling after 28 uses. (members only) |

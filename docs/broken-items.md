@@ -5,7 +5,7 @@ Untradeable combat items (fire capes, defenders, Void, Fighter torso and others)
 ## When an item breaks (Wiki: Items Kept on Death, (broken), (l))
 
 - **PvM deaths:** nothing breaks, in or out of the Wilderness. The item goes to the grave like any other untradeable ([gravestones](gravestones.md)).
-- **PvP deaths:** a death in the Wilderness (or a PvP zone) where the killer is a player.
+- **PvP deaths:** a death in the Wilderness (or a PvP zone, or Bounty Hunter's arena: `PlayerDeathTask.isPvpDeath`) where the killer is a player. Daimon's Crater has no Wilderness level, so an item breaks there as it does up to level 20.
 - **Protected items** (the 3 or 4 a death keeps) never break.
 - **Up to level 20 Wilderness:** an unprotected breakable item stays in the victim's inventory as its `(broken)` form, and the killer gets its repair cost in coins.
 - **Above level 20:**
@@ -69,7 +69,7 @@ The lock captures predate the Trouver rework of 17 June 2026, so the lockable it
 
 ## Not covered
 
-- **Ornamented items:** Void and Fighter torso `(or)`, Dragon defender `(t)`. Their ornament kits go to the killer.
+- **Ornamented items with an untradeable kit:** Fighter torso `(or)` and `(l)(or)` (the Bounty hunter ornament kit) are left whole. An item with a tradeable kit (Void `(or)`, Rune and Dragon defender `(t)`) loses the kit to the killer and then breaks as the plain item ([items kept on death](items-kept-on-death.md)).
 - **Decorative armour:** the Castle Wars gold pieces share one name across many ids, so they can't be paired by name.
 - **The 30-second rule:** a player hit by another player who leaves the Wilderness and dies within 30 seconds still has a PvP death.
 - **Chris and the PvP world armour stands**, which also repair.

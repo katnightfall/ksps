@@ -27,7 +27,9 @@ function riskOf(player) {
   const kept = new Set(PlayerDeathTask.getItemsToKeep(player));
   let risk = 0;
   for (const item of [...player.getInventory().getItems(), ...player.getEquipment().getItems()]) {
-    if (!item || item.getId() <= 0 || item.getAmount() <= 0 || kept.has(item) || !item.isTradeable()) continue;
+    // Ours (upstream issue #5644): tradeable as the death itself asks it (between players, on the Grand Exchange or
+    // not). Asking for the Exchange flag left out items a death drops, such as godsword shards.
+    if (!item || item.getId() <= 0 || item.getAmount() <= 0 || kept.has(item) || !item.isPlayerTradeable()) continue;
     risk += Math.max(0, Number(PlayerDeathTask.keepValue(item)) || 0) * item.getAmount();
   }
   return Math.min(risk, Number.MAX_SAFE_INTEGER);

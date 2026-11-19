@@ -176,6 +176,29 @@ function onHitResolved({ attacker, target, hit }) {
   core.CombatFactory.poisonEntity(target, POISON_SEVERITY, POISON_ORB_TYPE);
 }
 
+/**
+ * `player-death:pvp-item-parts` (PlayerDeathTask): Wiki, Abyssal tentacle: "If the abyssal tentacle is not protected
+ * upon death, it will fully degrade into a kraken tentacle." The death asks for unprotected items only, and the kraken
+ * tentacle, a tradeable item, then drops for the killer; an (or) tentacle's kit comes off as it does when it degrades.
+ */
+// Ours (upstream issue #6002): before this an unprotected tentacle came back whole from a PvP death, skulled or not.
+// A death to a monster is left as it was (the tentacle goes to the grave whole).
+function degradeOnPvpDeath(query) {
+  const item = query?.item;
+  if (!core || !item || query.player?.isPlayerBot?.() === true || item.isPresetItem?.() === true) return;
+  const { Item, ItemIdentifiers } = core;
+  const id = item.getId();
+  if (id !== ItemIdentifiers.ABYSSAL_TENTACLE && id !== ItemIdentifiers.ABYSSAL_TENTACLE_OR_) return;
+  item.setId(ItemIdentifiers.KRAKEN_TENTACLE);
+  item.setMetaValue(CHARGES_META_KEY, undefined);
+  // The ornament kits' own answer may already have taken the kit off (the same Item, now the plain tentacle).
+  if (!query.parts) {
+    query.parts = id === ItemIdentifiers.ABYSSAL_TENTACLE_OR_
+      ? [item, new Item(ItemIdentifiers.SHATTERED_RELICS_VARIETY_ORNAMENT_KIT, 1)]
+      : [item];
+  }
+}
+
 function attach(pluginApi) {
   api = pluginApi;
   core = pluginApi.core;
@@ -198,6 +221,7 @@ module.exports = {
     api.onCombatHitDamage(onHitDamage);
     api.onCombatHitResolved(onHitResolved);
     api.onItemAction("Abyssal tentacle (or)", { Check: check });
+    api.onCustomEvent("player-death:pvp-item-parts", degradeOnPvpDeath);
   },
   _test: { onAttackStarted, onAttackFinished, onHitDamage, onHitResolved, charges, check, POISON_CHANCE, POISON_SEVERITY, MAX_CHARGES },
 };

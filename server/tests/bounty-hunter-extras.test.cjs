@@ -240,7 +240,7 @@ test("risk skulls step bronze, iron, green, blue, red, golden-eyed when skulled"
 
 test("risk is what a death would drop: kept items and untradeables don't count", (t) => {
   const item = (id, value, amount, tradeable = true) => ({
-    getId: () => id, getAmount: () => amount, isTradeable: () => tradeable, value,
+    getId: () => id, getAmount: () => amount, isPlayerTradeable: () => tradeable, value,
   });
   const [stack, cheap, untradeable, worn] = [item(1, 1_000_000, 2), item(2, 50, 100), item(3, 9_999_999, 1, false), item(4, 300_000, 1)];
   const p = {
