@@ -348,3 +348,32 @@ test("an ordinary login is not put out: the world's own writes while it waits ar
   assert.deepEqual(dallas.kicked, []);
   assert.deepEqual(hub.saved("new_player"), { at: "Lumbridge" });
 });
+
+test("a world that is stopping hands in its last saves even when one save would not write, and only while it is stopping", async (t) => {
+  const { flushThenHandIn } = MasterSync._test;
+  const hub = await master(t);
+  const dallas = world(t, "1 - Dallas", hub);
+  const miami = world(t, "2 - Miami", hub);
+  await dallas.login("Kat");
+  await dallas.gameSaves("kat", { at: "the last autosave" });
+  await dallas.sync.tick();
+  // The world is stopped. Every player is saved; somebody else's save does not write, which
+  // fails the save database's flush for everybody (SqlitePlayerPersistence.flush).
+  let stopping = true;
+  await dallas.gameSaves("kat", { at: "the shutdown save" });
+  const flush = flushThenHandIn(async () => { throw new Error("Refusing to save somebody: inventory[3].amount must be a finite number"); }, () => dallas.sync.shutdown(), () => stopping);
+  await assert.rejects(flush(), /Refusing to save somebody/, "the failure is still the engine's to see");
+  assert.deepEqual(hub.saved("kat"), { at: "the shutdown save" }, "Kat's last save reached the master all the same");
+  assert.equal(await miami.login("Kat"), null, "and she is let go, to play on elsewhere at once");
+  await miami.logout("Kat", "kat", { at: "Miami" });
+  // The shutdown was called off (the engine does that when a save fails) and the world plays on.
+  stopping = false;
+  await dallas.login("Ann");
+  let handedIn = 0;
+  const later = flushThenHandIn(async () => {}, async () => { handedIn++; }, () => stopping);
+  await later();
+  assert.equal(handedIn, 0, "a flush of a world that is not stopping lets nobody go");
+  const source = fs.readFileSync(path.join(__dirname, "../plugins/world/MasterSync.plugin.js"), "utf8");
+  assert.match(source, /persistence\.flush = flushThenHandIn\(persistence\.flush\.bind\(persistence\), \(\) => sync\.shutdown\(\), \(\) => core\.Server\?\.isShuttingDown\?\.\(\) === true\);/);
+  assert.equal(typeof require("../dist/Server").Server.isShuttingDown, "function");
+});

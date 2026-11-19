@@ -528,6 +528,24 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
   };
 }
 
+/**
+ * The save database's flush, with the hand-in of the last saves behind it while the world is
+ * stopping (`stopping()`). The hand-in follows a flush that failed too: one save that would not
+ * write (it fails the flush for everybody) used to keep every other player's last save from the
+ * master, so a player who moved to another world found the copy of their last autosave there.
+ * And only while the world is in fact stopping: after a shutdown that was called off, every
+ * later flush (each login writes its remembered logins) let all the world's characters go.
+ */
+function flushThenHandIn(flush, handIn, stopping) {
+  return async () => {
+    try {
+      await flush();
+    } finally {
+      if (stopping()) await handIn();
+    }
+  };
+}
+
 /** The reset id this world is on (deploy/reset-accounts.mjs writes it beside the saves). */
 function worldResetId(savesDir) {
   try {
@@ -558,8 +576,6 @@ module.exports = {
     const core = api.core;
     const savesDir = path.join(process.cwd(), "data", "saves");
     let sync = null;
-    let stopping = false;
-    api.onServerShutdown?.(() => { stopping = true; });
 
     api.onServerStartup(() => {
       const persistence = GameConstants.PLAYER_PERSISTENCE;
@@ -605,11 +621,7 @@ module.exports = {
       };
       // The engine waits for the save database to be written before it exits (Server's
       // shutdown awaits flush): the hand-in of those last saves is waited for in the same place.
-      const flush = persistence.flush.bind(persistence);
-      persistence.flush = async () => {
-        await flush();
-        if (stopping) await sync.shutdown();
-      };
+      persistence.flush = flushThenHandIn(persistence.flush.bind(persistence), () => sync.shutdown(), () => core.Server?.isShuttingDown?.() === true);
       const quietly = (work) => () => { work().catch((error) => console.error("[master-sync]", error)); };
       setInterval(quietly(() => sync.heartbeat()), HEARTBEAT_MS).unref();
       setInterval(quietly(() => sync.tick()), PUSH_MS).unref();
@@ -627,5 +639,5 @@ module.exports = {
       sync.left(player.getUsername());
     });
   },
-  _test: { createMasterSync, settings, signRequest, worldResetId, SYNC_HEADER, PROFILES, PENDING_MS },
+  _test: { createMasterSync, settings, signRequest, worldResetId, SYNC_HEADER, PROFILES, PENDING_MS, flushThenHandIn },
 };
