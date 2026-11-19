@@ -92,4 +92,10 @@ export interface ServerListEntry {
     ownerUsername?: string;
     iceServers?: RTCIceServer[];
     relayDiscovered?: boolean;
+    /** Ours: the world's id on our list (deploy/worlds.mjs), when the list gives one. */
+    id?: string;
+    /** Ours: the world's number in the World Switcher, when the list states it. */
+    number?: number;
+    /** Ours: where the world is hosted, as the list words it ("Dallas 8", "United Kingdom"). */
+    location?: string;
 }
