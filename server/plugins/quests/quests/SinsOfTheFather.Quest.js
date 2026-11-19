@@ -59,9 +59,14 @@
  *   Father quest." choice starts the cutscene/Kroy room. Kroy's QH-only potion
  *   throw is not modelled (no capture evidence here). Tables are per-player
  *   overlays swapped on destroy.
- * - The Ivan escort is a scripted trek in Mort Myre (three vines -> long vine
- *   -> swing, two nail beasts, two juvinates) with no fail state; the bridge
- *   repair is a flavour line. There is no instance.
+ * - The Ivan escort plays in the player's own copies of the Temple Trekking
+ *   rooms (three vines -> long vine -> swing in the river room, two nail beasts,
+ *   the broken bridge, two juvinates), one room after the other, with no fail
+ *   state: a death, a teleport or a logout puts the player back with Ivan west
+ *   of Canifis, and the escort goes on from the room it had reached. Ours: the
+ *   juvinates' room (no recording of it here) is the nail beasts' room again,
+ *   and the next room opens as soon as a room is done (live's way on between
+ *   rooms was not recorded).
  * - The mausoleum lock is the real cache Kakurasu interface 665: it opens
  *   after the briefing, shows captured row/column sums and accepts OP1 clicks
  *   on buttons 0-24; only a matching grid advances the quest.
@@ -93,6 +98,11 @@ module.exports = function registerSinsOfTheFatherQuest(api) {
   const { registerQuest, startTranscript, startDialogue, refreshQuestList } = require("../QuestRuntime");
   const { createQuestScenes } = require("../QuestScenes");
   const Scenes = createQuestScenes(api);
+  // The Ivan escort's rooms have a factory of their own: a logout, a death or a server stop in one
+  // comes back to Ivan's starting place. It is made with the registrations at the end, so that its
+  // login hook (the recovery) runs after the quest's own.
+  const TREK_EXIT_ATTRIBUTE = "sins-of-the-father:trek-exit";
+  let TrekScenes = null;
 
   const PAGE = "Sins of the Father";
   const START_HOOK = "quest:sins-of-the-father:start";
@@ -603,24 +613,33 @@ module.exports = function registerSinsOfTheFatherQuest(api) {
   const IVAN_MEETING_TILE = { x: 3548, y: 3516, z: 0 };
   const VELIAF_WOODS_TILE = { x: 3549, y: 3517, z: 0 };
   const IVAN_TREK_TILE = { x: 3444, y: 3485, z: 0 };
-  const TREK_START = { x: 3445, y: 3412, z: 0 };
-  const TREK_TREE_TILE = { x: 3442, y: 3408, z: 0 };
-  const TREK_CROSSED = { x: 3437, y: 3402, z: 0 };
-  const TREK_RUCKSACK_TILE = { x: 3446, y: 3411, z: 0 };
-  const BRIDGE_TILE = { x: 3439, y: 3400, z: 0, rotation: 1 };
-  const DEAD_TREE_TILE = { x: 3441, y: 3403, z: 0 };
-  const ZOMBIE_TILE = { x: 3442, y: 3398, z: 0 };
-  // Capture 1637: player encounter start 2334,5005; 9612 add at (-2,+3) and
-  // 9613 add at (-6,+5).  Source post-vine corridor anchor 3438,3398 maps
-  // those to dry, melee-reachable 3436,3401 and 3432,3403 (old tiles were water).
-  const TREK_NAIL_TILES = [
-    { x: 3436, y: 3401, z: 0 },
-    { x: 3432, y: 3403, z: 0 },
-  ];
-  const TREK_JUVI_TILES = [
-    { x: 3426, y: 3390, z: 0 },
-    { x: 3424, y: 3388, z: 0 },
-  ];
+  // Ours (upstream issue #6068): the escort used to be staged on open swamp tiles south of Canifis,
+  // where the vine tree turned into a bare branch and the bridge was one loose piece of decking, so
+  // players could not find what to use the long vine on or any bridge to mend. It now plays in copies
+  // of the rooms Temple Trekking plays the same events in (plugins/minigames/data/temple-trekking.json:
+  // the river and bridge rooms, and the hollows room capture 1637 put the nail beasts in), where the
+  // cache has the big tree's branch, the river, the bridge's struts and the dead trees.
+  const TREK_DATA = require("../../minigames/data/temple-trekking.json");
+  const TREK_RIVER_ROOM = TREK_DATA.rooms.river;
+  const TREK_BRIDGE_ROOM = TREK_DATA.rooms.bridge;
+  const TREK_HOLLOWS_ROOM = TREK_DATA.rooms.hollows.find((room) => room.key === "hollows-2320");
+  // Capture 1637: the nail beast encounter starts with the player on 2334,5005, 9612 added at
+  // (-2,+3) and 9613 at (-6,+5). Ours: Ivan beside the player, and the juvinates on the same tiles.
+  const TREK_HOLLOWS_ENTRY = [2334, 5005];
+  const TREK_HOLLOWS_FOLLOWER = [2335, 5005];
+  const TREK_HOLLOWS_ENEMY_TILES = [[2332, 5008], [2328, 5010]];
+  // `size`: chunks a side of the copy (a square that holds the room).
+  const TREK_ROOMS = {
+    river: { spec: TREK_RIVER_ROOM, size: 4, entry: TREK_RIVER_ROOM.entry, follower: TREK_RIVER_ROOM.follower },
+    nails: { spec: TREK_HOLLOWS_ROOM, size: 3, entry: TREK_HOLLOWS_ENTRY, follower: TREK_HOLLOWS_FOLLOWER },
+    bridge: { spec: TREK_BRIDGE_ROOM, size: 3, entry: TREK_BRIDGE_ROOM.entry, follower: TREK_BRIDGE_ROOM.follower },
+    juvinates: { spec: TREK_HOLLOWS_ROOM, size: 3, entry: TREK_HOLLOWS_ENTRY, follower: TREK_HOLLOWS_FOLLOWER },
+  };
+  const TREK_SCENE_PREFIX = "sins-trek-";
+  // Where the escort starts and comes back to: the open tile south of Ivan.
+  const TREK_EXIT = [IVAN_TREK_TILE.x, IVAN_TREK_TILE.y - 1, IVAN_TREK_TILE.z];
+  // An ordinary place to fight in: teleports and aggression follow the usual rules.
+  const TREK_RULES = { canTeleport: () => null, npcAggression: () => null, multi: true };
   const BURGH_DOCKS = { x: 3523, y: 3169, z: 0 };
   // The boat is anchored in the water, so its map anchor cannot be used as a
   // player landing tile.  The first clear shore tile east of the dock connects
@@ -1245,7 +1264,8 @@ module.exports = function registerSinsOfTheFatherQuest(api) {
     spawnAt(player, "veliaf_grave_late", VELIAF_ID, GRAVEYARD_VELIAF_TILE, STAGE_DARKMEYER_PLAN, STAGE_VANSTROM_DEAD);
     spawnAt(player, "drezel", DREZEL_ID, DREZEL_TEMPLE_TILE, STAGE_VELIAF_REPORTED, STAGE_MEETING);
     spawnAt(player, "ivan_meet", IVAN_ID, IVAN_MEETING_TILE, STAGE_PATERDOMUS, STAGE_MEETING);
-    spawnAt(player, "ivan_start", IVAN_ESCORT_ID, IVAN_TREK_TILE, STAGE_MEETING, STAGE_ESCORT);
+    // Through the escort too: a player who left its rooms (a death, a teleport, a logout) starts again with him.
+    spawnAt(player, "ivan_start", IVAN_ESCORT_ID, IVAN_TREK_TILE, STAGE_MEETING, STAGE_ESCORT_DONE);
     spawnAt(player, "ivan_boat", IVAN_ID, IVAN_BOATHOUSE_TILE, STAGE_ESCORT_DONE, STAGE_GRAVEYARD);
     spawnAt(player, "ivan_grave", IVAN_ID, GRAVEYARD_IVAN_TILE, STAGE_GRAVEYARD, STAGE_VANSTROM_DEAD);
     // The escape conversation completes the quest; keep Ivan at the hideout while
@@ -1293,37 +1313,8 @@ module.exports = function registerSinsOfTheFatherQuest(api) {
     } else {
       despawnKey(player, "damien_fight");
     }
-    if (stage >= STAGE_ESCORT && stage < STAGE_ESCORT_DONE) {
-      spawnKey(player, "ivan_trek", IVAN_ESCORT_ID, TREK_START);
-      const nails = field(player, NAIL_SHIFT);
-      const juvis = field(player, JUVI_SHIFT);
-      if (hasBit(player, BIT_TREK) && nails < 2) {
-        spawnKey(player, "nail1", NAIL_BEAST_IDS[0], TREK_NAIL_TILES[0]);
-        spawnKey(player, "nail2", NAIL_BEAST_IDS[1], TREK_NAIL_TILES[1]);
-      } else {
-        despawnKey(player, "nail1");
-        despawnKey(player, "nail2");
-      }
-      if (nails >= 2 && !hasBit(player, BIT_BRIDGE)) {
-        spawnKey(player, "zombie", ZOMBIE_NPC_ID, ZOMBIE_TILE);
-      } else {
-        despawnKey(player, "zombie");
-      }
-      if (nails >= 2 && hasBit(player, BIT_BRIDGE) && juvis < 2) {
-        spawnKey(player, "juvi1", JUVI_IDS[0], TREK_JUVI_TILES[0]);
-        spawnKey(player, "juvi2", JUVI_IDS[1], TREK_JUVI_TILES[1]);
-      } else {
-        despawnKey(player, "juvi1");
-        despawnKey(player, "juvi2");
-      }
-    } else {
-      despawnKey(player, "ivan_trek");
-      despawnKey(player, "nail1");
-      despawnKey(player, "nail2");
-      despawnKey(player, "zombie");
-      despawnKey(player, "juvi1");
-      despawnKey(player, "juvi2");
-    }
+    // The escort's Ivan, nail beasts, zombie and juvinates are its rooms' own (openTrekRoom).
+    if (trekScene(player) && (stage < STAGE_ESCORT || stage >= STAGE_ESCORT_DONE)) TrekScenes.end(player, false);
     if (stage >= STAGE_CASTLE && stage < STAGE_VANSTROM_DEAD && hasBit(player, BIT_VANSTROM)) {
       const vanstrom = spawnKey(player, "vanstrom_fight", VANSTROM_FIGHT_ID, CASTLE_ARENA);
       if (vanstrom && !vanstromFights.has(player)) {
@@ -1334,6 +1325,112 @@ module.exports = function registerSinsOfTheFatherQuest(api) {
     } else {
       despawnKey(player, "vanstrom_fight");
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // The Ivan escort's rooms
+  // ---------------------------------------------------------------------------
+
+  function trekScene(player) {
+    const scene = TrekScenes?.get(player);
+    return scene?.name?.startsWith(TREK_SCENE_PREFIX) ? scene : null;
+  }
+
+  /** The room the escort has reached: the river, the nail beasts, the bridge, then the juvinates. */
+  function trekPhase(player) {
+    if (!hasBit(player, BIT_TREK)) return "river";
+    if (field(player, NAIL_SHIFT) < 2) return "nails";
+    if (!hasBit(player, BIT_BRIDGE)) return "bridge";
+    return "juvinates";
+  }
+
+  /** Out of the escort's room before a move elsewhere (the room goes with its scene). */
+  function leaveTrek(player) {
+    if (trekScene(player)) TrekScenes.end(player, false);
+  }
+
+  /** Puts the player and Ivan in their own copy of the room the escort has reached. */
+  function openTrekRoom(player) {
+    if (quest.getStage(player) !== STAGE_ESCORT) return null;
+    const phase = trekPhase(player);
+    const room = TREK_ROOMS[phase];
+    const [x0, y0] = room.spec.source;
+    const tiles = room.size * 8;
+    // The whole copy, so nothing but the escort itself, a teleport, a death or a logout leaves it.
+    const bounds = [0, 1].map((z) => [x0, x0 + tiles - 1, y0, y0 + tiles - 1, z]);
+    const scene = TrekScenes.open(player, TREK_SCENE_PREFIX + phase, bounds, TREK_RULES, {
+      instance: { sourceChunk: [x0 >> 3, y0 >> 3], size: room.size },
+      at: [room.entry[0], room.entry[1], 0],
+      exit: TREK_EXIT,
+    });
+    scene.trekPhase = phase;
+    player.getMovementQueue?.().reset?.();
+    scene.ivan = TrekScenes.actor(scene, IVAN_ESCORT_ID, [room.follower[0], room.follower[1], 0]);
+    if (phase === "river") populateTrekRiver(player, scene);
+    else if (phase === "nails") spawnTrekEnemies(player, scene, NAIL_BEAST_IDS, field(player, NAIL_SHIFT));
+    else if (phase === "bridge") populateTrekBridge(player, scene);
+    else if (field(player, JUVI_SHIFT) < 2) {
+      spawnTrekEnemies(player, scene, JUVI_IDS, field(player, JUVI_SHIFT));
+      play(player, JUVI_IDS[0], "an-unwelcome-surprise-escorting-ivan-again-juvinates");
+    } else {
+      // Both juvinates died but the last scene was lost (a logout during it): Ivan finishes it.
+      play(player, IVAN_ESCORT_ID, "an-unwelcome-surprise-escorting-ivan-again-finishing-temple-trekking");
+    }
+    return scene;
+  }
+
+  /** The backpack with its knife, and the big tree's branch: bare until the long vine is on it. */
+  function populateTrekRiver(player, scene) {
+    const [rx, ry, rface] = TREK_RIVER_ROOM.rucksack;
+    TrekScenes.loc(scene, { id: SWAMP_RUCKSACK_OBJECT_ID, x: rx, y: ry, face: rface });
+    placeTrekBranch(player, scene);
+    if (!player.getAttribute(VINE_ATTACHED_ATTRIBUTE)) {
+      play(player, IVAN_ESCORT_ID, "an-unwelcome-surprise-escorting-ivan-again-vine-puzzle");
+    }
+  }
+
+  function placeTrekBranch(player, scene) {
+    const [x, y, face] = TREK_RIVER_ROOM.branch;
+    const id = player.getAttribute(VINE_ATTACHED_ATTRIBUTE) ? SWAMP_TREE_OBJECT_ID : SWAMP_BRANCH_OBJECT_ID;
+    scene.branch = TrekScenes.loc(scene, { id, x, y, face });
+  }
+
+  /** The zombie with the axe, and the bridge as far as it has been mended (the room's own is the broken one). */
+  function populateTrekBridge(player, scene) {
+    const [zx, zy] = TREK_BRIDGE_ROOM.zombie;
+    const zombie = TrekScenes.actor(scene, ZOMBIE_NPC_ID, [zx, zy, 0]);
+    TrekScenes.later(scene, 3, () => attackIfAlive(zombie, player));
+    placeTrekBridge(player, scene);
+    if (bridgeRepairs(player) === 0) {
+      play(player, IVAN_ESCORT_ID, "an-unwelcome-surprise-escorting-ivan-again-bridge-puzzle");
+    }
+  }
+
+  function placeTrekBridge(player, scene) {
+    const repairs = bridgeRepairs(player);
+    if (repairs <= 0) return;
+    const [x, y, face] = TREK_BRIDGE_ROOM.bridge;
+    scene.bridge = TrekScenes.loc(scene, { id: BRIDGE_OBJECT_IDS[repairs], x, y, type: 22, face });
+  }
+
+  /** The room's two enemies, less those already killed, who go for the player. */
+  function spawnTrekEnemies(player, scene, ids, killed) {
+    for (let index = killed; index < ids.length; index++) {
+      const [x, y] = TREK_HOLLOWS_ENEMY_TILES[index];
+      const npc = TrekScenes.actor(scene, ids[index], [x, y, 0]);
+      TrekScenes.later(scene, 3, () => attackIfAlive(npc, player));
+    }
+  }
+
+  function attackIfAlive(npc, player) {
+    if (npc?.isRegistered?.() && npc.getHitpoints?.() > 0 && player.isRegistered?.()) npc.getCombat?.().attack?.(player);
+  }
+
+  /** An escort NPC that died: out of its room (or the world, for one left from before the rooms). */
+  function removeTrekNpc(player, npc) {
+    const scene = trekScene(player);
+    if (scene?.actors.includes(npc)) TrekScenes.removeActor(scene, npc);
+    else api.removeNpc(npc);
   }
 
   // ---------------------------------------------------------------------------
@@ -1419,31 +1516,7 @@ module.exports = function registerSinsOfTheFatherQuest(api) {
         syncPersonalObject(player, tile, broken ? KROY_TABLE_BROKEN_OBJECT_ID : KROY_TABLE_OP_OBJECT_ID, 10, tile.rotation);
       }
     }
-    if (stage >= STAGE_ESCORT && stage < STAGE_ESCORT_DONE) {
-      if (!hasBit(player, BIT_TREK)) {
-        // With the long vine, the branch accepts Use; only after the throw/wrap
-        // does the Swing-from object 38005 replace it. Before that the small-vines
-        // Cut-vine object is the only interaction.
-        const treeObject = held(player, LONG_VINE_ITEM_ID)
-          ? SWAMP_BRANCH_OBJECT_ID
-          : player.getAttribute(VINE_ATTACHED_ATTRIBUTE) ? SWAMP_TREE_OBJECT_ID : SWAMP_VINES_OBJECT_ID;
-        syncPersonalObject(player, TREK_TREE_TILE, treeObject);
-        syncPersonalObject(player, TREK_RUCKSACK_TILE, SWAMP_RUCKSACK_OBJECT_ID);
-      } else {
-        syncPersonalObject(player, TREK_TREE_TILE, SWAMP_TREE_OBJECT_ID);
-      }
-      const repairs = bridgeRepairs(player);
-      syncPersonalObject(player, BRIDGE_TILE, BRIDGE_OBJECT_IDS[repairs], 22, BRIDGE_TILE.rotation);
-      if (field(player, NAIL_SHIFT) >= 2 && repairs < 3) {
-        syncPersonalObject(player, DEAD_TREE_TILE, DEAD_TREE_OBJECT_ID);
-      } else {
-        clearPersonalObject(player, DEAD_TREE_TILE);
-      }
-    } else {
-      for (const tile of [TREK_TREE_TILE, TREK_RUCKSACK_TILE, BRIDGE_TILE, DEAD_TREE_TILE]) {
-        clearPersonalObject(player, tile);
-      }
-    }
+    // The escort's locs (the rucksack, the branch, the bridge) are its rooms' own (openTrekRoom).
     // The cache's base 39519 is a no-action transform parent; install the
     // actionable owner variant (Unlock before the grid, Open after it).
     syncPersonalObject(
@@ -1837,9 +1910,17 @@ module.exports = function registerSinsOfTheFatherQuest(api) {
   // Transcript action handling
   // ---------------------------------------------------------------------------
 
+  /** Steps that end a scene's dialogue with the player in control again: following Carl, Kroy, the woods meeting's end, the bloodveld, Damien. */
+  const CAMERA_ENDING_STEPS = new Set(["bsrbMj", "5Nx48P", "uRyt8i", "WV-HwC", "Gdz7wW", "oKCkn5"]);
+
   function handleDialogueAction(event) {
     const { player, stepId } = event;
     if (!player || !stepId) return;
+    // Ours (upstream issue #6068): a scene's camera track runs on recorded ticks, but its words go at the
+    // player's pace. Once the words reach the step that hands the player back (Carl sets off, a fight
+    // starts, the others leave), the rest of the track is dropped, as the Vanstrom fight already did:
+    // the camera kept panning over an empty scene for a player who had clicked through.
+    if (CAMERA_ENDING_STEPS.has(stepId)) resetCamera(player);
     switch (stepId) {
       case "bsrbMj": // The player begins following Carl.
         player.setAttribute(CARL_PROGRESS_ATTRIBUTE, 0);
@@ -1858,9 +1939,10 @@ module.exports = function registerSinsOfTheFatherQuest(api) {
       case "_popnC": // You escort Ivan through the swamp...
         if (quest.getStage(player) < STAGE_ESCORT) advance(player, STAGE_ESCORT);
         else applyStageSpawns(player);
-        teleport(player, TREK_START);
+        openTrekRoom(player);
         return;
       case "uD7Qcw": // Ivan departs towards the boathouse.
+        leaveTrek(player);
         teleport(player, BURGH_LANDING);
         if (quest.getStage(player) < STAGE_ESCORT_DONE) advance(player, STAGE_ESCORT_DONE);
         else applyStageSpawns(player);
@@ -2530,6 +2612,11 @@ module.exports = function registerSinsOfTheFatherQuest(api) {
       return true;
     }
     if (stage < STAGE_ESCORT_DONE) {
+      // Out of the escort's rooms (a death, a teleport, a logout): Ivan sets off again from the room reached.
+      if (!trekScene(player)) {
+        play(player, npcId, "an-unwelcome-surprise-escorting-ivan-again");
+        return true;
+      }
       // If the final juvinate died while the finishing cutscene was lost (a
       // weapon swap or log during it), replay it so the trek cannot soft-lock.
       if (field(player, NAIL_SHIFT) >= 2 && field(player, JUVI_SHIFT) >= 2) {
@@ -2712,7 +2799,10 @@ module.exports = function registerSinsOfTheFatherQuest(api) {
       if (stage < STAGE_PATERDOMUS) return null;
       if (stage < STAGE_MEETING) return "an-unwelcome-surprise-meeting-at-the-haunted-woods";
       if (stage < STAGE_ESCORT) return "an-unwelcome-surprise-escorting-ivan-again";
-      if (stage < STAGE_ESCORT_DONE) return "an-unwelcome-surprise-escorting-ivan-again-talking-to-ivan-during-temple-trekking";
+      if (stage < STAGE_ESCORT_DONE) {
+        return player && !trekScene(player) ? "an-unwelcome-surprise-escorting-ivan-again"
+          : "an-unwelcome-surprise-escorting-ivan-again-talking-to-ivan-during-temple-trekking";
+      }
       if (stage < STAGE_GRAVEYARD) return "an-unwelcome-surprise-talking-to-veliaf-at-burgh-de-rott-talking-to-ivan-again";
       if (stage < STAGE_CONVINCING) return "a-nice-and-simple-plan-speaking-to-the-myreque-talking-to-ivan";
       if (stage < STAGE_CONVINCED) {
@@ -2974,32 +3064,27 @@ module.exports = function registerSinsOfTheFatherQuest(api) {
     }
     if (stage === STAGE_ESCORT) {
       if (event.npcId === ZOMBIE_NPC_ID) {
-        api.removeNpc(event.npc);
+        removeTrekNpc(player, event.npc);
         if (!hasAxe(player)) give(player, BRONZE_AXE_ITEM_ID, 1);
         player.sendMessage("The zombie drops an axe.");
-        applyStageSpawns(player);
-        syncQuestObjects(player);
         return;
       }
       if (event.npcId === NAIL_BEAST_IDS[0] || event.npcId === NAIL_BEAST_IDS[1]) {
-        api.removeNpc(event.npc);
+        removeTrekNpc(player, event.npc);
         const kills = field(player, NAIL_SHIFT) + 1;
         setField(player, NAIL_SHIFT, 2, kills);
-        if (kills >= 2) player.sendMessage("Ivan: The bridge is out. We'll need logs and an axe.");
-        applyStageSpawns(player);
-        syncQuestObjects(player);
+        // Both dead: on to the broken bridge, unless the player has left the room meanwhile.
+        if (kills >= 2) later(player, 2, () => { if (trekScene(player)?.trekPhase === "nails") openTrekRoom(player); });
         return;
       }
       if (event.npcId === JUVI_IDS[0] || event.npcId === JUVI_IDS[1]) {
-        api.removeNpc(event.npc);
+        removeTrekNpc(player, event.npc);
         const kills = field(player, JUVI_SHIFT) + 1;
         setField(player, JUVI_SHIFT, 2, kills);
         if (kills >= 2) {
           later(player, 1, () =>
             play(player, IVAN_ESCORT_ID, "an-unwelcome-surprise-escorting-ivan-again-finishing-temple-trekking")
           );
-        } else {
-          applyStageSpawns(player);
         }
         return;
       }
@@ -3124,8 +3209,7 @@ module.exports = function registerSinsOfTheFatherQuest(api) {
     if (repairs >= 3) {
       setBit(player, BIT_BRIDGE);
       player.sendMessage("You walk across the fixed bridge.");
-      teleport(player, TREK_JUVI_TILES[0]);
-      applyStageSpawns(player);
+      openTrekRoom(player);
       return true;
     }
     if (!hasAxe(player)) {
@@ -3140,7 +3224,8 @@ module.exports = function registerSinsOfTheFatherQuest(api) {
     setBridgeRepairs(player, repairs + 1);
     player.sendMessage("You place a log down over the shaky wooden support struts.");
     player.sendMessage("You carefully use your axe to tap the log into place.");
-    syncQuestObjects(player);
+    const scene = trekScene(player);
+    if (scene) placeTrekBridge(player, scene);
     return true;
   }
 
@@ -3237,19 +3322,15 @@ module.exports = function registerSinsOfTheFatherQuest(api) {
     if (objectId === SWAMP_TREE_OBJECT_ID) {
       if (quest.getStage(player) !== STAGE_ESCORT) return;
       event.handled = true;
-      if (!hasBit(player, BIT_TREK)) {
-        if (!player.getAttribute(VINE_ATTACHED_ATTRIBUTE)) {
-          play(player, IVAN_ESCORT_ID, "an-unwelcome-surprise-escorting-ivan-again-vine-puzzle");
-          return;
-        }
-        play(player, IVAN_ESCORT_ID, "an-unwelcome-surprise-escorting-ivan-again-after-crossing");
-        setBit(player, BIT_TREK);
-        teleport(player, TREK_CROSSED);
-        applyStageSpawns(player);
-        syncQuestObjects(player);
-      } else {
-        teleport(player, TREK_CROSSED);
+      if (hasBit(player, BIT_TREK)) return;
+      if (!player.getAttribute(VINE_ATTACHED_ATTRIBUTE)) {
+        play(player, IVAN_ESCORT_ID, "an-unwelcome-surprise-escorting-ivan-again-vine-puzzle");
+        return;
       }
+      // Across the bog: the nail beasts' room is next.
+      setBit(player, BIT_TREK);
+      openTrekRoom(player);
+      play(player, IVAN_ESCORT_ID, "an-unwelcome-surprise-escorting-ivan-again-after-crossing");
       return;
     }
     if (objectId === LAB_ESCAPE_GATE_ID) {
@@ -3558,7 +3639,8 @@ module.exports = function registerSinsOfTheFatherQuest(api) {
       player.getInventory().deleteNumber(LONG_VINE_ITEM_ID, 1);
       player.setAttribute(VINE_ATTACHED_ATTRIBUTE, true);
       player.sendMessage("You throw the vine up and wrap it around the branch.");
-      syncQuestObjects(player);
+      const scene = trekScene(player);
+      if (scene) placeTrekBranch(player, scene);
       return;
     }
     if (objectId === SWAMP_BRANCH_OBJECT_ID && itemId === SHORT_VINE_ITEM_ID) {
@@ -3834,6 +3916,7 @@ module.exports = function registerSinsOfTheFatherQuest(api) {
   api.registerArea(new CarlFollowArea());
   api.registerArea(new VanstromArena());
   api.onPlayerLogin(handleLogin);
+  TrekScenes = createQuestScenes(api, { recoveryAttribute: TREK_EXIT_ATTRIBUTE });
   api.onPlayerLogout(handleLogout);
   api.onPlayerDisconnect(handleLogout);
   api.onRegionLoaded(handleRegionLoaded);
