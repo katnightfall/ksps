@@ -81,6 +81,11 @@ const APE_ATOLL = { minX: 2688, maxX: 2815, minY: 2688, maxY: 2815 };
 const APE_ATOLL_DUNGEONS = { minX: 2688, maxX: 2815, minY: 9088, maxY: 9215 };
 // The Ape Atoll course hole leads to this separately mapped Recipe for Disaster room.
 const TCHIKI_NUT_CAVE = { minX: 3018, maxX: 3027, minY: 5454, maxY: 5460, planes: [0] };
+// Ours (upstream issue #6263): the crack under the Temple of Marimbo leads to this room of the same map square, where
+// the stuffed snake is cooked on the hot rock (26175 at 3056,5484). Only a zombie monkey crosses its coals (Wiki, Freeing
+// King Awowogei), so the form has to hold here: without the zone the greegree came off on arrival and the snake could
+// not be cooked. The bounds are the room's walkable tiles in the cache map, with its corridor to the Exit (16100).
+const HOT_ROCK_CAVE = { minX: 3053, maxX: 3068, minY: 5478, maxY: 5491, planes: [0] };
 const ARDOUGNE_ZOO = { minX: 2594, maxX: 2612, minY: 3272, maxY: 3286, planes: [0] };
 const PLANES = [0, 1, 2, 3];
 
@@ -131,7 +136,7 @@ function within(location, zone) {
 /** Where Zooknock's magic reaches. */
 function canTransformAt(location) {
   return within(location, APE_ATOLL) || within(location, APE_ATOLL_DUNGEONS)
-    || within(location, TCHIKI_NUT_CAVE) || within(location, ARDOUGNE_ZOO);
+    || within(location, TCHIKI_NUT_CAVE) || within(location, HOT_ROCK_CAVE) || within(location, ARDOUGNE_ZOO);
 }
 
 function boundaries() {
@@ -141,6 +146,7 @@ function boundaries() {
     ...PLANES.map((z) => zone(APE_ATOLL, z)),
     ...PLANES.map((z) => zone(APE_ATOLL_DUNGEONS, z)),
     ...TCHIKI_NUT_CAVE.planes.map((z) => zone(TCHIKI_NUT_CAVE, z)),
+    ...HOT_ROCK_CAVE.planes.map((z) => zone(HOT_ROCK_CAVE, z)),
     ...ARDOUGNE_ZOO.planes.map((z) => zone(ARDOUGNE_ZOO, z)),
   ];
 }

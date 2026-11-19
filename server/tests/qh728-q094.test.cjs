@@ -804,8 +804,17 @@ test('Awowogei QH stages follow imported dialogue and earned meal items', () => 
     assertLatestVarbit(p, 1917, 10, 'the source-named snake fact survives independently of inventory');
     p.items.set(itemId.SLICED_RED_BANANA, 1);
     const items = h.itemOnItem.find(handler => handler.name === 'handleAwowogeiItems');
+    // Upstream issue #6263: one filling alone does not stuff the snake.
+    items({ player: p, usedItemId: itemId.SNAKE_CORPSE, usedWithItemId: itemId.SLICED_RED_BANANA, handled: false });
+    assertLatestVarbit(p, 1914, 20, 'the sliced banana alone leaves the snake unstuffed');
+    assert.equal(p.items.get(itemId.RAW_STUFFED_SNAKE) ?? 0, 0);
+    assert.equal(p.items.get(itemId.SLICED_RED_BANANA), 1, 'nothing is consumed');
+    p.items.set(itemId.TCHIKI_NUT_PASTE, 1);
     items({ player: p, usedItemId: itemId.SNAKE_CORPSE, usedWithItemId: itemId.SLICED_RED_BANANA, handled: false });
     assertLatestVarbit(p, 1914, 30);
+    assert.equal(p.items.get(itemId.RAW_STUFFED_SNAKE), 1);
+    assert.equal(p.items.get(itemId.SLICED_RED_BANANA), 0);
+    assert.equal(p.items.get(itemId.TCHIKI_NUT_PASTE), 0, 'both fillings go into the snake');
 
     p.equipment.set(core.Equipment.WEAPON_SLOT, itemId.ZOMBIE_MONKEY_GREEGREE);
     p.setLocation(3055, 5484, 0);

@@ -395,16 +395,21 @@ function createRfdRenderer({core, getQuests}) {
         if(!(state&16)){ingredient('Banana',I.BANANA);return step('awowogei-banana-offer','Use an ordinary banana on one of the three wise monkeys to learn about the red banana.',[monkeys(),item(I.BANANA)]);}
         if(!(state&32)){ingredient('Monkey nuts',I.MONKEY_NUTS);return step('awowogei-nuts-offer','Use ordinary monkey nuts on one of the three wise monkeys to learn about Tchiki nuts.',[monkeys(),item(I.MONKEY_NUTS)]);}
         if(!has(I.SNAKE_CORPSE))return step('awowogei-snake','Travel to Crash Island, enter the snake pit, kill the Big Snake and collect its corpse.',[npc(N.BIG_SNAKE),item(I.SNAKE_CORPSE)]);
-        const preparedFilling=[I.SLICED_RED_BANANA,I.TCHIKI_NUT_PASTE].find(id=>has(id));
-        if(preparedFilling){need('One empty inventory slot',inv.getFreeSlots()>=1);return step('awowogei-stuff','Use either filling on the snake corpse: sliced red banana or Tchiki nut paste. One filling is sufficient on this server; you do not need to gather the other.',[item(I.SNAKE_CORPSE),item(preparedFilling)]);}
-        if(has(I.RED_BANANA)){ingredient('Knife',I.KNIFE);return step('awowogei-slice','Use a knife on the red banana. Then use the sliced banana on the snake corpse; this filling alone is sufficient.',[item(I.KNIFE),item(I.RED_BANANA)]);}
-        if(has(I.TCHIKI_MONKEY_NUTS)){ingredient('Pestle and mortar',I.PESTLE_AND_MORTAR);return step('awowogei-grind','Grind the Tchiki monkey nuts with a pestle and mortar. Then use the paste on the snake corpse; this filling alone is sufficient.',[item(I.TCHIKI_MONKEY_NUTS),item(I.PESTLE_AND_MORTAR)]);}
-        if(state&256){
+        // Ours (upstream issue #6263): the snake takes both fillings (Wiki, Raw stuffed snake); the steps used to say one was enough.
+        const hasBanana=has(I.SLICED_RED_BANANA),hasPaste=has(I.TCHIKI_NUT_PASTE);
+        if(hasBanana&&hasPaste)return step('awowogei-stuff','Use the sliced red banana or the Tchiki nut paste on the snake corpse while carrying both: the snake takes both fillings.',[item(I.SNAKE_CORPSE),item(I.SLICED_RED_BANANA),item(I.TCHIKI_NUT_PASTE)]);
+        if(has(I.RED_BANANA)){ingredient('Knife',I.KNIFE);return step('awowogei-slice','Use a knife on the red banana. The snake needs the sliced banana and the Tchiki nut paste together.',[item(I.KNIFE),item(I.RED_BANANA)]);}
+        if(has(I.TCHIKI_MONKEY_NUTS)){ingredient('Pestle and mortar',I.PESTLE_AND_MORTAR);return step('awowogei-grind','Grind the Tchiki monkey nuts with a pestle and mortar. The snake needs the paste and the sliced red banana together.',[item(I.TCHIKI_MONKEY_NUTS),item(I.PESTLE_AND_MORTAR)]);}
+        if(!hasPaste&&(state&256)){
           need('Ninja monkey greegree worn',equipped(core.Equipment.WEAPON_SLOT,[I.NINJA_MONKEY_GREEGREE,I.NINJA_MONKEY_GREEGREE_2,I.NINJA_MONKEY_GREEGREE_3,I.NINJA_MONKEY_GREEGREE_4]));
           if(!(state&512)||!at(3018,3027,5454,5460))return step('awowogei-hole','After swinging across the course rope, enter the hole to reach the Tchiki cave at 3020,5457.',[object(O.HOLE_18)]);
           return step('awowogei-nuts','Pick the Tchiki nut bush in this cave while wearing a ninja monkey greegree. Leave through the exit at 3025,5457.',[object([O.TCHIKI_MONKEY_NUT_BUSH,16059],3020,5457),object(16060,3025,5457)]);
         }
-        return step('awowogei-filling-choice','Choose one filling route. Red banana: wear a gorilla greegree, use a rope on the red banana tree, then slice the banana with a knife. Tchiki paste: wear a ninja greegree, put away pets/followers, cross the Ape Atoll course rope, enter its hole, pick Tchiki nuts and grind them. Either prepared filling alone can stuff the snake on this server.',[object([O.RED_BANANA_TREE,O.RED_BANANA_TREE_2,15580]),item(I.ROPE),object(O.ROPE_20),object(O.HOLE_18)]);
+        const bananaRoute='Red banana: wear a gorilla greegree, use a rope on the red banana tree, then slice the banana with a knife.';
+        const pasteRoute='Tchiki paste: wear a ninja greegree, put away pets/followers, cross the Ape Atoll course rope, enter its hole, pick Tchiki nuts and grind them.';
+        if(hasPaste)return step('awowogei-fillings','The snake still needs a sliced red banana. '+bananaRoute,[object([O.RED_BANANA_TREE,O.RED_BANANA_TREE_2,15580]),item(I.ROPE)]);
+        if(hasBanana)return step('awowogei-fillings','The snake still needs Tchiki nut paste. '+pasteRoute,[object(O.ROPE_20),object(O.HOLE_18)]);
+        return step('awowogei-fillings','Gather both fillings for the snake. '+bananaRoute+' '+pasteRoute,[object([O.RED_BANANA_TREE,O.RED_BANANA_TREE_2,15580]),item(I.ROPE),object(O.ROPE_20),object(O.HOLE_18)]);
       }
 
       if (part === 'FINALE') {

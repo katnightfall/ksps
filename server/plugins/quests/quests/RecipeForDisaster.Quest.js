@@ -3032,10 +3032,18 @@ module.exports = function registerRecipeForDisasterQuest(api) {
     const fillingId = [event.usedItemId, event.usedWithItemId].find((id) => filling.includes(id));
     if (fillingId && [event.usedItemId, event.usedWithItemId].includes(ItemIdentifiers.SNAKE_CORPSE)) {
       event.handled = true;
-      if (!hasSpace(player)) return player.sendMessage("You need an empty inventory slot to stuff the snake.");
+      // Ours (upstream issue #6263): the snake takes both fillings at once (Wiki, Raw stuffed snake: "made by stuffing
+      // a snake corpse with a sliced red banana and Tchiki nut paste"); either one alone used to make it. The three
+      // items become one, so no free slot is needed. The refusal's wording is ours (no capture of it); the success
+      // line is the transcript's ("Showing them a red banana again", stuffing the snake).
+      if (!filling.every((id) => has(player, id))) {
+        player.sendMessage("You need both the sliced red banana and the tchiki nut paste to stuff the snake.");
+        return;
+      }
       player.getInventory().deleteNumber(ItemIdentifiers.SNAKE_CORPSE, 1);
-      player.getInventory().deleteNumber(fillingId, 1);
+      for (const id of filling) player.getInventory().deleteNumber(id, 1);
       player.getInventory().adds(ItemIdentifiers.RAW_STUFFED_SNAKE, 1);
+      player.sendMessage("You carefully stuff the ingredients into the snake corpse. Ewww!");
       setAwowogeiStage(player, 30);
     }
   }
