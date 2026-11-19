@@ -441,3 +441,62 @@ test("a busy world holds every one of its players' characters, not the first twe
   assert.equal(await miami.login("Player 40"), null);
   assert.deepEqual(JSON.parse(miami.rows.get("player_40")), { n: 40 });
 });
+
+test("a logout save that does not get through at once is not let go: no other world plays on from the older copy", async (t) => {
+  const hub = await master(t);
+  const dallas = world(t, "1 - Dallas", hub);
+  const miami = world(t, "2 - Miami", hub);
+  await dallas.login("Kat");
+  await dallas.gameSaves("kat", { at: "the autosave, handed in" });
+  await dallas.sync.tick();
+  // Eight minutes of play later she logs out; the save's hand-in fails this once (a timeout, a 502).
+  hub.answers.status = (request) => (request.url === "/sync/save" ? 502 : 0);
+  await dallas.logout("Kat", "kat", { at: "the logout save" });
+  hub.answers.status = null;
+  assert.deepEqual(dallas.sync.state().dirty, ["kat"], "still to hand in");
+  await dallas.sync.heartbeat(); // the world's next heartbeat: she is no longer in it
+  // She goes straight to Miami.
+  assert.equal(await miami.login("Kat"), "Your account is logged in on 1 - Dallas.", "held until Dallas has handed the save in");
+  await dallas.sync.tick(); // a few seconds later
+  assert.deepEqual(dallas.sync.state().dirty, []);
+  assert.equal(await miami.login("Kat"), null);
+  assert.deepEqual(JSON.parse(miami.rows.get("kat")), { at: "the logout save" }, "and Miami plays on from the logout save");
+  await dallas.sync.heartbeat();
+  assert.equal(await dallas.login("Kat"), "Your account is logged in on 2 - Miami.", "Dallas no longer holds it");
+});
+
+test("a stopping world does not let go of a save it could not hand in, and hands it in when it starts again", async (t) => {
+  const hub = await master(t);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "master-sync-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const stateFile = path.join(dir, "master-sync.json");
+  const rows = new Map();
+  const persistence = { saveKey: (name) => String(name).toLowerCase(), currentJson: (key) => rows.get(key), enqueue: (key, writes) => rows.set(key, writes.find((write) => write.kind === "row").json) };
+  const call = async (method, target, body) => {
+    const text = body === undefined ? "" : JSON.stringify(body);
+    const response = await fetch(`${hub.url}${target}`, { method, body: method === "POST" ? text : undefined, headers: { "x-master-sync": signRequest(KEY, method, target, text, hub.clock.now) } });
+    return { status: response.status, answer: await response.json().catch(() => ({})) };
+  };
+  const start = () => createMasterSync({ persistence, call, world: "1 - Dallas", stateFile, localKeys: () => [...rows.keys()], now: () => hub.clock.now });
+  const miami = world(t, "2 - Miami", hub);
+  const dallas = start();
+  await dallas.prepare({ names: ["Kat"], refuse: null });
+  await dallas.entered("Kat");
+  rows.set("kat", JSON.stringify({ at: "the autosave, handed in" }));
+  await dallas.rowWritten("kat");
+  await dallas.tick();
+  // The world is stopped; the hand-in of the shutdown save fails.
+  hub.answers.status = (request) => (request.url === "/sync/save" ? 502 : 0);
+  rows.set("kat", JSON.stringify({ at: "the shutdown save" }));
+  await dallas.rowWritten("kat");
+  await dallas.shutdown();
+  hub.answers.status = null;
+  assert.equal(await miami.login("Kat"), "Your account is logged in on 1 - Dallas.", "not let go with an older copy at the master");
+  // A minute later it is up again.
+  hub.clock.now += 60_000;
+  const again = start();
+  await again.started();
+  assert.deepEqual(again.state().dirty, []);
+  assert.equal(await miami.login("Kat"), null);
+  assert.deepEqual(JSON.parse(miami.rows.get("kat")), { at: "the shutdown save" });
+});

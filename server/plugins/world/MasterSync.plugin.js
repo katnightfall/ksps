@@ -290,11 +290,26 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
     session.online = false;
     for (const key of session.keys) if (dirty.has(key)) dirty.get(key).release = true;
     await pushAll([...session.keys]);
+    // A save that could not be handed in just now is not let go: see `owed`.
+    const free = [...session.keys].filter((key) => !dirty.has(key));
     try {
-      await call("POST", "/sync/release", { world, reset, keys: [...session.keys] });
+      if (free.length) await call("POST", "/sync/release", { world, reset, keys: free });
     } catch {}
     forget(session);
   }
+
+  /**
+   * A save still to hand in whose player is in the world or has left it (not a login still
+   * waiting to enter): the master goes on holding it for this world, as the heartbeat names it,
+   * until it is in. A logout save that did not get through at once (one timeout) used to be let
+   * go all the same, by the release that follows it and by the next heartbeat. Another world
+   * then let the player in on the master's older copy, and the logout save, arriving later, was
+   * refused as out of date: the player lost what they had done since their last autosave.
+   */
+  const owed = (key) => {
+    const session = tracked.get(key);
+    return !session || session.online || session.releasing;
+  };
 
   /** This world's record of a login: its saves are the ones handed in. */
   function begin(names, keys) {
@@ -407,7 +422,8 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
       const here = [...new Set([...sessions.values()])].filter((session) => session.online);
       let result;
       try {
-        result = await call("POST", "/sync/heartbeat", { world, reset, keys: here.flatMap((session) => [...session.keys]) });
+        const keys = new Set([...here.flatMap((session) => [...session.keys]), ...[...dirty.keys()].filter(owed)]);
+        result = await call("POST", "/sync/heartbeat", { world, reset, keys: [...keys] });
       } catch {
         return;
       }
@@ -515,7 +531,9 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
       const keys = [...tracked.keys()];
       const work = (async () => {
         await pushAll();
-        if (keys.length) await call("POST", "/sync/release", { world, reset, keys }).catch(() => {});
+        // What could not be handed in stays held (see `owed`), to be handed in when the world starts again.
+        const free = keys.filter((key) => !dirty.has(key));
+        if (free.length) await call("POST", "/sync/release", { world, reset, keys: free }).catch(() => {});
       })();
       let timer;
       await Promise.race([work.catch(() => {}), new Promise((resolve) => { timer = setTimeout(resolve, limitMs); })]);
