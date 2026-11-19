@@ -2448,7 +2448,12 @@ function pourPotion(event) {
 }
 
 /** Vials of water, coconut milk and blood empty to a vial too, though no dose enum lists them. */
-const EMPTYABLE_VIALS = ["vial_water", "vial_coconut_milk", "vial_blood"];
+// Ours (upstream issue #4399): so does Serum 208 (mort_serum_perm1-4). The cache gives it "Empty" as
+// it does Serum 207, but only 207 is in the dose enum (208 cannot go in potion storage, Wiki), so
+// its Empty did nothing. The line is the potions' one, as for Serum 207; no recording of a
+// Serum 208 being emptied was found.
+const EMPTYABLE_VIALS = ["vial_water", "vial_coconut_milk", "vial_blood",
+  "mort_serum_perm1", "mort_serum_perm2", "mort_serum_perm3", "mort_serum_perm4"];
 
 /**
  * A registered drink whose "Drink" is not its first op (Karamjan rum's is its fourth, rsprox rec

@@ -29,30 +29,44 @@ export class Location {
         this.z = z ?? 0;
     }
 
-    private static readAxis(source: any, axis: "X" | "Y" | "Z"): number | null {
-        if (!source) {
-            return null;
-        }
-        const getter = source[`get${axis}`];
-        const fallback = source[axis.toLowerCase()];
-        const value = typeof getter === "function" ? getter.call(source) : fallback;
+    // Ours (upstream issue #6036): the three axes are read by name, and isSameTile compares them
+    // as numbers. It built two Locations and six method-name strings for every pair, and a ground
+    // item being put down is compared with every item on the world's floor.
+    private static readX(source: any): number | null {
+        if (!source) return null;
+        const value = typeof source.getX === "function" ? source.getX() : source.x;
+        return Number.isFinite(value) ? value : null;
+    }
+
+    private static readY(source: any): number | null {
+        if (!source) return null;
+        const value = typeof source.getY === "function" ? source.getY() : source.y;
+        return Number.isFinite(value) ? value : null;
+    }
+
+    private static readZ(source: any): number | null {
+        if (!source) return null;
+        const value = typeof source.getZ === "function" ? source.getZ() : source.z;
         return Number.isFinite(value) ? value : null;
     }
 
     public static readTile(source: any): Location | null {
-        const x = Location.readAxis(source, "X");
-        const y = Location.readAxis(source, "Y");
-        const z = Location.readAxis(source, "Z");
-        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) {
+        const x = Location.readX(source);
+        const y = Location.readY(source);
+        const z = Location.readZ(source);
+        if (x === null || y === null || z === null) {
             return null;
         }
         return new Location(x, y, z);
     }
 
     public static isSameTile(a: any, b: any): boolean {
-        const left = Location.readTile(a);
-        const right = Location.readTile(b);
-        return !!left && !!right && left.x === right.x && left.y === right.y && left.z === right.z;
+        const x = Location.readX(a);
+        if (x === null || x !== Location.readX(b)) return false;
+        const y = Location.readY(a);
+        if (y === null || y !== Location.readY(b)) return false;
+        const z = Location.readZ(a);
+        return z !== null && z === Location.readZ(b);
     }
 
     /**

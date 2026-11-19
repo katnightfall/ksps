@@ -139,6 +139,16 @@ test("Empty leaves the vial: potions, unfinished potions and a vial of water", (
     assert.equal(items[0].getId(), obj("vial_empty"), name);
     assert.deepEqual(sent.messages, ["You empty the vial."]);
   }
+  // Upstream issue #4399: Serum 208 has the cache's "Empty" too, though no dose enum lists it.
+  for (const name of ["mort_serum_perm4", "mort_serum_perm3", "mort_serum_perm2", "mort_serum_perm1", "mort_serum4"]) {
+    assert.equal(core.CacheDefinitions.getItem(obj(name)).inventoryActions[3], "Empty", name);
+    const { items, sent, player } = vessels([obj(name)]);
+    const event = { player, itemId: obj(name), slot: 0, clickType: 4, handled: false };
+    emptyVessel(event);
+    assert.equal(event.handled, true, name);
+    assert.equal(items[0].getId(), obj("vial_empty"), name);
+    assert.deepEqual(sent.messages, ["You empty the vial."]);
+  }
   const { player } = vessels([obj("3dose2restore")]);
   const drink = { player, itemId: obj("3dose2restore"), slot: 0, clickType: 1, handled: false };
   emptyVessel(drink);

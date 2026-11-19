@@ -8,6 +8,8 @@
  *
  * The quests hand them out ("quest-lamps:give" { player, lamp, count }). No recording rubs one; the
  * line is the Ides of Milk lamp's recorded "Your wish has been granted!" form (rsprox 238/239).
+ * A lamp that paid its experience is announced ("quest-lamps:rubbed" { player, lamp }), for the
+ * quests whose giver replaces lamps not yet used (Demon Slayer's Aris).
  */
 const LAMP_IDS = Object.freeze({
   BLACK_KNIGHTS_FORTRESS: 34748,
@@ -61,7 +63,9 @@ function grant(player, request, skill, name = skill.getName()) {
     player.sendMessage("You cannot gain experience in that skill right now.");
     return null;
   }
+  const lamp = Object.keys(LAMP_IDS).find((key) => LAMP_IDS[key] === request.item.getId());
   inventory.deleteAtSlot(request.slot, 1);
+  pluginApi.emitCustomEvent("quest-lamps:rubbed", { player, lamp });
   return `<col=0000ff>Your wish has been granted!</col> You have been awarded ${request.lamp.xp.toLocaleString("en-GB")} ${name} experience!`;
 }
 

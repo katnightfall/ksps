@@ -150,7 +150,7 @@
       }
     }
   },
-  "regionRules": "A map square belongs to the lowest-numbered area that names it in `squares` or `rects`, then a league's `overrides` reassign squares. Tile polygons refine only their named mixed squares (lowest area id first), after coarse ownership and before league overrides. Their vertices are tile grid lines; classify tile centres (x + 0.5, y + 0.5) with the crossing rule. An explicitly named underground square wins over the legacy y - 100 surface fallback; that fallback is an approximation, not proof of an entrance location. A square named by no area is open to everyone: instances, Death's Office, the POH, random events, the essence mine, Tutorial Island, the sea. An area the league does not offer (Varlamore on a Trailblazer Reloaded world) is locked for good. Known approximations of the 64-tile grid: the Catherby beach east of x 2816 falls with Asgarnia; the River Salve's east bank at Paterdomus with Misthalin; the Citharede Abbey and the Giants' Plateau east of Al Kharid (map square 53,49, whose Cabbage field the abbey's task wants) with the desert while the Abandoned Mine below it stays Morytania; Tutorial Island's easternmost tiles with the desert.",
+  "regionRules": "A map square belongs to the lowest-numbered area that names it in `squares` or `rects`, then a league's `overrides` reassign squares. Tile polygons refine only their named mixed squares (lowest area id first), after coarse ownership and before league overrides. Their vertices are tile grid lines; classify tile centres (x + 0.5, y + 0.5) with the crossing rule. An explicitly named underground square wins over the legacy y - 100 surface fallback; that fallback is an approximation, not proof of an entrance location. A square named by no area is open to everyone: instances, Death's Office, the POH, random events, the essence mine, Tutorial Island, the sea. An area the league does not offer (Varlamore on a Trailblazer Reloaded world) is locked for good. Known approximations of the 64-tile grid: Catherby east of x 2816 is split from White Wolf Mountain by a hand-drawn outline (Kandarin's tilePolygons), not the game's border; the Citharede Abbey and the Giants' Plateau east of Al Kharid (map square 53,49, whose Cabbage field the abbey's task wants) with the desert while the Abandoned Mine below it stays Morytania; Tutorial Island's easternmost tiles with the desert.",
   "open": {
     "_comment": "Open from everywhere (Wiki); listed for the record and the tests, since squares named by no area are open anyway.",
     "deathsOffice": [49, 89],
@@ -161,35 +161,51 @@
     "1": {
       "key": "misthalin",
       "_comment": "The Kingdom of Misthalin (Lumbridge, Draynor, the Wizards' Tower, Barbarian Village, Edgeville, Varrock, the Grand Exchange, the Digsite, Paterdomus), Fossil Island with Lithkren, the Lithkren Vault and the Wyvern Cave (map squares 24,79 and 56,159-160, on no surface square of their own; Wiki: the Demonic Pacts page lists the Lithkren Vault under Fossil Island in Misthalin), Zanaris, Puro-Puro, the fairy-ring realms (Cosmic Entity's Plane, Enchanted Valley, Abyssal Area, Gorak Plane), Dorgesh-Kaan, the Stronghold of Security (its four floors) and the Isle of Souls.",
-      "rects": [[48, 49, 50, 54], [51, 52, 52, 54], [53, 53, 53, 54], [57, 57, 60, 60], [55, 62, 56, 63], [37, 68, 38, 69], [40, 66, 40, 67], [42, 82, 42, 83], [28, 80, 29, 82], [32, 43, 35, 46]],
-      "squares": [[32, 75], [47, 70], [47, 76], [47, 83], [31, 81], [33, 82], [36, 81], [24, 79], [56, 159], [56, 160], [50, 148], [51, 150]],
+      "rects": [[48, 49, 50, 54], [51, 52, 52, 54], [57, 57, 60, 60], [55, 62, 56, 63], [37, 68, 38, 69], [40, 66, 40, 67], [42, 82, 42, 83], [28, 80, 29, 82], [32, 43, 35, 46]],
+      "squares": [[32, 75], [47, 70], [47, 76], [47, 83], [31, 81], [33, 82], [36, 81], [24, 79], [56, 159], [56, 160], [50, 148], [51, 150], [50, 155], [56, 57]],
+      "_wikiPoints": "Ours (upstream issue #5386): squares the Wiki's own location data puts in another area than the 64-tile map did. Source: the Wiki's Locline bucket (every NPC, scenery and item-spawn location with its leagueRegion), read 2026-11-18; a square was moved only where all its tagged points agree, from two pages or at least five points (tests/fixtures/league-area-wiki-points.json keeps the points used). Here: the north of the Varrock Sewers under the Wilderness (50,155) and the west of Fossil Island (56,57). The two squares the River Salve runs through (53,53 and 53,54) are Morytania's now, with the Misthalin outline below cutting out the west bank and Paterdomus.",
       "_undergroundSource": "Chasm_of_Tears and Tears_of_Guthix_(minigame), OSRS Wiki raw pages retrieved 2026-11-14: both explicitly leagueRegion Misthalin, map pins 3236,9512 and 3257,9517. Square 50,148 must not inherit Desert from surface square 50,48. Dorgesh-Kaan_mine also explicitly names Misthalin; the existing rsprox-sourced DorgeshuunGuides land at Mistag 3309,9613 (square 51,150), not Desert surface 51,50.",
       "tilePolygons": [{
-        "_source": "https://oldschool.runescape.wiki/w/Map:Misthalin?action=raw retrieved 2026-11-14, SHA256 6d9256f61bcf8f06aff442caa47f79d786b2d89b9c88bbdebbdad70528ef1986. Exact first (mainland) outline, with vertices on tile grid lines; tiles are sampled at their centres (x + 0.5, y + 0.5) using the crossing rule, without an edge-inclusive shortcut. Applied only in the two mixed Lumbridge squares. Lumbridge_cow_field independently names Misthalin and supplies its outline; true Al Kharid mine remains outside.",
-        "squares": [[51, 50], [51, 51]],
+        "_source": "https://oldschool.runescape.wiki/w/Map:Misthalin?action=raw retrieved 2026-11-14, SHA256 6d9256f61bcf8f06aff442caa47f79d786b2d89b9c88bbdebbdad70528ef1986. Exact first (mainland) outline, with vertices on tile grid lines; tiles are sampled at their centres (x + 0.5, y + 0.5) using the crossing rule, without an edge-inclusive shortcut. Applied only in the two mixed Lumbridge squares and (ours, upstream issue #5386) the two River Salve squares. Lumbridge_cow_field independently names Misthalin and supplies its outline; true Al Kharid mine remains outside.",
+        "squares": [[51, 50], [51, 51], [53, 53], [53, 54]],
         "outline": [[3267,3204],[3267,3223],[3268,3224],[3268,3232],[3267,3233],[3267,3239],[3266,3240],[3266,3247],[3265,3248],[3265,3255],[3266,3255],[3266,3297],[3265,3298],[3267,3298],[3267,3322],[3271,3326],[3271,3329],[3272,3330],[3300,3330],[3301,3331],[3304,3331],[3305,3330],[3307,3330],[3308,3329],[3316,3329],[3317,3330],[3319,3330],[3320,3331],[3322,3331],[3323,3330],[3334,3330],[3335,3329],[3336,3329],[3337,3328],[3338,3328],[3340,3330],[3346,3330],[3347,3329],[3350,3329],[3351,3328],[3356,3328],[3357,3329],[3360,3329],[3361,3330],[3370,3330],[3371,3329],[3375,3329],[3376,3330],[3389,3330],[3386,3333],[3383,3333],[3374,3341],[3374,3351],[3375,3352],[3375,3354],[3376,3355],[3379,3357],[3380,3359],[3380,3363],[3375,3369],[3375,3372],[3376,3373],[3377,3373],[3378,3374],[3378,3377],[3381,3379],[3382,3379],[3383,3380],[3384,3382],[3384,3383],[3387,3385],[3389,3385],[3392,3387],[3393,3389],[3393,3390],[3394,3392],[3394,3393],[3395,3396],[3396,3397],[3396,3398],[3397,3400],[3397,3402],[3395,3404],[3395,3405],[3397,3409],[3397,3411],[3400,3414],[3400,3418],[3397,3421],[3397,3422],[3396,3425],[3396,3429],[3397,3431],[3397,3432],[3399,3435],[3399,3437],[3397,3440],[3397,3444],[3398,3445],[3398,3447],[3402,3453],[3405,3453],[3407,3454],[3409,3456],[3410,3460],[3412,3462],[3415,3464],[3419,3466],[3423,3469],[3426,3472],[3428,3475],[3428,3478],[3426,3483],[3426,3486],[3419,3488],[3419,3494],[3418,3494],[3418,3495],[3416,3495],[3416,3498],[3415,3498],[3413,3500],[3412,3500],[3410,3502],[3410,3504],[3408,3506],[3408,3508],[3407,3509],[3404,3509],[3404,3512],[3408,3517],[3408,3522],[3396,3534],[3361,3534],[3353,3536],[3349,3536],[3346,3534],[3342,3528],[3342,3523],[3062,3523],[3065,3511],[3065,3477],[3063,3474],[3063,3471],[3061,3467],[3061,3463],[3070,3446],[3070,3324],[3069,3323],[3069,3315],[3070,3314],[3070,3311],[3068,3309],[3068,3297],[3069,3296],[3069,3286],[3070,3285],[3070,3273],[3069,3272],[3069,3268],[3068,3267],[3068,3257],[3065,3254],[3065,3250],[3066,3249],[3068,3245],[3070,3244],[3072,3244],[3076,3241],[3080,3239],[3083,3236],[3084,3234],[3085,3233],[3087,3227],[3087,3224],[3086,3223],[3086,3221],[3089,3216],[3092,3213],[3099,3209],[3106,3209],[3111,3207],[3112,3206],[3112,3174],[3110,3174],[3106,3177],[3104,3177],[3101,3174],[3099,3173],[3096,3170],[3096,3169],[3094,3166],[3094,3162],[3097,3157],[3099,3155],[3099,3154],[3100,3151],[3104,3146],[3107,3145],[3108,3145],[3112,3146],[3114,3149],[3116,3151],[3117,3151],[3119,3153],[3120,3153],[3123,3156],[3123,3157],[3125,3159],[3125,3160],[3124,3161],[3124,3162],[3123,3163],[3123,3171],[3120,3174],[3116,3174],[3116,3177],[3117,3178],[3117,3181],[3116,3182],[3116,3194],[3117,3195],[3117,3198],[3116,3199],[3116,3206],[3128,3206],[3131,3204],[3134,3202],[3136,3197],[3136,3193],[3137,3190],[3137,3185],[3138,3183],[3138,3181],[3140,3178],[3140,3176],[3139,3174],[3139,3173],[3141,3170],[3141,3168],[3142,3166],[3142,3161],[3143,3159],[3143,3157],[3142,3155],[3140,3154],[3138,3152],[3138,3151],[3139,3150],[3140,3150],[3141,3149],[3138,3147],[3138,3144],[3139,3141],[3144,3138],[3146,3138],[3148,3139],[3152,3141],[3154,3143],[3159,3143],[3162,3146],[3168,3146],[3170,3145],[3172,3142],[3174,3141],[3179,3141],[3184,3139],[3186,3139],[3189,3140],[3194,3140],[3199,3137],[3201,3137],[3204,3138],[3207,3138],[3211,3137],[3214,3139],[3217,3140],[3218,3141],[3222,3141],[3224,3142],[3228,3140],[3232,3141],[3236,3141],[3240,3142],[3242,3143],[3242,3144],[3240,3146],[3240,3148],[3241,3149],[3243,3149],[3244,3151],[3245,3152],[3245,3154],[3246,3156],[3246,3159],[3248,3161],[3247,3163],[3247,3170],[3248,3175],[3249,3181],[3250,3183],[3253,3187],[3256,3192],[3257,3196],[3258,3201],[3264,3201]]
       }]
     },
     "2": {
       "key": "karamja",
       "_comment": "The island of Karamja (Brimhaven, Musa Point, the Ship Yard, Tai Bwo Wannai, the Kharazi Jungle, Shilo Village, Cairn Isle), Crandor, Mor Ul Rek with the Fight Caves and the Inferno, the Realm of the Fisher King, and the Brimhaven Dungeon under Kandarin's coast.",
-      "rects": [[42, 44, 46, 47], [42, 48, 45, 49], [46, 49, 46, 49], [42, 50, 44, 50], [44, 51, 44, 51], [37, 78, 39, 81], [42, 73, 43, 73], [41, 147, 42, 150]]
+      "_wikiPoints": "Ours (upstream issue #5386, see Misthalin's _wikiPoints): 37-38,78 south of Mor Ul Rek are Morytania's and 41-42,150 north of the Brimhaven Dungeon the Fremennik Province's in the Wiki's data, so the two rectangles stop short of them.",
+      "rects": [[42, 44, 46, 47], [42, 48, 45, 49], [46, 49, 46, 49], [42, 50, 44, 50], [44, 51, 44, 51], [37, 79, 39, 81], [39, 78, 39, 78], [42, 73, 43, 73], [41, 147, 42, 149]]
     },
     "3": {
       "key": "asgarnia",
       "_comment": "The Kingdom of Asgarnia (Rimmington, Port Sarim, Mudskipper Point, Melzar's Maze, the Crafting Guild, Falador, Taverley with its dungeon, Burthorpe, Goblin Village, Ice Mountain, the Monastery, White Wolf Mountain), Entrana, Troll Country (Death Plateau, the Troll Stronghold, Trollheim) with the God Wars Dungeon, the Void Knights' Outpost and the Ruins of Camdozaal.",
-      "rects": [[45, 50, 47, 54], [44, 53, 44, 57], [45, 55, 45, 58], [46, 48, 46, 48], [47, 49, 47, 49], [43, 52, 44, 52], [40, 40, 41, 41], [44, 81, 46, 84], [45, 89, 47, 90]]
+      "rects": [[45, 50, 47, 54], [44, 53, 44, 57], [45, 55, 45, 58], [46, 48, 46, 48], [47, 49, 47, 49], [43, 52, 44, 52], [40, 40, 41, 41], [44, 81, 46, 84], [45, 89, 47, 90]],
+      "_wikiPoints": "Ours (upstream issue #5386, see Misthalin's _wikiPoints): the Ice Path's ice trolls north of Trollheim (44,58) and their cave (43,159), the Asgarnian Ice Dungeon under Musa Point's square (46,149) and 46,155.",
+      "squares": [[44, 58], [43, 159], [46, 149], [46, 155]]
     },
     "4": {
       "key": "kandarin",
       "_comment": "The Kingdom of Kandarin (Yanille, Gu'Tanoth, Port Khazard, the Tree Gnome Village, Ardougne, Witchaven, the Legends' Guild, Hemenster, Seers' Village, Catherby, the Sinclair Mansion, the Barbarian Outpost, the Tree Gnome Stronghold, Eagles' Peak), Castle Wars, the Piscatoris Fishing Colony, the Feldip Hills with Corsair Cove and the Myths' Guild, Ape Atoll and Crash Island, the Ancient Cavern (map squares 25-27,83; Wiki: its whirlpool entrance is south of the Barbarian Outpost); not Taverley Dungeon nor the Underground Pass (Wiki).",
-      "rects": [[38, 47, 41, 50], [38, 51, 43, 55], [37, 52, 37, 55], [36, 52, 36, 54], [35, 56, 37, 58], [38, 44, 41, 46], [42, 42, 43, 43], [25, 83, 27, 83]],
-      "squares": [[37, 48], [45, 42]]
+      "rects": [[38, 47, 41, 50], [38, 51, 43, 55], [37, 52, 37, 55], [36, 52, 36, 54], [35, 56, 37, 57], [35, 58, 35, 58], [37, 58, 37, 58], [38, 44, 41, 46], [42, 42, 43, 43], [25, 83, 27, 83]],
+      "_wikiPoints": "Ours (upstream issue #5386, see Misthalin's _wikiPoints): the ogres' land west of Castle Wars (36,47), the Smoke Devil Dungeon and Jiggig's tombs (36,146, 36-37,147), the Stronghold Slayer Cave and Brimstail's cave (38,152, 37-38,153; they took the Underground Pass's area), the Yanille Agility Dungeon (40-41,141, which followed the Void Knights' Outpost above it) and the Mogre Camp (46,148). 36,58 (Neitiznot's dock) is the Fremennik Province's, so the Piscatoris rectangle stops short of it.",
+      "squares": [[37, 48], [45, 42], [36, 47], [36, 146], [36, 147], [37, 147], [38, 152], [37, 153], [38, 153], [40, 141], [41, 141], [46, 148]],
+      "tilePolygons": [{
+        "_source": "Ours (upstream issue #5386): Catherby east of x 2816 and its beach, which the 64-tile map gave to Asgarnia with White Wolf Mountain (Harry's Fishing Shop could not be reached with Kandarin alone). The Wiki has no outline of Kandarin, so this one is drawn by hand around the places its data names Kandarin (Harry's Fishing Shop 2830-2838,3440-3449, the houses, the fishing spots 2836-2859,3423-3431, the bushes to 2863,3430 and 2856,3436) and short of those it names Asgarnia (white wolves at 2842,3450, 2864,3453, 2870,3438 and 2872,3445). The real border was not recorded: an approximation, like the squares.",
+        "squares": [[44, 53]],
+        "outline": [[2816,3392],[2868,3392],[2868,3437],[2840,3437],[2840,3456],[2816,3456]]
+      }, {
+        "_source": "Ours (upstream issue #5386): Catherby's farm north of the town (the Wiki's data: wheat and grain 2818-2822,3467-3473, the farm's chair and tools 2819-2821,3459-3463, Kandarin), under White Wolf Mountain, whose wolves (from 2846,3474 east) and ice giants (2817,3514) stay Asgarnia's. Drawn by hand, as above.",
+        "squares": [[44, 54]],
+        "outline": [[2816,3456],[2830,3456],[2830,3478],[2816,3478]]
+      }]
     },
     "5": {
       "key": "morytania",
       "_comment": "Morytania (Canifis, the Slayer Tower, Mort Myre, Mort'ton, Barrows, Burgh de Rott, Meiyerditch, Darkmeyer, Slepe, Port Phasmatys, the Haunted Woods, Fenkenstrain's Castle), Dragontooth Island, Mos Le'Harmless with its caves, Harmony Island and Braindeath Island, and the Abandoned Mine below the Giants' Plateau.",
-      "rects": [[54, 49, 60, 57], [53, 50, 53, 52], [53, 55, 53, 57], [57, 45, 60, 47], [58, 43, 59, 44], [32, 79, 33, 79], [57, 147, 59, 149]]
+      "_wikiPoints": "Ours (upstream issue #5386, see Misthalin's _wikiPoints): Mort Myre's north-west and the Salve's east bank (53,53-54; Misthalin's outline keeps the west bank and Paterdomus) and 37-38,78.",
+      "rects": [[54, 49, 60, 57], [53, 50, 53, 57], [57, 45, 60, 47], [58, 43, 59, 44], [32, 79, 33, 79], [57, 147, 59, 149]],
+      "squares": [[37, 78], [38, 78]]
     },
     "6": {
       "key": "kharidian_desert",
@@ -199,13 +215,16 @@
     "7": {
       "key": "tirannwn",
       "_comment": "Tirannwn (Arandar, Isafdar, Lletya, the Tyras Camp, Port Tyras, Zul-Andra, the Poison Waste, Gwenith), the Underground Pass with Iban's temple, the Temple of Light, Prifddinas with everything under it (the Iorwerth Dungeon, its mines; map rows 187-196) and Zalcano.",
-      "rects": [[33, 46, 37, 51], [33, 52, 35, 53], [37, 150, 38, 153], [32, 70, 34, 73], [28, 72, 31, 73], [50, 94, 51, 96], [50, 187, 51, 196]],
-      "squares": [[47, 94]]
+      "_wikiPoints": "Ours (upstream issue #5386, see Misthalin's _wikiPoints): the Underground Pass's lowest level (36,153-154, which followed Kandarin's surface); 30,73 is the Fremennik Province's in the Wiki's data, so that rectangle is split around it.",
+      "rects": [[33, 46, 37, 51], [33, 52, 35, 53], [37, 150, 38, 153], [32, 70, 34, 73], [28, 72, 31, 72], [28, 73, 29, 73], [31, 73, 31, 73], [50, 94, 51, 96], [50, 187, 51, 196]],
+      "squares": [[47, 94], [36, 153], [36, 154]]
     },
     "8": {
       "key": "fremennik",
       "_comment": "The Fremennik Province (the Lighthouse, Rellekka, the Keldagrim entrance and Keldagrim, the Mountain Camp, Waterbirth Island, Neitiznot and Jatizso, the Pirates' Cove, Miscellania and Etceteria, Lunar Isle, the Island of Stone, Ungael, Trollweiss, Weiss, Ghorrock), and below Waterbirth Island its dungeon's lower levels and the Dagannoth Kings' lair (map squares 28-29,68 and 45,68-69, on no surface square of their own; Wiki: underground areas with an entrance in the area are included).",
-      "rects": [[38, 56, 43, 58], [32, 58, 45, 63], [44, 158, 45, 159], [28, 68, 29, 68], [45, 68, 45, 69]]
+      "rects": [[38, 56, 43, 58], [32, 58, 45, 63], [44, 158, 45, 159], [28, 68, 29, 68], [45, 68, 45, 69]],
+      "_wikiPoints": "Ours (upstream issue #5386, see Misthalin's _wikiPoints): 30,73, Neitiznot's dock (36,58), 41-42,150 and the Fremennik Slayer Dungeon's west (42,155, which followed Kandarin's surface).",
+      "squares": [[30, 73], [36, 58], [41, 150], [42, 150], [42, 155]]
     },
     "11": {
       "key": "wilderness",
@@ -216,12 +235,15 @@
     "20": {
       "key": "kourend",
       "_comment": "Great Kourend and the Kebos Lowlands (Kourend Castle, Hosidius, Arceuus, Lovakengj, Port Piscarilius, Shayzien, Kingstown, Land's End, the Kourend Woodland, Mount Quidamortem, the Kebos Swamp, the Farming Guild, Mount Karuulm, the Northern Tundras, Wintertodt); the Stranglewood on a Trailblazer Reloaded world.",
-      "rects": [[17, 53, 29, 62]]
+      "_wikiPoints": "Ours (upstream issue #5386, see Misthalin's _wikiPoints): 20-21,53 are Varlamore's north in the Wiki's data (the row's 17-19 stay here for Trailblazer Reloaded's Stranglewood; the later leagues' overrides move them), and 25,146 is Kourend's.",
+      "rects": [[17, 54, 29, 62], [22, 53, 29, 53], [17, 53, 19, 53]],
+      "squares": [[25, 146]]
     },
     "21": {
       "key": "varlamore",
       "_comment": "Varlamore (Civitas illa Fortis, the Fortis Colosseum, the Hunter Guild, Sunset Coast, Aldarin, the Locus Oasis, Cam Torum, Tal Teklan, Ralos' Rise, Auburnvale, Darkfrost, the Moons of Peril); the Stranglewood on a Raging Echoes world.",
-      "rects": [[17, 44, 29, 52], [21, 151, 22, 152]]
+      "rects": [[17, 44, 29, 52], [21, 151, 22, 152]],
+      "squares": [[20, 53], [21, 53]]
     }
   }
 }
