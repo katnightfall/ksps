@@ -2042,7 +2042,11 @@ export class ClientConnection {
       console.error("[network] disconnect trade cleanup failed", error);
     }
     try {
-      GameConstants.PLAYER_PERSISTENCE.requestSave(this.player, "disconnect");
+      // Ours: only for a player still in the world. A logout closes the socket, and the close is
+      // heard after the player has left and the logout save is written (up to half a minute after,
+      // from a client gone quiet): saving again from that player's memory wrote over whatever a
+      // new login of the account had saved meanwhile, and on a world of a master was handed in too.
+      if (this.player.isRegistered()) GameConstants.PLAYER_PERSISTENCE.requestSave(this.player, "disconnect");
     } catch (error) {
       console.error("[network] disconnect save request failed", error);
     }
