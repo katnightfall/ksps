@@ -1425,6 +1425,21 @@ function handleHistoryButton({ player, buttonId, slot, action }) {
   return true;
 }
 
+/**
+ * Ours. By command the exchange is at hand wherever the player stands, and it does a bank's work: an item
+ * put up for sale has left the backpack (and a death, and a minigame's own gear left with it for coins), and
+ * what is collected can go to the bank. So ::ge and ::gecollect are refused where ::bank is (AdminCommands:
+ * the Wilderness, a fight, Entrana, wherever teleporting away is refused). The clerks and booths are not asked.
+ */
+function byCommand(open) {
+  return (event) => {
+    const refusal = require("../commands/AdminCommands.plugin").commandAccessRefusal?.(event.player, "the Grand Exchange", "trading");
+    if (!refusal) return open(event);
+    event.player.sendMessage(refusal);
+    return true;
+  };
+}
+
 const COLLECTION_BUTTONS = Array.from({ length: 10 }, (_, i) => collectUid(i + 3));
 // Child 34 is the offer setup panel; its quantity and price controls are dynamic children (slot 1-13).
 const EXCHANGE_BUTTONS = [SETUP_FEE_INFO, DETAILS_FEE_INFO, uid(3), uid(4), uid(6), uid(23), uid(24), uid(26), uid(30), uid(34), ...Array.from({ length: 8 }, (_, i) => uid(i + 7))];
@@ -1514,8 +1529,8 @@ module.exports = {
       completionTimers.delete(player);
     });
     api.registerContentEndpoint("item-prices", itemPricesResource);
-    api.registerCommand("ge", openGrandExchange, undefined, "Open the Grand Exchange");
-    api.registerCommand("gecollect", openCollectionBox, undefined, "Open the Grand Exchange collection box");
+    api.registerCommand("ge", byCommand(openGrandExchange), undefined, "Open the Grand Exchange");
+    api.registerCommand("gecollect", byCommand(openCollectionBox), undefined, "Open the Grand Exchange collection box");
 
     api.onNpcInteraction(CLERK, { "Exchange": openGrandExchange, "History": openHistory });
     api.onNpcDialogueCondition(clerkCondition);

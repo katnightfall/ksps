@@ -988,13 +988,31 @@ const ENTRANA_REGIONS = new Set([11060, 11316, 11416]);
 function bankCommandRefusal(player) {
   if (pluginApi.getPluginConfig?.(BANK_EVERYONE_CONFIG, true) === false) return "You do not have permission to use this command.";
   if (player.busy?.()) return "You can't open your bank right now.";
-  if (Number(player.getWildernessLevel?.() ?? 0) > 0) return "You can't open your bank in the Wilderness.";
-  if (CombatFactory.inCombat(player)) return "You can't open your bank during combat.";
+  return atHandRefusal(player, "your bank", "banking");
+}
+
+/**
+ * Why something that does a bank's work cannot be had by command where the player stands, or null: the
+ * places ::bank is refused. `what` names it ("your bank"), `trade` what the monks of Entrana forbid.
+ */
+function atHandRefusal(player, what, trade) {
+  if (Number(player.getWildernessLevel?.() ?? 0) > 0) return `You can't open ${what} in the Wilderness.`;
+  if (CombatFactory.inCombat(player)) return `You can't open ${what} during combat.`;
   const at = player.getLocation();
-  if (ENTRANA_REGIONS.has(((at.getX() >> 6) << 8) | (at.getY() >> 6))) return "The monks of Entrana allow no banking here.";
+  if (ENTRANA_REGIONS.has(((at.getX() >> 6) << 8) | (at.getY() >> 6))) return `The monks of Entrana allow no ${trade} here.`;
   const core = pluginApi.core;
-  if (!core.TeleportHandler.destinationAllowed(player, core.WorldDefinition.WORLD_SPAWN.clone())) return "You can't open your bank here.";
+  if (!core.TeleportHandler.destinationAllowed(player, core.WorldDefinition.WORLD_SPAWN.clone())) return `You can't open ${what} here.`;
   return null;
+}
+
+/**
+ * Ours. The same question for another plugin's command that puts a bank's work at hand (::ge and
+ * ::gecollect: an item up for sale has left the backpack, and what is collected can go to the bank).
+ * Owners and developers anywhere, as with ::bank. Null too before this plugin is registered.
+ */
+function commandAccessRefusal(player, what, trade) {
+  if (!pluginApi || ownerOrDev(player)) return null;
+  return atHandRefusal(player, what, trade);
 }
 
 function bankCommand({ player }) {
@@ -1010,6 +1028,7 @@ function bankCommand({ player }) {
 }
 
 module.exports = {
+  commandAccessRefusal,
   name: "AdminCommands",
   description: "Staff commands: teleporting, items and spawns, levels, kicks, mutes and bans, reloading data, and logging and debug tools.",
   config: {
