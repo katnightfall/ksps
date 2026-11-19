@@ -887,7 +887,8 @@ class FriendsChatManager {
         return String(value ?? "").replace(/[<>]/g, "").trim().slice(0, maxLength);
     }
     static allowChat(player, text) {
-        if (PlayerPunishment.muted(player.getUsername()) || PlayerPunishment.IPMuted(player.getHostAddress())) {
+        // Ours: chatMuted also holds a mute of the account's main character on its other characters.
+        if (PlayerPunishment.chatMuted(player)) {
             this.gameMessage(player, "You are muted and cannot chat.");
             return false;
         }

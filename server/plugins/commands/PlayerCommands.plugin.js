@@ -322,7 +322,8 @@ module.exports = {
         player.sendMessage("You do not have permission to use this command.");
         return true;
       }
-      if (PlayerPunishment.muted(player.getUsername()) || PlayerPunishment.IPMuted(player.getHostAddress())) {
+      // Ours: chatMuted also holds a mute of the account's main character on its other characters.
+      if (PlayerPunishment.chatMuted(player)) {
         player.sendMessage("You are muted and cannot yell.");
         return true;
       }

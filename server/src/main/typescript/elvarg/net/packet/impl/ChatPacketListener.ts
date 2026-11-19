@@ -10,10 +10,8 @@ export class ChatPacketListener {
     if (!text || text.length === 0) {
       return false;
     }
-    if (
-      PlayerPunishment.muted(player.getUsername()) ||
-      PlayerPunishment.IPMuted(player.getHostAddress())
-    ) {
+    // Ours: chatMuted also holds a mute of the account's main character on its other characters.
+    if (PlayerPunishment.chatMuted(player)) {
       player.sendMessage("You are muted and cannot chat.");
       return false;
     }
