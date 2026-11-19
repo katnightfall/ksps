@@ -1311,12 +1311,18 @@ Tier 1 counts once the character chose its first relic.
   Pyramid Plunder's sceptre (`Pyramid plunder`), the Grand Hallowed Coffin's ring of endurance,
   Fishing Trawler's angler pieces, Tai Bwo Wannai's gout tuber and, in Raging Echoes and Demonic
   Pacts, aerial fishing's golden tench (the coffins' strange lockpick is not on the pages).
+  The Gauntlet's chest (`The Gauntlet`, `The Corrupted Gauntlet`: the crystal seeds' own 1-in-n
+  rolls), the Lunar Chest (`Moons of Peril`: each Moon's 1/56), the Colosseum's wave rolls
+  (`Fortis Colosseum`: a boosted row's weight grows and the wave table's total with it), the
+  Doom of Mokhaiotl's delve uniques (`Doom of Mokhaiotl`: the delve's unique chance grows by the
+  unlocked uniques' mean boost) and a pickpocket target's own rare rolls (the target's Wiki
+  page, `Elf (Thieving)`, or that without " (Thieving)", `Vyre`) ask the same way (upstream
+  issue #5220); their pets and clues are not boosted.
   Sources rolled by their own plugins are in the data but inert until that plugin asks
   `drops:chance` with the source's name: the Grotesque Guardians, Corporeal Beast's sigils (not
-  on its table here), the Gauntlet, Moons of Peril, the Colosseum, Hunter rumours, the Shrine,
-  the seed pack, the Fountain of Rune, Larran's and the brimstone chest, the Zombie Pirate's
-  Locker, chewed bones, the Volcanic Mine ore pack, Shades of Mort'ton, and the pickpocketed
-  blood shards (vyres) and teleport seeds (elves).
+  on its table here), Hunter rumours, the Shrine, the seed pack, the Fountain of Rune, Larran's
+  and the brimstone chest, the Zombie Pirate's Locker, chewed bones, the Volcanic Mine ore pack
+  and Shades of Mort'ton.
 - **Minigame points** (Trailblazer Reloaded 3x/5x/8x from tiers 2/5/7; Raging Echoes and Demonic
   Pacts 4x/8x from tiers 1/4): a minigame asks `minigame:points { player, minigame, points }` as it awards and
   the league multiplies `points` (floored) when the passive's `minigames` (leagues.json) lists it. Other

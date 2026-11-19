@@ -66,6 +66,20 @@ function merge(into, items) {
 
 // ---------------------------------------------------------------- the run
 
+/** The source the chest's wave rolls name on "drops:chance". */
+const CHANCE_SOURCE = "Fortis Colosseum";
+
+/** "drops:chance" for one wave's roll (a league's boosted drops): an item id's multiplier, or null. */
+function lootBoost(player) {
+  const rules = [];
+  Shared.api()?.emitCustomEvent?.("drops:chance", { player, source: CHANCE_SOURCE, rules });
+  if (rules.length === 0) return null;
+  return (id) => {
+    const name = Shared.core().ItemDefinition.forId(id)?.getName?.() ?? "";
+    return rules.reduce((value, rule) => (rule.pattern.test(name) ? value * rule.multiplier : value), 1);
+  };
+}
+
 function start(run) {
   run.loot = { rewards: [], future: Loot.roll(1, run.player, run.random), previous: [] };
   run.glory = 0;
@@ -113,7 +127,7 @@ function waveCompleted(run) {
     Shared.api().emitCustomEvent("collection-log:obtain", { player: run.player, itemId: id, amount });
   }
   run.loot.previous = earned;
-  run.loot.future = wave < Shared.FINAL_WAVE ? Loot.roll(wave + 1, run.player, run.random) : [];
+  run.loot.future = wave < Shared.FINAL_WAVE ? Loot.roll(wave + 1, run.player, run.random, lootBoost(run.player)) : [];
   if (wave >= Shared.FINAL_WAVE && Loot.rollsPet(run.random)) {
     Shared.api().emitCustomEvent("npc-drops:roll", { player: run.player, drops: [{ itemId: Loot.SMOL_HEREDIT, amount: 1 }] });
   }

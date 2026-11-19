@@ -9,6 +9,11 @@
  *   equally likely among those unlocked. Dom from delve 6 on its own rate.
  * - An elite clue: 1/75 at delves 1-2, 1/50 after.
  * Guesses: a unique comes on top of the regular roll; the moon key half is 30105.
+ *
+ * Ours (upstream issue #5220): a league's boosted drops ("drops:chance" { player, source: "Doom of
+ * Mokhaiotl", rules }, asked by Run.DoomOfMokhaiotl.js) make a unique the rules name that many
+ * times as likely: the delve's unique chance grows by the unlocked uniques' mean multiplier and
+ * the unique is drawn by those multipliers. Dom and the clue are not boosted.
  */
 
 const MULTIPLIER = { 1: -0.5, 2: -0.35, 3: 0, 4: 0.05, 5: 0.1, 6: 0.12, 7: 0.14, 8: 0.17 };
@@ -92,11 +97,20 @@ function tears(level) {
   return level < 3 ? 0 : Math.min(100, 50 + 10 * (level - 3));
 }
 
-function rollUnique(level, random) {
+function rollUnique(level, random, boost = null) {
   const rate = level > 8 ? DEEP_UNIQUE_RATE : UNIQUE_RATE[level];
-  if (!rate || !oneIn(random, rate)) return null;
+  if (!rate) return null;
   const unlocked = UNIQUES.filter(([, from]) => level >= from);
-  return unlocked[Math.floor(random() * unlocked.length)][0];
+  if (!boost) {
+    if (!oneIn(random, rate)) return null;
+    return unlocked[Math.floor(random() * unlocked.length)][0];
+  }
+  const weights = unlocked.map(([id]) => Math.max(0, boost(id)));
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
+  if (random() * rate * unlocked.length >= total) return null;
+  let pick = random() * total;
+  for (let index = 0; index < weights.length; index++) if ((pick -= weights[index]) < 0) return unlocked[index][0];
+  return unlocked[unlocked.length - 1][0];
 }
 
 function rollDom(level, random) {
@@ -105,9 +119,9 @@ function rollDom(level, random) {
 }
 
 /** One delve's loot: [{ id, amount }], and whether anything unique came. */
-function roll(level, random = Math.random) {
+function roll(level, random = Math.random, boost = null) {
   const items = [rollTable(level, random)];
-  const unique = rollUnique(level, random);
+  const unique = rollUnique(level, random, boost);
   if (unique) items.push({ id: unique, amount: 1 });
   const dom = rollDom(level, random);
   if (dom) items.push({ id: ITEM.DOM, amount: 1 });

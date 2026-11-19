@@ -230,11 +230,30 @@ function ownsAny(player, ids) {
     Array.from({ length: core.Bank.TOTAL_BANK_TABS }, (_, tab) => player.getBank(tab)).some(holds);
 }
 
+/**
+ * Ours (upstream issue #5220): "drops:chance" { player, source, rules } (a league's boosted drops)
+ * for a target's own rare rolls (`first`): an item name's multiplier. The source is the target's
+ * Wiki page ("Elf (Thieving)"), or that without " (Thieving)" (the pages' "Vyre" row).
+ */
+function rareBoost(player, target) {
+  const page = decodeURIComponent(String(target.wiki ?? "").split("/w/")[1] ?? "").replace(/_/g, " ");
+  if (!page || !pluginApi?.emitCustomEvent) return () => 1;
+  let rules = [];
+  pluginApi.emitCustomEvent("drops:chance", { player, source: page, rules });
+  if (rules.length === 0 && / \(Thieving\)$/.test(page)) {
+    rules = [];
+    pluginApi.emitCustomEvent("drops:chance", { player, source: page.replace(/ \(Thieving\)$/, ""), rules });
+  }
+  if (rules.length === 0) return () => 1;
+  return (name) => rules.reduce((value, rule) => (rule.pattern.test(name) ? value * rule.multiplier : value), 1);
+}
+
 /** The loot of one successful pickpocket: [{ id, amount, clue? }]. */
 function rollLoot(player, target, random = Math.random) {
   const loot = (target.always ?? []).map((entry) => rolled(entry, roll(entry.amount, random)));
+  const boost = target.first?.length ? rareBoost(player, target) : null;
   for (const entry of target.first ?? []) {
-    if (random() >= rateOf(entry.rate)) continue;
+    if (random() >= rateOf(entry.rate) * boost(entry.name ?? "")) continue;
     if (entry.clue) {
       // Wiki: rolling a clue while already holding one of that tier gives nothing.
       if (ownsClue(player, entry.clue)) return loot;

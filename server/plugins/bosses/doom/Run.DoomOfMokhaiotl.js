@@ -350,7 +350,7 @@ class DoomRun {
     this.completed.push({ level: this.level, ticks });
     this.announce(ticks);
     CombatAchievements.defeated(this, ticks);
-    const { items, unique } = Loot.roll(this.level, this.random);
+    const { items, unique } = Loot.roll(this.level, this.random, this.lootBoost());
     // Pets turns a rolled Dom into a follower/backpack item and removes it from the pile.
     Shared.api().emitCustomEvent("npc-drops:roll", { player: this.player, drops: items });
     Loot.merge(this.loot, items);
@@ -369,6 +369,17 @@ class DoomRun {
    * 0:53.40", with varps 4807 (all delves), 4808+ (this level's completions), 4798 (the level,
    * 0-based), 4804 (its ticks) and 4803 (the run's ticks). Guess: a new best's wording.
    */
+  /** Ours (upstream issue #5220): "drops:chance" for a delve's unique roll (a league's boosted drops): an item id's multiplier, or null. */
+  lootBoost() {
+    const rules = [];
+    Shared.api()?.emitCustomEvent?.("drops:chance", { player: this.player, source: "Doom of Mokhaiotl", rules });
+    if (rules.length === 0) return null;
+    return (id) => {
+      const name = Shared.core().ItemDefinition.forId(id)?.getName?.() ?? "";
+      return rules.reduce((value, rule) => (rule.pattern.test(name) ? value * rule.multiplier : value), 1);
+    };
+  }
+
   announce(ticks) {
     const player = this.player;
     const key = Records.levelKey(this.level);
