@@ -86,10 +86,15 @@ module.exports = function registerFishingContestQuest(api) {
     [ObjectIdentifiers.GATE_4, { x: 2642, y: 3442 }],
     [ObjectIdentifiers.GATE_5, { x: 2642, y: 3441 }],
   ]);
+  // Ours: the tile comes as a Location from some callers and as a plain { x, y, z } from others
+  // (door:toggle passes the click's own). Read as a Location only, every click on a gate of these
+  // two ids anywhere threw "location.getZ is not a function" in the world's log, and at Hemenster
+  // the check for the fishing pass was skipped with it.
+  const axis = (location, name) => (typeof location[`get${name}`] === "function" ? location[`get${name}`]() : location[name.toLowerCase()]);
   const isHemensterGate = (objectId, location) => {
     const tile = HEMENSTER_GATE_TILES.get(objectId);
-    return !!tile && location.getZ() === 0 &&
-      location.getX() === tile.x && location.getY() === tile.y;
+    return !!tile && axis(location, "Z") === 0 &&
+      axis(location, "X") === tile.x && axis(location, "Y") === tile.y;
   };
   // The four contest spots. The willow one is the player's, the pipe one the
   // Sinister Stranger's until the garlic moves him; Big Dave and Joshua hold the rest.
@@ -627,7 +632,7 @@ module.exports = function registerFishingContestQuest(api) {
     // The route handler stops asking once the pass has been shown, and never
     // blocks the field side; leave both cases to Doors so the player can leave.
     if (player.getAttribute(GATE_ATTRIBUTE)) return;
-    if (player.getLocation().getX() <= location.getX()) return;
+    if (player.getLocation().getX() <= axis(location, "X")) return;
     if (quest.getStage(player) >= STAGE_STARTED && has(player, FISHING_PASS_ITEM_ID)) return;
     request.handled = true;
     if (quest.getStage(player) < STAGE_STARTED) {
