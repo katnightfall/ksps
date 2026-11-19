@@ -419,8 +419,20 @@ function bait(event) {
   else player.sendMessage("You bait the trap.");
 }
 
+/**
+ * The creature an NPC is to a trap's owner. Ours: a multi NPC (Bea's honey buzzards, The Birds and the Wasps) is the form
+ * its owner's varbits show, and nothing while it shows them none; any other NPC is its own id, as before.
+ */
+function creatureFor(npc, player) {
+  const direct = H.data.creatures.find(c => c.npc === npc.getId());
+  if (direct || !H.core.CacheDefinitions.getNpc(npc.getId())?.transforms) return direct;
+  const shown = npc.getCurrentDefinition?.(player)?.getId?.();
+  return shown === undefined ? undefined : H.data.creatures.find(c => c.npc === shown);
+}
+
 function eligible(trap, npc, creature) {
   if (!creature || creature.trap !== trap.kind || !available(npc) || npc.getPrivateArea() !== trap.area || level(trap.player) < creature.level) return false;
+  if (creature.quest && !questComplete(trap.player, creature.quest)) return false;
   if (trap.kind === "box" && !boxTrapsUnlocked(trap.player)) return false;
   if (trap.player.getLocation().equals(trap.location)) return false;
   if (trap.base && trap.kind === "pit" && !H.core.CacheDefinitions.getObject(trap.base.getId()).transforms?.includes(creature.caught)) return false;
@@ -436,7 +448,7 @@ function eligible(trap, npc, creature) {
  */
 function attempt(trap) {
   const { npc } = trap;
-  const creature = H.data.creatures.find(c => c.npc === npc.getId());
+  const creature = creatureFor(npc, trap.player);
   if (!creature) { releasePrey(trap); setState(trap, "idle"); return; }
   const bonus = trap.bait && (trap.kind === "magic" || H.data.traps[trap.kind].bait || trap.bait.baits?.[creature.npc] === trap.bait.id) ? 3 / 256 : 0;
   const success = chance(trap.player, creature, bonus + (trap.smoked ? 2 / 256 : 0));
@@ -508,7 +520,7 @@ function process() {
     } else if (trap.state === "idle" && !["pit", "rabbit"].includes(trap.kind) && H.tick >= trap.next) {
       trap.next = H.tick + lureInterval(trap);
       for (const npc of H.core.World.getNearbyNpcsForUpdate(trap.objects[0])) {
-        const creature = H.data.creatures.find(c => c.npc === npc.getId());
+        const creature = creatureFor(npc, trap.player);
         if (!eligible(trap, npc, creature)) continue;
         H.reserved.set(npc, trap);
         trap.npc = npc;

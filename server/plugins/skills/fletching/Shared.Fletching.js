@@ -164,6 +164,8 @@ function resolveRecipe(entry) {
     ownMaxSets: recipe.maxSets ?? null,
     quest: recipe.quest ? { key: recipe.quest[0], state: recipe.quest[1] } : null,
     unlock: recipe.unlock ?? null,
+    // Ours: a locked recipe's own refusal, shown in a box with the two items (The Birds and the Wasps' wasp darts).
+    refusal: recipe.refusal ?? null,
     menu,
   };
 }
@@ -244,6 +246,12 @@ function carries(player, ids) {
 }
 
 function questState(player, quest) {
+  // Ours: a number is the quest stage the recipe needs (The Birds and the Wasps' darts, once Bea asks for them).
+  if (typeof quest.state === "number") {
+    const request = { player, key: quest.key, stage: 0 };
+    api.emitCustomEvent("quest:get-stage", request);
+    return Number(request.stage) >= quest.state;
+  }
   const request = { player, key: quest.key, started: false, complete: false };
   api.emitCustomEvent(quest.state === "complete" ? "quest:is-complete" : "quest:is-started", request);
   return quest.state === "complete" ? request.complete === true : request.started === true;
@@ -597,6 +605,12 @@ function missingToolMessage(recipe) {
   return `You'll need a ${tool} to do that.`;
 }
 
+/** A locked recipe's refusal: a box with the two items (Transcript:The Birds and the Wasps, the wasp darts). */
+function refuse(player, usedId, usedWithId, text) {
+  const { DialogueChainBuilder, DoubleItemStatementDialogue } = core;
+  player.getDialogueManager().startDialogues(new DialogueChainBuilder().add(new DoubleItemStatementDialogue(0, usedWithId, usedId, text)));
+}
+
 /**
  * Item on item: the recipes the pair starts. Returns true when Fletching took the click. A
  * recipe whose quest or Slayer unlock is missing is left out, as live leaves it out of the menu.
@@ -610,7 +624,9 @@ function handlePair(player, usedId, usedWithId) {
   }
   const choices = all.filter((recipe) => unlocked(player, recipe));
   if (choices.length === 0) {
-    player.sendMessage("Nothing interesting happens.");
+    const refusal = all.find((recipe) => recipe.refusal)?.refusal;
+    if (refusal) refuse(player, usedId, usedWithId, refusal);
+    else player.sendMessage("Nothing interesting happens.");
     return true;
   }
   const missing = choices.find((recipe) => !hasTools(player, recipe));
