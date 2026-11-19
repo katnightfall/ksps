@@ -184,6 +184,11 @@ module.exports = function registerGrandTreeQuest(api) {
   /** Where a player who logs in inside the office finds the foreman (his seat in the capture). */
   const OFFICE_FOREMAN = { x: 2954, y: 3025, z: 0 };
   const FEMI_FARE = 1000;
+  const FEMI_PAGE = "Femi";
+  const FEMI_BOXES_VARIANT = "attemping-to-enter-the-tree-gnome-stronghold-for-the-first-time";
+  const FEMI_BUSY_VARIANT = "attempting-to-talk-after-entering-the-tree-gnome-stronghold";
+  /** The stronghold's main gate, the map's one 5x2 loc; outside is south of it. */
+  const STRONGHOLD_GATE = { id: ObjectIdentifiers.GATE_16, x: 2459, y: 3383, z: 0 };
   const BLACK_DEMON_ID = NpcIdentifiers.BLACK_DEMON_2; // 1432, the quest demon
 
   const PILLARS_ATTRIBUTE = "grand-tree:pillars-placed";
@@ -385,10 +390,13 @@ module.exports = function registerGrandTreeQuest(api) {
       return page("treachery-revealed-the-shipyard-password");
     }
     if (npcId === NpcIdentifiers.FEMI) {
-      if (stage === STAGE_NOT_STARTED) {
-        return { page: "Femi", variant: "attemping-to-enter-the-tree-gnome-stronghold-for-the-first-time" };
+      // Ours (upstream issue #2207): her question about the boxes is asked once. Answered, or with
+      // the quest begun (which is done inside the stronghold), she is "too busy to talk" (Wiki
+      // transcript); the question used to come back every time, so a player who had turned her
+      // down could still say yes later and be smuggled in for free.
+      if (stage < STAGE_RELEASED || stage >= STAGE_CHARLIE_CLUE) {
+        return { page: FEMI_PAGE, variant: stage === STAGE_NOT_STARTED && !femiAsked(player) ? FEMI_BOXES_VARIANT : FEMI_BUSY_VARIANT };
       }
-      if (stage < STAGE_RELEASED || stage >= STAGE_CHARLIE_CLUE) return null;
       // The Femi who brought the player in with her cart; the one at the gate sneaks them in (capture
       // t11576, after the lumber order).
       if (scenes.isCartFemi(player, npc)) {
@@ -584,6 +592,27 @@ module.exports = function registerGrandTreeQuest(api) {
     const request = { player, object, handled: false };
     if (object) api.emitCustomEvent("door:open", request);
     return request.handled;
+  }
+
+  function femiAsked(player) {
+    return player.getAttribute(FEMI_HELPED_ATTRIBUTE) === true || player.getAttribute(FEMI_REFUSED_ATTRIBUTE) === true;
+  }
+
+  /**
+   * Ours (upstream issue #2207): Femi asks about her boxes when the player first tries the
+   * stronghold's main gate from outside (Wiki, Femi: "When attempting to enter the gate for the
+   * first time"; her transcript's first section), not only when talked to. Until the player
+   * answers, the gate click brings the question; then the gate opens as usual. Bots walk through.
+   */
+  function askAboutBoxesAtGate(event) {
+    const { player, objectId, option } = event;
+    const { x, y, z } = event.location;
+    if (objectId !== STRONGHOLD_GATE.id || x !== STRONGHOLD_GATE.x || y !== STRONGHOLD_GATE.y || z !== STRONGHOLD_GATE.z
+      || option?.toLowerCase() !== "open" || player.getLocation().getY() >= STRONGHOLD_GATE.y
+      || player.isPlayerBot?.() === true || quest.getStage(player) !== STAGE_NOT_STARTED || femiAsked(player)) return;
+    const femi = findNearbyNpc(player, NpcIdentifiers.FEMI);
+    if (!femi) return;
+    event.handled = startTranscript(api, player, NpcIdentifiers.FEMI, FEMI_PAGE, FEMI_BOXES_VARIANT, null, femi);
   }
 
   function askShipyardPassword(event) {
@@ -1173,6 +1202,7 @@ module.exports = function registerGrandTreeQuest(api) {
   api.onObjectInteraction("Trapdoor", { "Climb-down": climbDownTrapdoor });
   api.onBeforeObjectInteraction(blockBrokenCaveLadder);
   api.onBeforeObjectInteraction(askShipyardPassword);
+  api.onBeforeObjectInteraction(askAboutBoxesAtGate);
   api.onObjectInteraction("Root", { Search: searchRoot });
   api.onNpcDeath(handleNpcDeath);
   api.onPlayerMapSquareChange(syncPillarDisplays);
