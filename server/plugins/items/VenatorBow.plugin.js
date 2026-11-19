@@ -12,6 +12,7 @@
  * plays with one bounce, 6672 and 6735 with two.
  */
 const { withHitVictim } = require("../../src/main/typescript/elvarg/game/content/combat/EquipmentEffects");
+const { splitOnPvpDeath, answerLostToPvpKiller } = require("./ChargedItemDeath");
 
 const MAX_CHARGES = 50000;
 const CHARGE_META_KEY = "venator-bow:charges";
@@ -311,6 +312,34 @@ function uncharge({ player, item }) {
   return true;
 }
 
+/** The uncharged bow a charged one becomes, or null. */
+function emptiedBowId(item) {
+  const id = item.getId();
+  return id === bowId || id === echoBowId ? unchargedBowId(item) : null;
+}
+
+/**
+ * `player-death:pvp-item-parts` (PlayerDeathTask). Wiki, Venator bow: "Upon death in the Wilderness, if the item is
+ * protected, no charges will be lost"; it does not say where an unprotected bow's charges go, so the rule is the one
+ * for every chargeable item (Wiki, Items Kept on Death, "Chargable items"): "Dropped to the PKer as the tradeable
+ * uncharged item, and drops the items that would result from uncharging the item to the PKer too." Uncharging "returns
+ * all essence", so the killer gets the uncharged bow and the ancient essence in it. An Echo venator bow loses its kit
+ * by the ornament kits' own rule (OrnamentKits, ChargedItemDeath).
+ */
+// Ours (upstream issue #6002): before this an unprotected charged bow came back whole from a PvP death.
+function unchargeOnPvpDeath(query) {
+  splitOnPvpDeath(core, query, emptiedBowId, (item) => {
+    const essence = charges(item);
+    setCharges(item, 0);
+    return [[essenceId, essence]];
+  });
+}
+
+/** `items:lost-to-pvp-killer`: the Items Kept on Death screen's PvP preview shows a charged bow lost. */
+function lostToPvpKiller(query) {
+  answerLostToPvpKiller(core, query, (item) => (emptiedBowId(item) == null ? null : unchargedId));
+}
+
 // ------------------------------------------------------------------ bank
 
 function bankAmount(player, itemId) {
@@ -437,6 +466,8 @@ module.exports = {
     api.onItemOnItem("Ancient essence", "Echo venator bow", charge, { noted: false });
     api.onItemOnItem("Ancient essence", "Echo venator bow (uncharged)", charge, { noted: false });
     api.onCustomEvent(core.Bank.ITEM_OP_EVENT, bankItemOp);
+    api.onCustomEvent("player-death:pvp-item-parts", unchargeOnPvpDeath);
+    api.onCustomEvent("items:lost-to-pvp-killer", lostToPvpKiller);
   },
   _test: {
     MAX_CHARGES,

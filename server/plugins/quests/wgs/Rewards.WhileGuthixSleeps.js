@@ -114,9 +114,24 @@ module.exports=function registerRewards({api,stage,held,give,val,play,ATTRIBUTES
    if(item.getId()===r.output&&p.getInventory().getItems().includes(item)){item.setId(SYNAPSE);p.getInventory().refreshItems();}
   },'No.',()=>{});
  }
+ // `player-death:pvp-item-parts` (PlayerDeathTask). Wiki, Emberlight, Scorching bow and Purging staff: "A player killer
+ // will receive the synapse from their opponent if it is not one of the protected items." The weapon becomes the
+ // synapse, the same Item, as Revert makes it ("returning only the tormented synapse"), and the synapse, a tradeable
+ // item, then drops for the killer.
+ // Ours (upstream issue #6002): before this an unprotected synapse weapon came back whole from a PvP death.
+ function synapseOnPvpDeath(q){
+  const item=q?.item;
+  // A bot's gear is not loot, and a preset copy is deleted with the rest of the preset.
+  if(!item||q.parts||q.player?.isPlayerBot?.()===true||item.isPresetItem?.()===true)return;
+  if(!recipes.some(r=>r.output===item.getId()))return;
+  item.setId(SYNAPSE);q.parts=[item];
+ }
+ // `items:lost-to-pvp-killer`: the Items Kept on Death screen's PvP preview shows a synapse weapon lost.
+ function lostToPvpKiller(q){if(q?.item&&q.item.isPresetItem?.()!==true&&recipes.some(r=>r.output===q.item.getId()))q.lost=true;}
+ api.onCustomEvent('player-death:pvp-item-parts',synapseOnPvpDeath);api.onCustomEvent('items:lost-to-pvp-killer',lostToPvpKiller);
  api.onNpcInteraction('Kuradal',{'Talk-to':talk});api.onNpcDialogueCondition(condition);
  api.onCustomEvent('npc-dialogue:action',action);api.onItemAction(read);
  api.onItemOnItem(pair,{noted:false});api.onItemOnObject(anvil,{noted:false});
  api.onItemAction('Tormented synapse',{Inspect:inspect});api.onItemAction('Scorching bow',{Revert:revert});api.onItemAction('Purging staff',{Revert:revert});api.onItemAction('Emberlight',{Revert:revert});
- return {condition,action,read,ready,craft,pair,anvil,revert,inspect,recipes};
+ return {condition,action,read,ready,craft,pair,anvil,revert,inspect,recipes,synapseOnPvpDeath,lostToPvpKiller};
 };

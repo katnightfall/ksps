@@ -24,6 +24,7 @@
  */
 
 const { definePoweredStaff, refundsFit, restricted, plainAmount, takePlain, PRESET_TEXT, distance, ticksFor } = require("./PoweredStaff");
+const { splitOnPvpDeath, answerLostToPvpKiller } = require("./ChargedItemDeath");
 
 const CHARGES_KEY = "eye-of-ayak-charges";
 const MATERIAL_KEY = "eye-of-ayak-charge-material";
@@ -247,16 +248,21 @@ function checkCharges({ player, item }) {
   return true;
 }
 
-function refund(player, item) {
+/** What Uncharge gives back: the demon tears or the runes the charges left were paid with (Wiki). */
+function unchargeRefunds(item) {
   const charges = staff.chargesOf(item);
-  const material = materialOf(item);
-  if (charges <= 0 || !player.getInventory().getItems().includes(item)) return;
-  const inventory = player.getInventory();
   const I = ids();
-  const returned = (material === TEARS
+  return (materialOf(item) === TEARS
     ? [[I.DEMON_TEAR, charges]]
     : [[I.DEATH_RUNE, charges * DEATH_RUNES_PER_CHARGE], [I.CHAOS_RUNE, charges * CHAOS_RUNES_PER_CHARGE]])
     .map(([id, amount]) => new core.Item(id, amount));
+}
+
+function refund(player, item) {
+  const charges = staff.chargesOf(item);
+  if (charges <= 0 || !player.getInventory().getItems().includes(item)) return;
+  const inventory = player.getInventory();
+  const returned = unchargeRefunds(item);
   if (!refundsFit(inventory, returned)) {
     player.sendMessage("You don't have enough inventory space to uncharge the Eye of Ayak.");
     return;
@@ -283,6 +289,28 @@ function uncharge({ player, item }) {
     }, "Yes.", "No.").setTitle("Fully uncharge the Eye of Ayak?"),
   ));
   return true;
+}
+
+/**
+ * `player-death:pvp-item-parts` (PlayerDeathTask). Wiki, Eye of Ayak: it "does not lose charges on death in the
+ * Wilderness if the item is protected"; it does not say where an unprotected staff's charges go, so the rule is the
+ * one for every chargeable item (Wiki, Items Kept on Death, "Chargable items"): "Dropped to the PKer as the tradeable
+ * uncharged item, and drops the items that would result from uncharging the item to the PKer too." Uncharge returns
+ * "all demon tears or runes used to charge it", so the killer gets the uncharged staff and those.
+ */
+// Ours (upstream issue #6002): before this an unprotected charged staff came back whole from a PvP death.
+function unchargeOnPvpDeath(query) {
+  splitOnPvpDeath(core, query, (item) => staff.unchargedByCharged.get(item.getId()) ?? null, (item) => {
+    const returned = unchargeRefunds(item).map((refund) => [refund.getId(), refund.getAmount()]);
+    staff.setCharges(item, 0);
+    item.setMetaValue(MATERIAL_KEY, undefined);
+    return returned;
+  });
+}
+
+/** `items:lost-to-pvp-killer`: the Items Kept on Death screen's PvP preview shows a charged staff lost. */
+function lostToPvpKiller(query) {
+  answerLostToPvpKiller(core, query, (item) => staff.unchargedByCharged.get(item.getId()) ?? null);
 }
 
 /** Wiki: the uncharged staff "can be dismantled for 10,000 demon tears". It can't be undone, so it asks. */
@@ -342,6 +370,8 @@ module.exports = {
     staff = defineEye();
     pluginApi.registerCombatMethodResolver(staff.resolver);
     pluginApi.onCustomEvent("item:fill-charges", fillCharges);
+    pluginApi.onCustomEvent("player-death:pvp-item-parts", unchargeOnPvpDeath);
+    pluginApi.onCustomEvent("items:lost-to-pvp-killer", lostToPvpKiller);
     pluginApi.onCustomEvent("powered-staff:spell", staff.answerSpell);
     pluginApi.onItemAction("Eye of Ayak", { Check: checkCharges, Uncharge: uncharge });
     pluginApi.onItemAction("Eye of Ayak (uncharged)", { Charge: chargeOption, Dismantle: dismantle });

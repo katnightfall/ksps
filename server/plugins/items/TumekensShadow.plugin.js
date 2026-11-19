@@ -48,6 +48,7 @@ const MAGIC_ATTACK = 3; // BonusManager.ATTACK_MAGIC
 const MAGIC_DAMAGE = 12; // BonusManager.MAGIC_STRENGTH among the "other" bonuses
 
 const { definePoweredStaff, distance, restricted, plainAmount, takePlain, PRESET_TEXT } = require("./PoweredStaff");
+const { splitOnPvpDeath, answerLostToPvpKiller } = require("./ChargedItemDeath");
 
 let api = null;
 let staff = null;
@@ -255,6 +256,28 @@ function unchargeShadow({ player, item }) {
   return true;
 }
 
+/**
+ * `player-death:pvp-item-parts` (PlayerDeathTask). The Wiki's Tumeken's shadow page does not say what a PvP death
+ * does with the charges, so the rule is the one for every chargeable item (Wiki, Items Kept on Death, "Chargable
+ * items"): "Dropped to the PKer as the tradeable uncharged item, and drops the items that would result from uncharging
+ * the item to the PKer too." The killer gets the uncharged staff and the runes Uncharge would give back: every chaos
+ * rune, and the soul runes that were not paid in aether runes (those "will not be refunded if the staff is uncharged").
+ */
+// Ours (upstream issue #6002): before this an unprotected charged staff came back whole from a PvP death.
+function unchargeOnPvpDeath(query) {
+  splitOnPvpDeath(core(), query, (item) => staff.unchargedByCharged.get(item.getId()) ?? null, (item, player) => {
+    const charges = chargesOf(item);
+    const runes = [[ids().SOUL_RUNE, soulRefund(item, charges)], [ids().CHAOS_RUNE, charges * CHAOS_PER_CHARGE]];
+    setCharges(player, item, 0);
+    return runes;
+  });
+}
+
+/** `items:lost-to-pvp-killer`: the Items Kept on Death screen's PvP preview shows a charged staff lost. */
+function lostToPvpKiller(query) {
+  answerLostToPvpKiller(core(), query, (item) => staff.unchargedByCharged.get(item.getId()) ?? null);
+}
+
 module.exports = {
   name: "TumekensShadow",
   description: "Adds Tumeken's shadow as a built-in-spell powered staff that triples magic bonuses, quadruples them in the Tombs of Amascut, and cannot be used on players.",
@@ -264,6 +287,8 @@ module.exports = {
     staff = defineShadow();
     pluginApi.registerCombatMethodResolver(staff.resolver);
     pluginApi.onCustomEvent("item:fill-charges", staff.fillCharges);
+    pluginApi.onCustomEvent("player-death:pvp-item-parts", unchargeOnPvpDeath);
+    pluginApi.onCustomEvent("items:lost-to-pvp-killer", lostToPvpKiller);
     pluginApi.registerBonusProvider({ apply: shadowBonuses });
     for (const rune of ["Soul rune", "Aether rune", "Chaos rune"]) {
       pluginApi.onItemOnItem(rune, "Tumeken's shadow", chargeShadow);

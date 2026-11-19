@@ -2,6 +2,7 @@ let core;
 let pluginApi;
 const { restricted, PRESET_TEXT } = require("./PoweredStaff");
 const { takeInto } = require("./TakeInto");
+const { splitOnPvpDeath, answerLostToPvpKiller } = require("./ChargedItemDeath");
 const methods = new Map();
 const uncappedDamage = new WeakMap();
 
@@ -928,6 +929,33 @@ function fillCharges(event) {
   event.handled = true;
 }
 
+/** The empty pipe a loaded Toxic (or Blazing) blowpipe becomes, or null: the Drygore blowpipe never trades. */
+function emptyToxicPipeId(item) {
+  const pipe = pipeOf(item.getId());
+  return pipe?.kind.scales && pipe.charged === item.getId() ? pipe.empty : null;
+}
+
+/**
+ * `player-death:pvp-item-parts` (PlayerDeathTask). Wiki, Toxic blowpipe: "If the blowpipe is not protected upon death,
+ * all scale and dart charges will appear on the floor alongside the blowpipe. If the blowpipe IS protected upon death,
+ * ALL scale and dart charges will be maintained when you respawn." The pipe is emptied as Uncharge empties it, and the
+ * empty blowpipe, the scales and the darts that were in it then drop for the killer. A Blazing blowpipe loses its kit
+ * by the ornament kits' own rule (OrnamentKits, ChargedItemDeath).
+ */
+// Ours (upstream issue #6002): before this an unprotected loaded blowpipe came back whole from a PvP death.
+function unchargeOnPvpDeath(query) {
+  splitOnPvpDeath(core, query, emptyToxicPipeId, (item) => {
+    const stacks = everythingToReturn(item);
+    BlowpipeState.clear(item);
+    return stacks;
+  });
+}
+
+/** `items:lost-to-pvp-killer`: the Items Kept on Death screen's PvP preview shows a loaded blowpipe lost. */
+function lostToPvpKiller(query) {
+  answerLostToPvpKiller(core, query, (item) => (emptyToxicPipeId(item) == null ? null : core.ItemIdentifiers.TOXIC_BLOWPIPE_EMPTY_));
+}
+
 module.exports = {
   name: "ToxicBlowpipe",
   description: "Adds the toxic blowpipe: loading Zulrah's scales and darts, dart-based ranged strength, checking, unloading, uncharging, dismantling and picking ammunition up into it.",
@@ -948,6 +976,8 @@ module.exports = {
     api.onItemOnItem(itemOnItem);
     api.onGroundItemPickup(pickupIntoBlowpipe);
     api.onCustomEvent("item:fill-charges", fillCharges);
+    api.onCustomEvent("player-death:pvp-item-parts", unchargeOnPvpDeath);
+    api.onCustomEvent("items:lost-to-pvp-killer", lostToPvpKiller);
     api.onItemAction("Drygore blowpipe", { Check: checkBlowpipe, Unload: unloadBlowpipe });
     api.onItemAction("Toxic blowpipe", {
       Check: checkBlowpipe,

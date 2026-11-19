@@ -14,10 +14,14 @@ const VENOM_SEVERITY = 6;
 const CHARGES_META_KEY = "serpentine-helm";
 const COMBAT_CHARGE_TICK_ATTRIBUTE = "serpentine:combat-charge-tick";
 
+const { splitOnPvpDeath, answerLostToPvpKiller } = require("./ChargedItemDeath");
+
 let core = null;
 let chargedIds = new Set();
 let chargedByUncharged = new Map();
 let chargedFromUncharged = new Map();
+/** A Tanzanite or Magma helm, charged or not -> the mutagen it was made with (Wiki: Tanzanite helm, Magma helm). */
+let mutagenByHelm = new Map();
 const GUARANTEED_WEAPON_NAMES = new Set([
   "toxic blowpipe", "toxic staff of the dead", "trident of the swamp",
   "trident of the swamp (e)", "trident of the swamp (o)", "trident of the swamp (e) (o)",
@@ -158,6 +162,44 @@ function chargeHelm(event) {
   event.handled = true;
 }
 
+/** Empties the helm where it is and returns the scales that were in it, which Uncharge gives back. */
+function takeScales(item) {
+  const left = charges(item);
+  item.setId(chargedByUncharged.get(item.getId()) ?? item.getId());
+  item.setMetaValue(CHARGES_META_KEY, undefined);
+  return left;
+}
+
+/** The uncharged helm a death to a player leaves of this one: a recoloured helm's is the plain Serpentine helm. */
+function lostHelmId(item) {
+  const id = item.getId();
+  return mutagenByHelm.has(id) ? core.ItemIdentifiers.SERPENTINE_HELM_UNCHARGED_ : chargedByUncharged.get(id) ?? null;
+}
+
+/**
+ * `player-death:pvp-item-parts` (PlayerDeathTask). Wiki, Serpentine helm: "If a player dies with the helmet in PvP and
+ * it is not protected, any scales that were used to charge it will appear on the floor along with the uncharged
+ * helmet." Wiki, Items Kept on Death, "Tradeable items with untradeable modifications" (the Magma helm): "Dropped to
+ * the PKer as the tradeable uncharged unmodified version. The PKer gets the charges stored in the helm as well. The
+ * untradeable modification goes to the victim's gravestone." So the killer gets the uncharged Serpentine helm and the
+ * scales that were in it, and a Tanzanite or Magma helm, charged or not, leaves its mutagen with the victim.
+ */
+// Ours (upstream issue #6002): before this an unprotected charged or recoloured helm came back whole from a PvP death.
+function unchargeOnPvpDeath(query) {
+  splitOnPvpDeath(core, query, lostHelmId, (item) => {
+    const mutagen = mutagenByHelm.get(item.getId());
+    const contents = [[core.ItemIdentifiers.ZULRAHS_SCALES, takeScales(item)]];
+    if (mutagen === undefined) return contents;
+    item.setId(core.ItemIdentifiers.SERPENTINE_HELM_UNCHARGED_);
+    return [...contents, [mutagen, 1]];
+  });
+}
+
+/** `items:lost-to-pvp-killer`: the Items Kept on Death screen's PvP preview shows the helm lost. */
+function lostToPvpKiller(query) {
+  answerLostToPvpKiller(core, query, lostHelmId);
+}
+
 function uncharge({ player, item }) {
   const left = charges(item);
   if (left <= 0) {
@@ -169,8 +211,7 @@ function uncharge({ player, item }) {
     player.sendMessage("You need a free inventory slot to uncharge your serpentine helm.");
     return true;
   }
-  item.setId(chargedByUncharged.get(item.getId()) ?? item.getId());
-  item.setMetaValue(CHARGES_META_KEY, undefined);
+  takeScales(item);
   player.getInventory().addItem(refund);
   refresh(player);
   player.sendMessage(`You remove ${left} scales from your serpentine helm.`);
@@ -192,6 +233,10 @@ function attach(api) {
   chargedByUncharged = new Map(families.flatMap(([charged, alternate, empty]) => [[charged, empty], [alternate, empty]]));
   chargedIds = new Set(chargedByUncharged.keys());
   chargedFromUncharged = new Map(families.map(([charged, , empty]) => [empty, charged]));
+  mutagenByHelm = new Map([
+    [I.TANZANITE_HELM, I.TANZANITE_MUTAGEN], [I.TANZANITE_HELM_UNCHARGED_, I.TANZANITE_MUTAGEN],
+    [I.MAGMA_HELM, I.MAGMA_MUTAGEN], [I.MAGMA_HELM_UNCHARGED_, I.MAGMA_MUTAGEN],
+  ]);
   api.persistAttribute(COMBAT_CHARGE_TICK_ATTRIBUTE, null);
   for (const name of ["Serpentine helm", "Tanzanite helm", "Magma helm"]) {
     api.onItemAction(name, { Check: checkCharges, Uncharge: uncharge });
@@ -200,6 +245,8 @@ function attach(api) {
   }
   api.onCombatHitResolved(onHitResolved);
   api.onCustomEvent("serpentine-helm:protection", protectionQuery);
+  api.onCustomEvent("player-death:pvp-item-parts", unchargeOnPvpDeath);
+  api.onCustomEvent("items:lost-to-pvp-killer", lostToPvpKiller);
   api.onPlayerProcess(processPlayer);
 }
 
