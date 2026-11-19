@@ -740,3 +740,23 @@ test('missing The Restless Ghost blocks the start', () => {
   assert.equal(stage(h, p), 0);
   assert.ok(p.messages.some((message) => message.includes('The Restless Ghost')));
 });
+
+// Upstream issue #5488 (the second Veliaf): the hideout's Veliaf is the world spawn 9620, which every client shows as
+// Veliaf Hurtz 5048 while varbit 10367 is 0. In Aid used to add an owner-only 5048 one tile south of it for every
+// player who had not started In Aid, so the hideout had two Veliafs all through In Search of the Myreque.
+test('the Hollows hideout has one Veliaf: the world spawn, with no owner-only copy from In Aid', () => {
+  const inHideout = (x, y) => x >= 3500 && x <= 3520 && y >= 9825 && y <= 9850;
+  const worldSpawns = require('../data/definitions/npc-spawns.json').filter((spawn) => inHideout(spawn.x, spawn.y));
+  const { CacheDefinitions } = require('../dist/game/cache/CacheDefinitions');
+  const shown = worldSpawns.map((spawn) => CacheDefinitions.resolveNpc(spawn.id, { getVarbit: () => 0, getVarp: () => 0 })?.id);
+  assert.equal(shown.filter((id) => id === N.VELIAF_HURTZ_2).length, 1, `the world spawns show one Veliaf Hurtz: ${shown}`);
+  for (const inAidStage of [0, 20, 290, 300, 310]) {
+    const h = harness();
+    const p = makePlayer();
+    h.use(p);
+    Q(h).setStage(p, inAidStage);
+    h.loginPlayer(p);
+    const copies = h.spawned.filter((npc) => !npc.removed && npc.id === N.VELIAF_HURTZ_2 && inHideout(npc.x, npc.y));
+    assert.deepEqual(copies.map((npc) => [npc.x, npc.y]), [], `In Aid stage ${inAidStage}: no second Veliaf in the hideout`);
+  }
+});
