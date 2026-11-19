@@ -266,15 +266,21 @@ const REWRITTEN_BY_THE_GAME = ["server/plugins/bots/data/object-index.json"];
  * and the owner's edits stay in the stash, never half-merged into a file the game then reads.
  * Returns "none" (no git), "current", "updated", "updated-edits-stashed", "diverged" or "failed".
  */
-export function updateProject(root, log = say) {
+export function updateProject(root, log = say, { fetchLimitMs = 5 * 60_000 } = {}) {
     if (!fs.existsSync(path.join(root, ".git"))) { log("No git folder here, so there is nothing to update from."); return "none"; }
     const run = (...args) => spawnSync("git", ["-c", "safe.directory=*", "-c", "user.name=egg", "-c", "user.email=egg@localhost", ...args],
         { cwd: root, encoding: "utf8" });
     const out = (...args) => { const done = run(...args); return done.status === 0 ? done.stdout.trim() : null; };
     const lastLine = (done) => String(done.stderr ?? "").trim().split(/\r?\n/).pop();
     const before = out("rev-parse", "HEAD");
-    const fetched = run("fetch", "--quiet");
-    if (fetched.status !== 0) { log(`The newest version could not be fetched (${lastLine(fetched)}); starting the version already here.`); return "failed"; }
+    // A host that takes the connection and then says nothing (or stops half way) is given up on
+    // after five minutes: left to itself git waits for it for ever, and the world never starts.
+    const fetched = spawnSync("git", ["-c", "safe.directory=*", "fetch", "--quiet"], { cwd: root, encoding: "utf8", timeout: fetchLimitMs });
+    if (fetched.status !== 0) {
+        const why = fetched.error?.code === "ETIMEDOUT" ? `it had not finished after ${Math.round(fetchLimitMs / 1000)} seconds` : lastLine(fetched);
+        log(`The newest version could not be fetched (${why}); starting the version already here.`);
+        return "failed";
+    }
     const newest = out("rev-parse", "@{u}");
     if (!newest) { log("This copy follows no branch to update from; starting the version already here."); return "failed"; }
     if (newest === before) { log("Already the newest version."); return "current"; }

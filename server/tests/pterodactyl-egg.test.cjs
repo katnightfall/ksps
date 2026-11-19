@@ -224,3 +224,39 @@ test('the egg file is the one make-egg.mjs writes, and fits what the launcher re
   // Nobody is a developer on a new world unless its owner says so.
   assert.equal(egg.variables.find((variable) => variable.env_variable === 'DEV_USERNAME').default_value, '');
 });
+
+test('a host that takes the connection and says nothing does not keep the world from starting', async () => {
+  const { updateProject } = await load('launch.mjs');
+  const { spawnSync } = require('node:child_process');
+  const net = require('node:net');
+  const os = require('node:os');
+  const copy = fs.mkdtempSync(path.join(os.tmpdir(), 'egg-silent-'));
+  const git = (...args) => {
+    const done = spawnSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@localhost', ...args], { cwd: copy, encoding: 'utf8' });
+    assert.equal(done.status, 0, `git ${args.join(' ')}: ${done.stderr}`);
+  };
+  // Where the project is fetched from: it answers the knock, and then nothing more.
+  const held = new Set();
+  const silent = net.createServer((socket) => { held.add(socket); socket.on('error', () => {}); });
+  await new Promise((resolve) => silent.listen(0, '127.0.0.1', resolve));
+  try {
+    git('init', '-q', '-b', 'main');
+    git('commit', '-q', '--allow-empty', '-m', 'the version installed');
+    git('remote', 'add', 'origin', `http://127.0.0.1:${silent.address().port}/project.git`);
+    git('config', 'branch.main.remote', 'origin');
+    git('config', 'branch.main.merge', 'refs/heads/main');
+    const said = [];
+    const started = Date.now();
+    // The launcher waits five minutes; three seconds here. Without a limit this never returns.
+    const result = updateProject(copy, (line) => said.push(line), { fetchLimitMs: 3_000 });
+    assert.equal(result, 'failed');
+    assert.ok(Date.now() - started < 20_000, 'given up on in time');
+    assert.match(said.join('\n'), /could not be fetched \(it had not finished after 3 seconds\); starting the version already here/);
+  } finally {
+    for (const socket of held) socket.destroy();
+    silent.close();
+    // What git had started for the connection ends once the connection has, a moment after this.
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+    try { fs.rmSync(copy, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); } catch {}
+  }
+});
