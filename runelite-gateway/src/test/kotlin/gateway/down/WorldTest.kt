@@ -126,6 +126,68 @@ class WorldTest {
         assertEquals(Triple(0, 0, 1), Triple(zone.zoneX, zone.zoneZ, zone.level))
     }
 
+    /**
+     * Upstream issue #5202: sailing into a new chunk removed the boat, then only the hull came
+     * back. tsps sends a deck's locs once; the client loses them with the boat's world whenever
+     * rsprot takes that world away and gives it back, so they are sent again each time it is given.
+     */
+    @Test
+    fun `a deck's locs go out again each time the client is given the boat's world`() {
+        val deck = WorldEntities.Deck(BOAT, WORLD, 1, 1, 1, DECK_ZONE, DECK_ZONE, arrayOfNulls(4 * 13 * 13))
+        val boats = World({ sent += it }, deckAt = { x, z -> deck.takeIf { it.contains(x, z) } }).apply { rebuild(LUMBRIDGE_ZONE_X, LUMBRIDGE_ZONE_Z) }
+        val base = DECK_ZONE shl 3
+        fun loc(id: Int, x: Int, z: Int, shape: Int = 10) =
+            boats.handle(packet(TspsServerPacket.LOC_ADD_CHANGE, TspsWriter().u16(id).u16(base + x).u16(base + z).u8(1).u8(shape shl 2)))
+        /** What the client is sent when the boat's world is given to it, as GatewaySession.endTick does: the zone payloads' bytes. */
+        fun given(): List<ByteArray> {
+            sent.clear()
+            boats.replayDeck(WORLD)
+            boats.flushDeck(WORLD)
+            return sent.map { zone ->
+                zone as UpdateZonePartialEnclosed
+                assertEquals(Triple(0, 0, 1), Triple(zone.zoneX, zone.zoneZ, zone.level))
+                ByteArray(zone.payload.readableBytes()).also { zone.payload.getBytes(zone.payload.readerIndex(), it) }
+            }
+        }
+
+        // The mast and the helm, before the client has the boat.
+        loc(DOOR, 3, 5)
+        loc(DOOR + 1, 4, 5)
+        val first = given()
+        assertEquals(1, first.size, "one zone, both locs")
+        sent.clear()
+        boats.flushDeck(WORLD)
+        assertTrue(sent.isEmpty(), "a tick with nothing new sends nothing")
+
+        // rsprot takes the world from the client (the boat left the scene), then gives it back.
+        boats.dropDeck(WORLD)
+        val again = given()
+        assertEquals(1, again.size)
+        assertTrue(first.single().contentEquals(again.single()), "the same two locs, in the same order")
+
+        // What was only waiting for the world (an animation) is not kept for the next time...
+        boats.handle(packet(TspsServerPacket.LOC_ANIM, TspsWriter().u16(DOOR).u16(base + 3).u16(base + 5).u8(1).u8(10 shl 2).u16(ANIM)))
+        boats.flushDeck(WORLD)
+        assertTrue(given().single().contentEquals(first.single()), "an animation is played once")
+        // ...and a tile's layer is sent as it is now: the helm swapped for another, a wall beside it kept.
+        loc(DOOR + 2, 4, 5)
+        loc(DOOR + 3, 4, 5, shape = 0)
+        boats.flushDeck(WORLD)
+        val now = given().single()
+        val swapped = World({ sent += it }, deckAt = { x, z -> deck.takeIf { it.contains(x, z) } }).apply { rebuild(LUMBRIDGE_ZONE_X, LUMBRIDGE_ZONE_Z) }
+        for ((id, x, shape) in listOf(Triple(DOOR, 3, 10), Triple(DOOR + 2, 4, 10), Triple(DOOR + 3, 4, 0))) {
+            swapped.handle(packet(TspsServerPacket.LOC_ADD_CHANGE, TspsWriter().u16(id).u16(base + x).u16(base + 5).u8(1).u8(shape shl 2)))
+        }
+        sent.clear()
+        swapped.flushDeck(WORLD)
+        val expected = (sent.single() as UpdateZonePartialEnclosed).payload
+        assertTrue(now.contentEquals(ByteArray(expected.readableBytes()).also { expected.getBytes(expected.readerIndex(), it) }), "three locs: the old helm is not sent")
+
+        // tsps takes the boat away: the next boat on that world id starts with a bare deck.
+        boats.forgetDeck(WORLD)
+        assertTrue(given().isEmpty())
+    }
+
     @Test
     fun `a deck loc's animation (sails, helm) goes to the boat's world, a root one straight out`() {
         val deck = WorldEntities.Deck(BOAT, WORLD, 1, 1, 1, DECK_ZONE, DECK_ZONE, arrayOfNulls(4 * 13 * 13))

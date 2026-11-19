@@ -62,6 +62,16 @@ class World(
 
     /** Boat decks' zone payloads, by boat, kept until the client has that boat's world. */
     private val pendingDecks = HashMap<Int, LinkedHashMap<Triple<Int, Int, Int>, MutableList<ZoneProt>>>()
+
+    /**
+     * Ours (upstream issue #5202). The loc changes on each boat's deck as tsps last sent them: by
+     * boat, by zone, then by tile and layer (the last change of a tile's layer stands). tsps sends
+     * a deck's locs once and the client keeps them with the boat's world. When rsprot takes that
+     * world from the client and gives it back (the boat was outside what the client is shown for
+     * a tick, as around a map load at speed), the client is sent the deck's scene again, the hull,
+     * and has nothing on it; tsps does not know and sends nothing. [replayDeck] sends them again.
+     */
+    private val deckLocs = HashMap<Int, LinkedHashMap<Triple<Int, Int, Int>, LinkedHashMap<Int, ZoneProt>>>()
     private val zoneBuffers = ZonePartialEnclosedCacheBuffer(listOf(OldSchoolClientType.DESKTOP))
 
     /** Absolute zones (south-west tile, level) of the root scene the client got loc changes in. */
@@ -81,9 +91,34 @@ class World(
         pendingDecks.remove(worldId)?.let(::flush)
     }
 
-    /** The client no longer has this boat. */
+    /**
+     * The client was given this boat's world, for the first time or again: every loc change of
+     * its deck goes out with it, then whatever else was waiting for it (an animation, a sound).
+     * Call before [flushDeck].
+     */
+    fun replayDeck(worldId: Int) {
+        val locs = deckLocs[worldId] ?: return
+        val waiting = pendingDecks.remove(worldId)
+        val zones = LinkedHashMap<Triple<Int, Int, Int>, MutableList<ZoneProt>>()
+        for ((zone, byTile) in locs) zones[zone] = ArrayList(byTile.values)
+        waiting?.forEach { (zone, payloads) ->
+            zones.getOrPut(zone) { ArrayList() } += payloads.filter { it !is LocAddChangeV2 && it !is LocDel }
+        }
+        pendingDecks[worldId] = zones
+    }
+
+    /**
+     * The client no longer has this boat's world. What waited for it is dropped; its deck's locs
+     * are kept, for when the client is given the world again.
+     */
     fun dropDeck(worldId: Int) {
         pendingDecks.remove(worldId)
+    }
+
+    /** tsps took the boat away: its world id is free for another boat. */
+    fun forgetDeck(worldId: Int) {
+        pendingDecks.remove(worldId)
+        deckLocs.remove(worldId)
     }
 
     private fun flush(zones: MutableMap<Triple<Int, Int, Int>, MutableList<ZoneProt>>) {
@@ -127,14 +162,14 @@ class World(
                 val level = reader.u8()
                 val shapeRotation = reader.u8()
                 val ops = if (reader.remaining > 0) reader.u8().toByte() else ALL_OPS
-                zone(x, z, level, LocAddChangeV2(id, x and 7, z and 7, shapeRotation ushr 2, shapeRotation and 3, ops))
+                zone(x, z, level, LocAddChangeV2(id, x and 7, z and 7, shapeRotation ushr 2, shapeRotation and 3, ops), locSlot(x, z, shapeRotation ushr 2))
             }
             TspsServerPacket.LOC_DEL -> {
                 val x = reader.u16()
                 val z = reader.u16()
                 val level = reader.u8()
                 val shapeRotation = reader.u8()
-                zone(x, z, level, LocDel(x and 7, z and 7, shapeRotation ushr 2, shapeRotation and 3))
+                zone(x, z, level, LocDel(x and 7, z and 7, shapeRotation ushr 2, shapeRotation and 3), locSlot(x, z, shapeRotation ushr 2))
             }
             TspsServerPacket.LOC_ANIM -> {
                 reader.u16() // loc id: the client animates whatever is on the tile
@@ -342,11 +377,21 @@ class World(
      */
     private fun world(id: Int): Int? = if (id < 0) id else boatWorld(id)
 
-    private fun zone(x: Int, z: Int, level: Int, payload: ZoneProt) {
+    /** A loc's place in its zone: the tile and the layer its shape is on (wall, wall decoration, centrepiece, ground decoration). */
+    private fun locSlot(x: Int, z: Int, shape: Int): Int = ((x and 7) shl 5) or ((z and 7) shl 2) or (LOC_LAYERS.getOrNull(shape) ?: CENTREPIECE_LAYER)
+
+    /** [locSlot] is given for a loc added, changed or removed; such a payload on a deck is remembered for [replayDeck]. */
+    private fun zone(x: Int, z: Int, level: Int, payload: ZoneProt, locSlot: Int? = null) {
         val deck = deckAt(x, z)
         if (deck != null) {
-            val zones = pendingDecks.getOrPut(deck.worldId) { LinkedHashMap() }
-            zones.getOrPut(Triple((x - deck.baseX) and 7.inv(), (z - deck.baseZ) and 7.inv(), level)) { ArrayList() } += payload
+            val zone = Triple((x - deck.baseX) and 7.inv(), (z - deck.baseZ) and 7.inv(), level)
+            pendingDecks.getOrPut(deck.worldId) { LinkedHashMap() }.getOrPut(zone) { ArrayList() } += payload
+            if (locSlot != null) {
+                val slots = deckLocs.getOrPut(deck.worldId) { LinkedHashMap() }.getOrPut(zone) { LinkedHashMap() }
+                // Last in the zone's order, as the client applies them.
+                slots.remove(locSlot)
+                slots[locSlot] = payload
+            }
             return
         }
         if (!inScene(x, z)) return
@@ -358,6 +403,10 @@ class World(
     private companion object {
         const val SCENE_RADIUS_ZONES = 6
         const val SCENE_SIZE = 104
+
+        /** The scene layer of each loc shape (0-3 walls, 4-8 wall decoration, 9-21 centrepieces and roofs, 22 ground decoration). */
+        val LOC_LAYERS = intArrayOf(0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3).toList()
+        const val CENTREPIECE_LAYER = 2
         const val ALL_OPS: Byte = 0x1F
         const val MAX_BYTE = 255
         const val TILE_TARGET = 2

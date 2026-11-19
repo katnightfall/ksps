@@ -78,7 +78,7 @@ class GatewaySession(
     private val stockMarket = StockMarket(::send)
     private val social = Social(::send)
     private val clans = Clans(::send)
-    private val worldUpdates = World(::send, boats::deckAt, boats::sessionWorld)
+    private val worldUpdates = World(::send, boats::deckAt, boats::sessionWorld).also { boats.onGone = it::forgetDeck }
     private val trade by lazy { Trade(::send, { tsps.send(it) }, items::carried, { varps.getVarbit(TRADE_QUANTITY_VARBIT) }) }
 
     /** Everything that turns tsps messages into OSRS packets, asked in turn. */
@@ -472,7 +472,12 @@ class GatewaySession(
         session.queue(root.worldEntityInfo.getOrNull()!!)
         for (boat in packets.activeWorlds) {
             session.queue(boat.activeWorld)
-            if (boat.added) boats.deckOfWorld(boat.worldId)?.let { session.queue(it.rebuild()) }
+            if (boat.added) {
+                boats.deckOfWorld(boat.worldId)?.let { session.queue(it.rebuild()) }
+                // Ours (upstream issue #5202): the deck's scene is only the hull. Its locs go with it
+                // every time rsprot gives the client the boat's world, not only the first.
+                worldUpdates.replayDeck(boat.worldId)
+            }
             worldUpdates.flushDeck(boat.worldId)
             session.queue(boat.npcUpdateOrigin)
             session.queue(boat.npcInfo.getOrNull()!!)
