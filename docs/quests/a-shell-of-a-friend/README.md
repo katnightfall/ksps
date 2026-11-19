@@ -88,7 +88,8 @@ shows what the Wiki says it shows when.
   human default (he wields an adamant scimitar; no recording). The Wiki's bonuses (stab 20, slash 20, crush 10
   defence), max hit 6 and speed 4 are a per-NPC combat override, as the leech's (max hit 3, speed 4).
 - The leech's fight with the snail: the snail never attacks, and is made whole whenever it falls below half its
-  hitpoints (the Wiki: "regenerate health upon falling below half").
+  hitpoints (the Wiki: "regenerate health upon falling below half"). A player who gathers the last leaf without
+  leaving the island (a telegrab) meets the leech when they talk to the snail.
 - The pink snelm is dropped where SnelmLover500 dies, as a kill's drop (the Wiki: "causing him to drop a pink
   snelm"); the scroll pictures it, as the Wiki's scroll image does.
 - The destroy note "You'll have to search the Haunted Woods for some more." for all four quest items (the strong

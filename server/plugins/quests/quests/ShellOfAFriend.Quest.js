@@ -330,7 +330,7 @@ module.exports = function registerShellOfAFriendQuest(api) {
     if (stage !== STAGE.FOOD_GATHERED && stage !== STAGE.AVENGE) return;
     const entry = state(player);
     if (alive(entry.lover) && entry.lover.getId() === NPC.LOVER_COMBAT) {
-      entry.lover.getCombat().attack(player);
+      if (entry.lover.getCombat().getTarget() !== player) entry.lover.getCombat().attack(player);
       return;
     }
     const at = alive(entry.lover) ? [entry.lover.getLocation().getX(), entry.lover.getLocation().getY()] : LOVER_TILE;
@@ -370,6 +370,8 @@ module.exports = function registerShellOfAFriendQuest(api) {
       case STAGE.NOT_STARTED: return start(player, npc);
       case STAGE.STARTED: return askForFood(player);
       case STAGE.LEAVES_GATHERED:
+        // Ours: a player who gathered the last leaf without leaving the island (a telegrab) meets the leech here.
+        if (onIsland(player)) leechAmbush(player);
         player.sendMessage("The snail seems a bit preoccupied right now.");
         return true;
       case STAGE.LEECH_KILLED: return held(player, ITEM.LEAVES) >= NEEDED ? feed(player) : askForFood(player);

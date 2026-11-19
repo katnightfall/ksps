@@ -644,6 +644,17 @@ test("a talk left mid-way: the naming and the shelter lines pick up where they s
   assert.equal(stageOf(f), STAGE.SHELTER);
 });
 
+test("a player who gathered the last leaf without leaving the island meets the leech when they talk to the snail", async (t) => {
+  const f = actor(t, ON_ISLAND, { stage: STAGE.STARTED });
+  quest().setStage(f.player, STAGE.LEAVES_GATHERED); // as a telegrab of the fifth leaf from the island would
+  step(f);
+  assert.equal(owned(f, N.LEECH_3).length, 0, "control: no arrival, no leech yet");
+  await f.connection.dispatch([{ type: "npc_option", index: one(f, N.JUVENILE_SNAIL).getIndex(), clickType: 1 }]);
+  step(f, 3);
+  assert.ok(messages(f).includes("The snail seems a bit preoccupied right now."));
+  assert.equal(one(f, N.LEECH_3).getCombat().getTarget(), one(f, N.JUVENILE_SNAIL));
+});
+
 test("SnelmLover500 waits by the shelter for a player who left mid-fight, and attacks again on their return", async (t) => {
   const f = actor(t, SHORE, { stage: STAGE.AVENGE });
   f.player.setAttribute(ATTRIBUTE.NAME, 1);
