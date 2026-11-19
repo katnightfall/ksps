@@ -341,9 +341,12 @@ function allowLootKeys(request) {
 /**
  * `player-death:pvp-ground` (PlayerDeathTask.isPvpDeath): a death to a player in the arena is a PvP death (Wiki,
  * Bounty Hunter: "on top of the standard item loss to PvP death"), though no `pvp` zone of world.json covers the
- * crater. By tile: membership can lag movement, and the death is settled where the player fell.
+ * crater. By tile: membership can lag movement, and the death is settled where the player fell. Not for a bot's
+ * death: what a crater bot leaves its killer stays as it was (its tradeable kit), or its Nightmare staff would come
+ * apart into loot and its capes and defenders would pay repair costs that nobody ever owed.
  */
 function arenaIsPvpGround(query) {
+  if (query.player?.isPlayerBot?.() === true) return;
   if (bh.isArenaTile(query.player?.getLocation?.())) query.pvp = true;
 }
 

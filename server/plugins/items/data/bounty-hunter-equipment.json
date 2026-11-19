@@ -1,5 +1,5 @@
 {
-  "$comment": "Bounty Hunter Store equipment, by the cache's item constants (ItemIdentifiers). activationFees: the coins each piece of Ancient Warriors' equipment 'must be charged with ... before it can be used', from each item's own Wiki page (read 18 November 2026) and Bounty Hunter#Equipment, which gives the same figures for the as-bought pieces: armour, Vesta's spear, Zuriel's staff and Morrigan's throwing axe 5,000,000; Statius's warhammer and Morrigan's javelin 10,000,000; Vesta's longsword 50,000,000. Each corrupted piece's page gives 1,500,000. The inactive form is the constant with _INACTIVE_ in place of the last underscore.",
+  "$comment": "Bounty Hunter Store equipment, by the cache's item constants (ItemIdentifiers). activationFees: the coins each piece of Ancient Warriors' equipment 'must be charged with ... before it can be used', from each item's own Wiki page (read 18 November 2026) and Bounty Hunter#Equipment, which gives the same figures for the as-bought pieces: armour, Vesta's spear, Zuriel's staff and Morrigan's throwing axe 5,000,000; Statius's warhammer and Morrigan's javelin 10,000,000; Vesta's longsword 50,000,000. Each corrupted piece's page gives 1,500,000. The inactive form is the constant with _INACTIVE_ in place of the last underscore. imbuedWeapons: the weapons made with an imbue scroll, and the weapon and scroll each is made of (Wiki, each weapon's page: 'It is created by using a ... imbue scroll on ...'; 'If the player dies in Bounty Hunter with the item, the imbue scroll is kept, but the weapon is lost').",
   "activationFees": {
     "VESTAS_CHAINBODY_BH_": 5000000,
     "VESTAS_PLATESKIRT_BH_": 5000000,
@@ -29,5 +29,15 @@
     "CORRUPTED_ZURIELS_HOOD_BH_": 1500000,
     "CORRUPTED_ZURIELS_ROBE_TOP_BH_": 1500000,
     "CORRUPTED_ZURIELS_ROBE_BOTTOM_BH_": 1500000
-  }
+  },
+  "imbuedWeapons": [
+    { "imbued": "DARK_BOW_BH_", "weapon": "DARK_BOW", "scroll": "DARK_BOW_IMBUE_SCROLL" },
+    { "imbued": "BARRELCHEST_ANCHOR_BH_", "weapon": "BARRELCHEST_ANCHOR", "scroll": "BARRELCHEST_ANCHOR_IMBUE_SCROLL" },
+    { "imbued": "DRAGON_MACE_BH_", "weapon": "DRAGON_MACE", "scroll": "DRAGON_MACE_IMBUE_SCROLL" },
+    { "imbued": "DRAGON_LONGSWORD_BH_", "weapon": "DRAGON_LONGSWORD", "scroll": "DRAGON_LONGSWORD_IMBUE_SCROLL" },
+    { "imbued": "ABYSSAL_DAGGER_BH_", "weapon": "ABYSSAL_DAGGER", "scroll": "ABYSSAL_DAGGER_IMBUE_SCROLL" },
+    { "imbued": "ABYSSAL_DAGGER_BH_P_", "weapon": "ABYSSAL_DAGGER_P_", "scroll": "ABYSSAL_DAGGER_IMBUE_SCROLL" },
+    { "imbued": "ABYSSAL_DAGGER_BH_P_PLUS_", "weapon": "ABYSSAL_DAGGER_P_PLUS_", "scroll": "ABYSSAL_DAGGER_IMBUE_SCROLL" },
+    { "imbued": "ABYSSAL_DAGGER_BH_P_PLUS_PLUS_", "weapon": "ABYSSAL_DAGGER_P_PLUS_PLUS_", "scroll": "ABYSSAL_DAGGER_IMBUE_SCROLL" }
+  ]
 }

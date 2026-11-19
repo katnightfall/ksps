@@ -337,7 +337,57 @@ test("a death to a monster, or a player's kill credit outside PvP ground, leaves
   assert.deepEqual(town.floor, []);
 });
 
-test("a bot's activated piece is not turned into coins", () => {
+// Wiki, Dark bow (bh) and the other imbued weapons: "If the player dies in Bounty Hunter with the item, the imbue scroll
+// is kept, but the weapon is lost."
+
+test("an unprotected imbued weapon is lost as the weapon it was made from, and the victim keeps the imbue scroll", (t) => {
+  for (const at of [CRATER_EAST(), WILDERNESS()]) {
+    const victim = actor(t), killer = actor(t);
+    carry(victim, [I.DARK_BOW_BH_, I.ABYSSAL_DAGGER_BH_P_PLUS_PLUS_, I.DRAGON_MACE_BH_, I.DRAGON_LONGSWORD_BH_]);
+    const result = die(t, victim, killer, at, { skulled: true });
+    assert.deepEqual(forKiller(result), sorted([I.DARK_BOW, I.ABYSSAL_DAGGER_P_PLUS_PLUS_, I.DRAGON_MACE, I.DRAGON_LONGSWORD]));
+    assert.deepEqual(sorted(result.kept), sorted([I.DARK_BOW_IMBUE_SCROLL, I.ABYSSAL_DAGGER_IMBUE_SCROLL, I.DRAGON_MACE_IMBUE_SCROLL, I.DRAGON_LONGSWORD_IMBUE_SCROLL]));
+  }
+});
+
+test("a Barrelchest anchor (bh) is lost as the anchor is, as coins for the killer, and its scroll is kept", (t) => {
+  const victim = actor(t), killer = actor(t);
+  carry(victim, [I.BARRELCHEST_ANCHOR_BH_]);
+  const result = die(t, victim, killer, CRATER_EAST(), { skulled: true });
+  assert.deepEqual(result.kept, [I.BARRELCHEST_ANCHOR_IMBUE_SCROLL]);
+  assert.deepEqual(forKiller(result), [I.COINS]);
+  assert.equal(coinsForKiller(result), 230_000, "the anchor's own PvP death rule (QuestRewardDeathCoins)");
+});
+
+test("a protected imbued weapon stays imbued; a death to a monster and a preset copy make no plain weapon and no scroll", (t) => {
+  for (const options of [{}, { skulled: true, protectItem: true }]) {
+    const victim = actor(t), killer = actor(t);
+    carry(victim, [I.DARK_BOW_BH_]);
+    const result = die(t, victim, killer, CRATER_EAST(), options);
+    assert.deepEqual(result.kept, [I.DARK_BOW_BH_]);
+    assert.deepEqual(result.floor, []);
+  }
+  const pvm = actor(t);
+  carry(pvm, [I.DARK_BOW_BH_]);
+  const grave = die(t, pvm, null, WILDERNESS(), { skulled: true });
+  assert.deepEqual(grave.grave, [I.DARK_BOW_BH_]);
+  assert.deepEqual(grave.floor, []);
+
+  const victim = actor(t), killer = actor(t);
+  const preset = new core.Item(I.DARK_BOW_BH_, 1);
+  for (const key of [core.Item.UNTRADEABLE_META, core.Item.UNBANKABLE_META, core.Item.PRESET_META]) preset.setMetaValue(key, true);
+  victim.getInventory().setItem(0, preset);
+  const result = die(t, victim, killer, CRATER_EAST(), { skulled: true });
+  assert.deepEqual(result.kept, []);
+  assert.deepEqual(result.floor, []);
+});
+
+test("a bot's activated piece is not turned into coins, and its imbued weapon is left as it is", () => {
+  const bow = { player: { isPlayerBot: () => true }, killer: {}, item: new core.Item(I.DARK_BOW_BH_, 1), parts: null };
+  PM.emitCustomEvent("player-death:pvp-item-parts", bow);
+  assert.equal(bow.parts, null);
+  assert.equal(bow.item.getId(), I.DARK_BOW_BH_);
+
   const query = { player: { isPlayerBot: () => true }, killer: {}, item: charged(I.VESTAS_LONGSWORD_BH_, 50_000_000), parts: null };
   PM.emitCustomEvent("player-death:pvp-item-parts", query);
   assert.equal(query.parts, null);
@@ -357,6 +407,17 @@ test("a death to a player in Bounty Hunter's arena is a PvP death; one in a town
   // Fort Daimon, the lobby inside the arena's box, is safe ground.
   victim.setLocation(new core.Location(3423, 4061, 0));
   assert.equal(PlayerDeathTask.isPvpDeath(victim, killer), false);
+});
+
+test("a bot's death in the arena keeps the loot rules it had: its Nightmare staff, cape and defender stay whole and pay nothing", (t) => {
+  const bot = actor(t), killer = actor(t);
+  bot.setPlayerBot(true);
+  bot.setLocation(CRATER_EAST());
+  assert.equal(PlayerDeathTask.isPvpDeath(bot, killer), false);
+  carry(bot, [I.VOLATILE_NIGHTMARE_STAFF, I.FIRE_CAPE, I.DRAGON_DEFENDER, I.ABYSSAL_WHIP]);
+  const result = die(t, bot, killer, CRATER_EAST(), { skulled: true });
+  assert.deepEqual(sorted(result.kept), sorted([I.VOLATILE_NIGHTMARE_STAFF, I.FIRE_CAPE, I.DRAGON_DEFENDER]));
+  assert.deepEqual(forKiller(result), [I.ABYSSAL_WHIP], "its tradeable kit drops as before, and no coins");
 });
 
 test("in the crater an upgraded Nightmare staff is lost as staff and orb, and ornamented items lose as in the Wilderness", (t) => {

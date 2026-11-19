@@ -15,6 +15,9 @@
  * exactly what went in. A piece nobody charged (one spawned by a preset, a command or a bot's kit) holds no coins: a
  * death still leaves it inactive, and pays the killer nothing.
  *
+ * The weapons made with the store's imbue scrolls (Dark bow (bh) and the rest) are lost to a PvP death as the weapon
+ * they were made from, and the scroll is kept (loseImbuedWeaponOnPvpDeath).
+ *
  * Ours, where the Wiki says nothing: Uncharge gives the coins back to the player; the wording of every message; the
  * Yes/No before the coins are taken; and `bounty-hunter:can-convert`, by which the Corrupted Warrior refuses a charged
  * piece whose corrupted (or plain) form takes a different amount, so that converting never changes what a piece holds.
@@ -33,6 +36,8 @@ let core;
 /** Active id -> { active, inactive, fee }, and the same entry by inactive id. */
 const byActive = new Map();
 const byInactive = new Map();
+/** Imbued weapon id -> { weapon, scroll }: what it is made of. */
+const imbuedWeapons = new Map();
 
 function load(identifiers) {
   byActive.clear();
@@ -46,6 +51,14 @@ function load(identifiers) {
     const entry = { active, inactive, fee };
     byActive.set(active, entry);
     byInactive.set(inactive, entry);
+  }
+  imbuedWeapons.clear();
+  for (const row of DATA.imbuedWeapons) {
+    const [imbued, weapon, scroll] = [row.imbued, row.weapon, row.scroll].map((name) => identifiers[name]);
+    if (![imbued, weapon, scroll].every(Number.isInteger)) {
+      throw new Error(`bounty-hunter-equipment.json: unknown item in ${JSON.stringify(row)}`);
+    }
+    imbuedWeapons.set(imbued, { weapon, scroll });
   }
 }
 
@@ -143,6 +156,31 @@ function deactivateOnPvpDeath(query) {
 }
 
 /**
+ * `player-death:pvp-item-parts`: a weapon made with one of the store's imbue scrolls. Wiki (Dark bow (bh), Barrelchest
+ * anchor (bh), Dragon mace (bh), Dragon longsword (bh), Abyssal dagger (bh)): "If the player dies in Bounty Hunter
+ * with the item, the imbue scroll is kept, but the weapon is lost." The weapon is lost as the weapon it was made from,
+ * the same Item, which then meets the death as that weapon does (a Dark bow drops for the killer, a Barrelchest anchor
+ * becomes its coins), and the scroll, an untradeable, stays the victim's.
+ */
+// Ours (upstream issue #6002): before this an imbued weapon came back whole to whoever died with it.
+function loseImbuedWeaponOnPvpDeath(query) {
+  const item = query?.item;
+  // A bot's kit is not loot (DeathLoot.PlayerBots decides what its death gives): what a crater bot's imbued weapon
+  // should give its killer is left as it was, nothing.
+  if (!item || query.parts || query.player?.isPlayerBot?.() === true || restricted(item)) return;
+  const made = imbuedWeapons.get(item.getId());
+  if (!made) return;
+  item.setId(made.weapon);
+  query.parts = [item, new core.Item(made.scroll, 1)];
+}
+
+/** `items:lost-to-pvp-killer` { item, wildernessLevel, lost }: the Items Kept on Death screen's PvP preview. */
+function answerLostToPvpKiller(query) {
+  const made = restricted(query?.item) ? null : imbuedWeapons.get(query?.item?.getId?.());
+  if (made && new core.Item(made.weapon, 1).isPlayerTradeable()) query.lost = true;
+}
+
+/**
  * `bounty-hunter:can-convert` { item, to, allowed, message }: the Corrupted Warrior asks before swapping a piece for
  * its corrupted or plain form. A charged piece converts only where both forms take the same coins.
  */
@@ -156,9 +194,9 @@ function canConvert(query) {
 
 module.exports = {
   name: "BountyHunterEquipment",
-  description: "Ancient Warriors' equipment from the Bounty Hunter Store: Activate charges a piece with coins, Uncharge takes them back, and an unprotected piece lost to a player goes inactive and pays its coins to the killer.",
+  description: "Bounty Hunter Store equipment: Activate charges a piece of Ancient Warriors' equipment with coins, Uncharge takes them back, an unprotected piece lost to a player goes inactive and pays its coins to the killer, and an imbued weapon is lost as the plain weapon.",
   members: true,
-  _test: { byActive, byInactive, heldCoins, FEE_META },
+  _test: { byActive, byInactive, imbuedWeapons, heldCoins, FEE_META },
   register(pluginApi) {
     api = pluginApi;
     core = pluginApi.core;
@@ -169,6 +207,8 @@ module.exports = {
       api.onItemAction(nameOf(entry.active), { Uncharge: uncharge });
     }
     api.onCustomEvent("player-death:pvp-item-parts", deactivateOnPvpDeath);
+    api.onCustomEvent("player-death:pvp-item-parts", loseImbuedWeaponOnPvpDeath);
+    api.onCustomEvent("items:lost-to-pvp-killer", answerLostToPvpKiller);
     api.onCustomEvent("bounty-hunter:can-convert", canConvert);
   },
 };
