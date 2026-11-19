@@ -233,3 +233,18 @@ test("a game connection carried to a world: the world hears who the visitor is f
   // And anything of a world's but its game and its /api is not carried at all.
   assert.equal((await ask(`${front.base}/w/good/admin/api/state`)).status, 404);
 });
+
+test("a website that never starts still stops the front door, for systemd and the updater to see", async () => {
+  // As with nothing built, or a fault in the website's own file: it stops before it has answered anything.
+  const tree = makeTree("process.exit(7);\n");
+  const port = await freePort();
+  const front = spawn(process.execPath, [path.join(tree, "deploy", "front.mjs")], {
+    env: { ...process.env, MASTER_ADMIN: "", MASTER_ONLY: "", WORLDS_MASTER_URL: "", FRONT_STATIC_PORT: "", FRONT_HEADLESS: "", PORT: String(port), HOST: "127.0.0.1", GAME_PORT: String(await freePort()) },
+    stdio: "ignore",
+  });
+  const code = await new Promise((resolve) => {
+    const give = setTimeout(() => { front.kill(); resolve("still running"); }, 15_000);
+    front.on("exit", (exit) => { clearTimeout(give); resolve(exit); });
+  });
+  assert.equal(code, 7);
+});
