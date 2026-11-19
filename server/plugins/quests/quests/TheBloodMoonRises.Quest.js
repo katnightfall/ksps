@@ -561,7 +561,8 @@ module.exports = function registerTheBloodMoonRises(api) {
     { id: ItemIdentifiers.FROM_MISTHALIN_TO_MORYTANIA, name: "From Misthalin to Morytania", varbitValue: 1, shelf: [3411, 3492] },
     { id: ItemIdentifiers.SCRUFFY_NOTEBOOK, name: "Scruffy notebook", varbitValue: 3, shelf: [3409, 3488] },
     { id: ItemIdentifiers.THE_LIFE_OF_FRIAR, name: "The Life of Friar", varbitValue: 5, shelf: [3414, 3491] },
-    { id: ItemIdentifiers.PIOUS_PROCEEDINGS, name: "Pious proceedings", varbitValue: 4, shelf: [3411, 3491] },
+    // Ours: the cache writes the title with a capital P; the Read hook below matches item names exactly.
+    { id: ItemIdentifiers.PIOUS_PROCEEDINGS, name: "Pious Proceedings", varbitValue: 4, shelf: [3411, 3491] },
   ];
   const SLEPE_PLINTHS = [
     { x: 3409, y: 3483, window: "Essiandar", itemId: ItemIdentifiers.ESSIANDARS_NOTES },
