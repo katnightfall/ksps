@@ -140,6 +140,7 @@ import {
   PluginSocialPacketEvent,
 } from "./PluginTypes";
 import { lazyRequire } from "../util/LazyRequire";
+import { FailureReports } from "../util/FailureReports";
 
 // Game modules this file reaches lazily (they import the plugin manager); each resolved once.
 const getEquipmentClass = lazyRequire(() => require("../game/model/container/impl/Equipment").Equipment);
@@ -440,6 +441,24 @@ export class PluginManager {
     { owner: string; decl: ConfigOptionDeclaration }
   >();
 
+  /**
+   * Ours: the hooks that run on every tick, for every player (player_process) and for every actor in an area (an
+   * area's process). One that throws throws again on each tick, and each failure wrote its stack to the log, every
+   * 600 ms for each player, for as long as the world ran. Theirs are reported the first time and then every 1,000th,
+   * by plugin and message (FailureReports); every other hook still reports each failure.
+   */
+  private static readonly EVERY_TICK_HOOKS = new Set(["player_process hook", "area process"]);
+
+  private static reportHookFailure(what: string, pluginName: string, error: unknown): void {
+    if (!PluginManager.EVERY_TICK_HOOKS.has(what)) {
+      console.error(`[plugins] ${what} failed (${pluginName})`, error);
+      return;
+    }
+    const count = FailureReports.due(`${what} ${pluginName} ${(error as Error)?.message ?? String(error)}`);
+    if (count === 0) return;
+    console.error(`[plugins] ${what} failed (${pluginName})${count > 1 ? ` (${count} times now)` : ""}`, error);
+  }
+
   private static executeHook<T>(
     hook: PluginHook<T>,
     event: T,
@@ -451,7 +470,7 @@ export class PluginManager {
       try {
         hook.handler(event);
       } catch (err) {
-        console.error(`[plugins] ${errorLabel} hook failed (${hook.pluginName})`, err);
+        PluginManager.reportHookFailure(`${errorLabel} hook`, hook.pluginName, err);
       } finally {
         PluginContext.exit(previousPlugin);
       }
@@ -474,7 +493,7 @@ export class PluginManager {
       hook.handler(event);
     } catch (err) {
       failed = true;
-      console.error(`[plugins] ${errorLabel} hook failed (${hook.pluginName})`, err);
+      PluginManager.reportHookFailure(`${errorLabel} hook`, hook.pluginName, err);
     } finally {
       PluginContext.exit(previousPlugin);
       PluginManager.recordHookTiming(
@@ -498,7 +517,7 @@ export class PluginManager {
       try {
         return area[method](a, b, c);
       } catch (err) {
-        console.error(`[plugins] area ${method} failed (${area.pluginName ?? area.getName()})`, err);
+        PluginManager.reportHookFailure(`area ${method}`, area.pluginName ?? area.getName(), err);
         return null;
       } finally {
         PluginContext.exit(previousPlugin);
@@ -511,7 +530,7 @@ export class PluginManager {
       return area[method](a, b, c);
     } catch (err) {
       failed = true;
-      console.error(`[plugins] area ${method} failed (${area.pluginName ?? area.getName()})`, err);
+      PluginManager.reportHookFailure(`area ${method}`, area.pluginName ?? area.getName(), err);
       return null;
     } finally {
       PluginContext.exit(previousPlugin);
