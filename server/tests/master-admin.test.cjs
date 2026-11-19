@@ -468,3 +468,56 @@ test("reset all accounts: only with RESET typed; it sets a new reset id and rest
   // The worlds and the default world are untouched by it.
   assert.equal(m.registry.get("chicago").name, "Chicago");
 });
+
+test("a list of worlds that cannot be read is never written over: the page says so and changes nothing", async (t) => {
+  const m = await master(t);
+  const { RegistryUnreadable } = await load("master/registry.mjs");
+  await m.signIn();
+  await m.call("POST", "worlds/external", { name: "Friends", address: "203.0.113.10:5000" });
+  await m.call("POST", "reset-accounts", { confirm: "RESET" });
+  const file = m.registry.file;
+  const whole = fs.readFileSync(file, "utf8");
+  assert.equal(JSON.parse(whole).accountsReset, "2026-11-16T12:00:00Z");
+
+  // Cut short, as a slip in a hand edit or a disk fault leaves it. Read as "no worlds, no reset
+  // called", the next change wrote exactly that over it: every world's record gone, and the
+  // accounts' reset id with them (which is a reset of every world: deploy/reset-accounts.mjs).
+  const broken = whole.slice(0, whole.length - 40);
+  fs.writeFileSync(file, broken);
+  assert.deepEqual(m.registry.all(), [], "nothing can be read from it");
+  assert.match(m.registry.problem(), /cannot be read/);
+  for (const [method, route, body] of [
+    ["POST", "worlds/external", { name: "Another", address: "203.0.113.11:5000" }],
+    ["POST", "default", { id: "kat-net" }],
+    ["POST", "reset-accounts", { confirm: "RESET" }],
+    ["POST", "worlds", { name: "Chicago", place: "location-1" }],
+  ]) {
+    const refused = await m.call(method, route, body);
+    assert.equal(refused.status, 503, `${method} ${route}`);
+    assert.match(refused.body.error, /cannot be read/);
+  }
+  assert.throws(() => m.registry.setDefault("x"), RegistryUnreadable);
+  assert.equal(fs.readFileSync(file, "utf8"), broken, "the file is as it was found, for a person to repair");
+  assert.match((await m.call("GET", "state")).body.storage, /cannot be read/, "said across the page");
+
+  // Repaired: everything is as it was.
+  fs.writeFileSync(file, whole);
+  assert.equal(m.registry.problem(), null);
+  assert.equal((await m.call("GET", "state")).body.storage, null);
+  assert.equal(m.registry.get("friends").name, "Friends");
+  assert.equal((await m.call("POST", "default", { id: "friends" })).status, 200);
+  assert.equal(m.registry.getAccountsReset(), "2026-11-16T12:00:00Z");
+});
+
+test("an entry in the list that is not a record is no world, and stops nothing", async (t) => {
+  const m = await master(t);
+  await m.signIn();
+  await m.call("POST", "worlds/external", { name: "Friends", address: "203.0.113.10:5000" });
+  const kept = JSON.parse(fs.readFileSync(m.registry.file, "utf8"));
+  fs.writeFileSync(m.registry.file, JSON.stringify({ ...kept, worlds: [null, "a world", 7, ...kept.worlds, []] }));
+  assert.deepEqual(m.registry.all().map((world) => world.id), ["friends"]);
+  assert.equal(m.registry.get("nothing"), null);
+  const state = await m.call("GET", "state");
+  assert.equal(state.status, 200);
+  assert.deepEqual(state.body.worlds.map((world) => world.id), ["kat-net", "new-york", "friends"]);
+});

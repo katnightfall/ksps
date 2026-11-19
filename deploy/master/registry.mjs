@@ -16,23 +16,49 @@ import path from "node:path";
 
 import { cleanWorld } from "../worlds.mjs";
 
+/** The file is there and is not a list of worlds: said instead of writing an empty list over it. */
+export class RegistryUnreadable extends Error {}
+
 export function createRegistry(file) {
-    function readFile() {
+    const none = () => ({ worlds: [], default: "", accountsReset: "" });
+    /** { kept } as the file has it; { kept: nothing, problem } when it is there and cannot be read. */
+    function look() {
+        let raw;
         try {
-            const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
-            return {
-                worlds: Array.isArray(parsed?.worlds) ? parsed.worlds : [],
-                default: typeof parsed?.default === "string" ? parsed.default : "",
-                accountsReset: typeof parsed?.accountsReset === "string" ? parsed.accountsReset : "",
-            };
+            raw = fs.readFileSync(file, "utf8");
+        } catch (error) {
+            // No file yet: nothing has been made or added.
+            return error?.code === "ENOENT" ? { kept: none() } : { kept: none(), problem: error?.code ?? String(error?.message ?? error) };
+        }
+        try {
+            const parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return { kept: none(), problem: "it is not a list of worlds" };
+            return { kept: {
+                // An entry that is not a record (a slip in a hand edit) is no world; every reader takes a record for granted.
+                worlds: Array.isArray(parsed.worlds) ? parsed.worlds.filter((world) => world && typeof world === "object" && !Array.isArray(world)) : [],
+                default: typeof parsed.default === "string" ? parsed.default : "",
+                accountsReset: typeof parsed.accountsReset === "string" ? parsed.accountsReset : "",
+            } };
         } catch {
-            return { worlds: [], default: "", accountsReset: "" };
+            return { kept: none(), problem: "it is not JSON" };
         }
     }
+    const readFile = () => look().kept;
     const read = () => readFile().worlds;
-    /** Written whole, to a file beside it first: a crash mid-write leaves the old list. */
+    /** Why the file cannot be used, in words for the admin page, or null. */
+    const problem = () => {
+        const found = look().problem;
+        return found ? `The list of worlds made here cannot be read (${file}: ${found}). Nothing is changed until it is repaired or moved away: it also holds the accounts' reset id.` : null;
+    };
+    /**
+     * Written whole, to a file beside it first: a crash mid-write leaves the old list. A file that
+     * is there and cannot be read is never written over: read as "no worlds, no reset called", it
+     * was replaced by that at the next change, which lost every world's record and, the reset id
+     * being part of it, called a reset of every account (deploy/reset-accounts.mjs).
+     */
     function write(worlds, changes = {}) {
-        const kept = readFile();
+        const { kept, problem: found } = look();
+        if (found) throw new RegistryUnreadable(problem());
         fs.mkdirSync(path.dirname(file), { recursive: true });
         const temporary = `${file}.${process.pid}.tmp`;
         fs.writeFileSync(temporary, `${JSON.stringify({ default: changes.default ?? kept.default, accountsReset: changes.accountsReset ?? kept.accountsReset, worlds }, null, 2)}\n`);
@@ -40,6 +66,7 @@ export function createRegistry(file) {
     }
     return {
         file,
+        problem,
         all: read,
         /** The admin page's part of the master's reset id (deploy/reset-accounts.mjs): changing it resets every world. */
         getAccountsReset: () => readFile().accountsReset,

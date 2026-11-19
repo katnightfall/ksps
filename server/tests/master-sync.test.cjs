@@ -395,3 +395,36 @@ test("the front door hands /sync/ to the master's own process, and the master se
   assert.match(server, /createCharacterStore\(path\.join\(DATA_DIR, "characters\.sqlite"\), \(\) => masterResetId\(ROOT\)\)/);
   assert.match(server, /if \(await sync\(request, response\)\) return;/);
 });
+
+test("while the master's reset id cannot be read, its characters stay where they are; a real new id still sets them aside", async (t) => {
+  // As deploy/reset-accounts.mjs masterResetId answers: null when the files it is made from cannot be read.
+  let id = "2026-11-17|2026-12-01T10:00:00Z";
+  const hub = await master(t, { reset: () => id });
+  const dallas = world(t, "1 - Dallas", hub, { reset: id });
+  await dallas.login("Kat");
+  await dallas.logout("Kat", "kat", { at: "before" });
+  assert.equal(hub.store.counts(hub.clock.now).characters, 1);
+  const aside = () => fs.readdirSync(hub.dir).filter((name) => /^characters-\d{8}-\d{6}(-\d+)?\.sqlite$/.test(name)).length;
+
+  id = null;
+  assert.equal(hub.store.counts(hub.clock.now).characters, 1, "not known is not a new reset");
+  assert.equal(hub.store.reset(hub.clock.now), "2026-11-17|2026-12-01T10:00:00Z", "the store is on the reset it was on");
+  assert.equal(await dallas.login("Kat"), null);
+  await dallas.logout("Kat", "kat", { at: "while it could not be read" });
+  assert.equal(dallas.sync.state().stale, false, "and its worlds go on sharing");
+  assert.equal(aside(), 0);
+
+  // The master starts again while the id still cannot be read: the same store, on what it was on.
+  hub.store.close();
+  assert.equal(hub.store.counts(hub.clock.now).characters, 1);
+  assert.equal(hub.store.reset(hub.clock.now), "2026-11-17|2026-12-01T10:00:00Z");
+  assert.equal(aside(), 0);
+
+  // Readable again, unchanged: nothing happens. Changed: that is a reset.
+  id = "2026-11-17|2026-12-01T10:00:00Z";
+  assert.equal(hub.store.counts(hub.clock.now).characters, 1);
+  assert.equal(aside(), 0);
+  id = "2026-11-17|2027-01-01T00:00:00Z";
+  assert.equal(hub.store.counts(hub.clock.now).characters, 0);
+  assert.equal(aside(), 1);
+});
