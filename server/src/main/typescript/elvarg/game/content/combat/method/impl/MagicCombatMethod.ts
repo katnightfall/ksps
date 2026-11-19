@@ -49,6 +49,9 @@ export class MagicCombatMethod extends CombatMethod {
         21832: 5030,
         // OSRS Wiki List of sound IDs, Surge casts.
         21876: 4028, 21877: 4030, 21878: 4025, 21879: 4032,
+        // Ours (upstream issue #3584): Tele Block was silent. The cache names its sounds teleportblock_cast and
+        // teleportblock_impact (sound gamevals, as the rest of this table is named: <spell>_cast_and_fire, <spell>_hit).
+        12445: 202,
     };
     /** Live plays a spell's cast sound for everyone but the caster as an area sound this far round the caster. */
     public static readonly CAST_SOUND_RADIUS = 10;
@@ -69,6 +72,8 @@ export class MagicCombatMethod extends CombatMethod {
         21832: 5055,
         // OSRS Wiki List of sound IDs, Surge impacts.
         21876: 4027, 21877: 4029, 21878: 4026, 21879: 4031,
+        // Tele Block (see CAST_SOUNDS).
+        12445: 203,
     };
 
     public type(): CombatType {
