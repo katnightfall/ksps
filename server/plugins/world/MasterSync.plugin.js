@@ -427,8 +427,11 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
         return isStale() ? null : push(key);
       }
       if (!session) return null;
-      dirty.set(key, { release: false, mark: ++marks });
+      // A write after the logout save, while that one is still being handed in (staff changing
+      // the save of someone who has just left): it goes straight after it, and lets go as it did.
+      dirty.set(key, { release: session.finished === true, mark: ++marks });
       persist();
+      if (session.finished) return push(key);
       return session.releasing ? finish(session) : null;
     },
 

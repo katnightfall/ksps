@@ -582,3 +582,29 @@ test("an old copy left on a world by a login that was put out is never handed in
   await dallas.sync.tick();
   assert.deepEqual(hub.saved("kat"), { at: "Miami" }, "Miami's play is not undone by it");
 });
+
+test("a save changed just after its player logged out, the logout save still on its way, follows it at once", async (t) => {
+  const hub = await master(t);
+  let arrive;
+  const slow = new Promise((resolve) => { arrive = resolve; });
+  const dallas = world(t, "1 - Dallas", hub, {
+    wrapCall: (call) => async (method, target, body) => {
+      // The logout's letting go is slow to be answered.
+      if (target === "/sync/release") await slow;
+      return call(method, target, body);
+    },
+  });
+  const miami = world(t, "2 - Miami", hub);
+  await dallas.login("Kat");
+  const leaving = dallas.logout("Kat", "kat", { at: "logout" });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  // Staff give her a rank the moment she has left.
+  dallas.rows.set("kat", JSON.stringify({ at: "logout", rank: 2 }));
+  await dallas.sync.rowWritten("kat", { offline: true });
+  assert.deepEqual(hub.saved("kat"), { at: "logout", rank: 2 }, "handed in without waiting for the next round");
+  arrive();
+  await leaving;
+  assert.deepEqual(dallas.sync.state().dirty, []);
+  assert.equal(await miami.login("Kat"), null, "and the character is free");
+  assert.deepEqual(JSON.parse(miami.rows.get("kat")), { at: "logout", rank: 2 });
+});
