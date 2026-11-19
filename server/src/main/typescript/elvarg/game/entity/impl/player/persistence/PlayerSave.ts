@@ -75,6 +75,15 @@ export class PlayerSave {
         [COMBAT_STYLE_BY_CATEGORY_ATTRIBUTE, "{}"],
     ]);
 
+    /**
+     * Ours: where a player keeps what their save holds under attribute keys this server does not
+     * save (a plugin that is off on this world, or one newer than this server: our worlds share
+     * characters and restart one by one after an update). The next save writes those back as
+     * they were read. They used to be left out of it, so one visit to such a world wiped that
+     * plugin's progress from the character on every world. Not itself a saved attribute.
+     */
+    public static readonly CARRIED_ATTRIBUTES = "save:carried-attributes";
+
     public static persistAttribute(key: string, defaultValue?: unknown): void {
         if (typeof key !== "string" || !key.trim() || key !== key.trim()) {
             throw new Error("Persistent attribute keys must be non-empty strings without surrounding whitespace");
@@ -707,6 +716,8 @@ export class PlayerSave {
                 player.setAttribute(key, PlayerSave.cloneAttribute(key, this.attributes[key]));
             }
         }
+        const carried = Object.entries(this.attributes ?? {}).filter(([key]) => !PlayerSave.persistentAttributeKeys.has(key));
+        if (carried.length > 0) player.setAttribute(PlayerSave.CARRIED_ATTRIBUTES, Object.fromEntries(carried));
         PlayerSave.applyAttributeDefaults(player);
 
         const friendList = player.getRelations().getFriendList();
@@ -821,6 +832,12 @@ export class PlayerSave {
                 .map((key) => [key, PlayerSave.cloneAttribute(key, player.getAttribute(key))])
                 .filter(([key, value]) => JSON.stringify(value) !== PlayerSave.attributeDefaults.get(key as string))
         );
+        // What the save held that this server does not save, as it was read (CARRIED_ATTRIBUTES).
+        // A key that has become a saved one since the login is the player's own value from then on.
+        const carried = player.getAttribute(PlayerSave.CARRIED_ATTRIBUTES) as Record<string, unknown> | undefined;
+        for (const [key, value] of Object.entries(carried ?? {})) {
+            if (!PlayerSave.persistentAttributeKeys.has(key)) playerSave.attributes[key] = value;
+        }
 
         playerSave.friends = PlayerSave.normalizeRelationListToStrings(
             player.getRelations().getFriendList(),
