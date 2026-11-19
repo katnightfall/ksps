@@ -39,7 +39,15 @@ export const HOLD_MS = 150_000;
 /** A request signed longer ago than this, or further ahead, is refused. */
 const CLOCK_MS = 5 * 60_000;
 const MAX_BODY = 16 * 1024 * 1024;
+/** The saves of one account, as a login asks for them. */
 const MAX_KEYS = 64;
+/**
+ * The saves of everyone in a world at once: a heartbeat names them all, and a world that stops
+ * lets them all go. With the one account's limit here, a heartbeat held only its first 64 saves
+ * (21 players, at three saves each) and let the rest go, so from a world's 22nd player on an
+ * account could be let into a second world while it played in the first.
+ */
+const MAX_WORLD_KEYS = 100_000;
 const CHANGES_PAGE = 40;
 const KEY = /^[a-z0-9_:]{1,64}$/;
 
@@ -291,7 +299,7 @@ export function totalExperience(json) {
 }
 
 const text = (value, max = 80) => (typeof value === "string" ? value.trim().slice(0, max) : "");
-const keysOf = (value) => (Array.isArray(value) ? [...new Set(value.filter((key) => typeof key === "string" && KEY.test(key)))].slice(0, MAX_KEYS) : null);
+const keysOf = (value, max) => (Array.isArray(value) ? [...new Set(value.filter((key) => typeof key === "string" && KEY.test(key)))].slice(0, max) : null);
 
 function readBody(request) {
     return new Promise((resolve, reject) => {
@@ -364,7 +372,7 @@ export function createSyncApi({ store, key, now = () => Date.now(), log = () => 
                 JSON.parse(asked.json);
                 return answer(response, 200, store.save(world, asked.key, asked.json, { release: asked.release === true, base: Number.isInteger(asked.base) ? asked.base : null }, now())), true;
             }
-            const keys = keysOf(asked.keys);
+            const keys = keysOf(asked.keys, url.pathname === "/sync/checkout" ? MAX_KEYS : MAX_WORLD_KEYS);
             if (!keys) return answer(response, 400, { error: "Which characters?" }), true;
             if (url.pathname === "/sync/checkout") return answer(response, 200, store.checkout(world, keys, now())), true;
             if (url.pathname === "/sync/heartbeat") return answer(response, 200, store.heartbeat(world, keys, now())), true;

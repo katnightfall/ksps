@@ -422,3 +422,22 @@ test("a write of the world's notes cut short leaves the notes as they were", asy
   assert.deepEqual(again.state().dirty, []);
   assert.deepEqual(hub.saved("kat"), { skills: { experience: [950] }, at: "not handed in yet either" });
 });
+
+test("a busy world holds every one of its players' characters, not the first twenty-one", async (t) => {
+  const hub = await master(t);
+  const dallas = world(t, "1 - Dallas", hub);
+  const miami = world(t, "2 - Miami", hub);
+  // Each login is three saves to hold (the account's main, league and hardcore characters).
+  for (let n = 1; n <= 40; n++) assert.equal(await dallas.login(`Player ${n}`), null);
+  await dallas.sync.heartbeat();
+  for (const n of [1, 21, 22, 30, 40]) {
+    assert.equal(await miami.login(`Player ${n}`), "Your account is logged in on 1 - Dallas.", `Player ${n} is in Dallas`);
+  }
+  assert.equal(hub.store.counts(hub.clock.now).online, 120, "all forty accounts' characters are held");
+  // And a world that stops lets every one of them go, not the first twenty-one.
+  for (let n = 1; n <= 40; n++) await dallas.gameSaves(`player_${n}`, { n });
+  await dallas.sync.shutdown();
+  assert.equal(hub.store.counts(hub.clock.now).online, 0);
+  assert.equal(await miami.login("Player 40"), null);
+  assert.deepEqual(JSON.parse(miami.rows.get("player_40")), { n: 40 });
+});
