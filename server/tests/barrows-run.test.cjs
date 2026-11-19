@@ -513,6 +513,105 @@ test("Barrows: an open tunnel door is walked through, not slid across", () => {
   assert.equal(subject.hasFlag(IGNORE_CLIPPING_FLAG), false, "clipping back once across");
 });
 
+// Upstream issue #4407: clicking on straight after the door skipped its monster, which needed the player still
+// standing on the far side's tile three ticks later. Wiki (Barrows/Strategies): "Upon opening any of the doors in
+// these tunnels, a monster will spawn and attack the player."
+test("Barrows: a door's monster comes for a player who walks on at once, and for one who waits; none without a crossing", () => {
+  const { useDoor, doorSides, getTunnelMap, getRun, processPlayer, session } = Barrows._test;
+  const through = (after) => {
+    const subject = player();
+    arrive(subject, CHEST_ROOM);
+    const run = getRun(subject);
+    const door = getTunnelMap().doors.find((entry) => run.openDoors.includes(entry.varbit) && entry.varbit !== run.puzzleDoor);
+    const [from, to] = doorSides(door);
+    subject.setLocation(from.clone());
+    processPlayer({ player: subject });
+    useDoor(subject, door);
+    subject.getMovementQueue().process();
+    assert.ok(subject.getLocation().equals(to), "through the doorway");
+    processPlayer({ player: subject });
+    after(subject, from, to);
+    for (let i = 0; i < 3; i++) processPlayer({ player: subject });
+    return session(subject).npcs.size;
+  };
+  assert.equal(through(() => {}), 1, "a player who stays on the far side meets the monster");
+  // On to the next free tile beyond the doorway, as a walk click made during the crossing takes them.
+  const onward = (subject, from, to) => {
+    const next = [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => new Location(to.getX() + dx, to.getY() + dy, 0))
+      .find((tile) => !tile.equals(from) && !core.RegionManager.blocked(tile, null) && core.RegionManager.canMovestart(to, tile, 1, 1, null));
+    assert.ok(next, "a free tile beyond the doorway");
+    subject.setLocation(next);
+    assert.ok(!subject.getLocation().equals(to));
+  };
+  assert.equal(through(onward), 1, "and so does one who has walked on");
+
+  // A step that never happened (the player pulled back before the doorway) brings nothing.
+  const subject = player();
+  arrive(subject, CHEST_ROOM);
+  const run = getRun(subject);
+  const door = getTunnelMap().doors.find((entry) => run.openDoors.includes(entry.varbit) && entry.varbit !== run.puzzleDoor);
+  subject.setLocation(doorSides(door)[0].clone());
+  processPlayer({ player: subject });
+  useDoor(subject, door);
+  subject.getMovementQueue().reset();
+  for (let i = 0; i < 4; i++) processPlayer({ player: subject });
+  assert.equal(session(subject).npcs.size, 0);
+});
+
+// Upstream issue #4407: "Can't Touch Me" was given whatever the melee brothers did. Wiki: kill Dharok, Verac, Torag and
+// Guthan "without letting them attack the player with melee"; "Using Protect from Melee to block damage will not count."
+test("Barrows: Can't Touch Me needs the four melee brothers killed without one melee attack from them, blocked or not", () => {
+  const completed = (subject) => (subject.tasks ??= []);
+  diaryApi.onCustomEvent("combat-achievements:complete", (event) => completed(event.player).push(event.task));
+  const N = core.NpcIdentifiers;
+  const hit = (type, damage) => ({ getCombatType: () => type, getTotalDamage: () => damage });
+  const brother = (id) => ({ isNpc: () => true, getId: () => id });
+  const lootAfter = (hits) => {
+    const subject = player();
+    subject.isPlayer = () => true;
+    arrive(subject, CHEST_ROOM);
+    Object.assign(subject.getAttribute("barrows"), { killed: [1, 2, 4, 5], kills: 4, points: 400, chestOpen: true });
+    for (const [id, type, damage] of hits) Barrows._test.trackBrotherHit({ attacker: brother(id), target: subject, hit: hit(type, damage) });
+    Barrows._test.searchChest(subject, 1);
+    return completed(subject);
+  };
+  assert.ok(lootAfter([]).includes("Can't Touch Me"), "untouched: the task is done at the chest");
+  assert.ok(!lootAfter([[N.DHAROK_THE_WRETCHED, core.CombatType.MELEE, 30]]).includes("Can't Touch Me"), "Dharok landed a hit");
+  assert.ok(!lootAfter([[N.VERAC_THE_DEFILED, core.CombatType.MELEE, 0]]).includes("Can't Touch Me"), "a blocked or missed swing still counts");
+  // Ahrim and Karil are not part of it, and a crypt monster's hit is nobody's.
+  assert.ok(lootAfter([[N.AHRIM_THE_BLIGHTED, core.CombatType.MAGIC, 20], [N.KARIL_THE_TAINTED, core.CombatType.RANGED, 12],
+    [N.CRYPT_RAT, core.CombatType.MELEE, 3]]).includes("Can't Touch Me"));
+});
+
+// Upstream issue #4407: the chest handed out an elite clue scroll whatever the player held. Wiki (Scroll box (elite)):
+// after X Marks the Spot "scroll boxes are obtained in place of clue scrolls", up to the player's limit.
+test("Barrows: the chest's elite clue is a scroll box once boxes are unlocked, and is left out when no more can be held", (t) => {
+  const I = core.ItemIdentifiers;
+  let boxes = false;
+  let room = true;
+  diaryApi.onCustomEvent("treasure-trails:can-receive", (request) => { if (request.player.clueServices) request.allowed = room; });
+  diaryApi.onCustomEvent("treasure-trails:clue-item", (request) => {
+    if (request.player.clueServices && boxes) Object.assign(request, { box: true, itemId: I.SCROLL_BOX_ELITE_ });
+  });
+  diaryApi.onCustomEvent("treasure-trails:missed-clue", (request) => { request.player.missed = (request.player.missed ?? 0) + 1; });
+  const loot = () => {
+    const subject = player();
+    subject.clueServices = true;
+    arrive(subject, CHEST_ROOM);
+    // No brothers and a low roll: coins, and the 1/200 clue.
+    Object.assign(subject.getAttribute("barrows"), { killed: [], kills: 1, points: 100, chestOpen: true });
+    const random = t.mock.method(Math, "random", () => 0);
+    try { Barrows._test.searchChest(subject, 1); } finally { random.mock.restore(); }
+    const ids = subject.getInventory().getItems().filter((item) => item && item.getId() > 0).map((item) => item.getId());
+    return { ids, missed: subject.missed ?? 0 };
+  };
+  assert.deepEqual(loot(), { ids: [I.COINS, I.CLUE_SCROLL_ELITE_], missed: 0 }, "before X Marks the Spot: the scroll");
+  boxes = true;
+  assert.deepEqual(loot(), { ids: [I.COINS, I.SCROLL_BOX_ELITE_], missed: 0 }, "after it: the box");
+  room = false;
+  assert.deepEqual(loot(), { ids: [I.COINS], missed: 1 }, "at the limit: no clue, and the missed-clue notice is asked for");
+});
+
 // ------------------------------------------------------------------ The strange old lockpick
 // User rsprox captures (revision 242.1): StrangeOldLockpickBarrows.bin ticks 52-68 and
 // BarrowsMiniQuest.bin ticks 543-704; Jagex's Darkmeyer news; the Wiki's Trivia line.
