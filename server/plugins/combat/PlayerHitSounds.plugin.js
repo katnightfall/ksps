@@ -82,6 +82,10 @@ function initialize(coreApi) {
 function playResolvedHitSound({ attacker, target, hit }) {
   if (!target.isPlayer()) return;
   const player = target.getAsPlayer();
+  // Ours (upstream issue #3241): a player's spell that splashes lands nothing on its target, not even a
+  // zero (CombatFactory applies no hitsplat for it), and has the splash's own sound. It used to give the
+  // target the block sound all the same, which was heard as a hit voice on a splash.
+  if (attacker.isPlayer() && hit.getCombatType?.() === core.CombatType.MAGIC && hit.isAccurate?.() === false) return;
   const capturedBody = (attacker.isNpc() || attacker.isPlayer())
     && player.getNpcTransformationId() < 0;
   if (!capturedBody) {

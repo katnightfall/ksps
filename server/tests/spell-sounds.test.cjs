@@ -35,6 +35,21 @@ test("Tele Block is heard: teleportblock_cast as it is cast, teleportblock_impac
   assert.equal(impact(CombatSpells.TELEBLOCK), "teleportblock_impact");
 });
 
+test("the Arceuus spells cast at a target are heard, each with the cache's sounds for it (upstream issue #3241)", () => {
+  const arceuus = {
+    GHOSTLY_GRASP: ["ghostly_grasp_cast_and_fire", "ghostly_grasp_hit"],
+    SKELETAL_GRASP: ["skeleton_grasp_cast_and_fire", "skeleton_grasp_hit"],
+    UNDEAD_GRASP: ["undead_grasp_cast_and_fire", "undead_grasp_hit"],
+    INFERIOR_DEMONBANE: ["inferior_demonbane_cast", "inferior_demonbane_hit"],
+    SUPERIOR_DEMONBANE: ["superior_demonbane_cast", "superior_demonbane_hit"],
+    DARK_DEMONBANE: ["dark_demonbane_cast", "dark_demonbane_hit"],
+    DARK_LURE: ["dark_lure_cast_and_fire", "dark_lure_hit"],
+  };
+  for (const [key, sounds] of Object.entries(arceuus)) {
+    assert.deepEqual([cast(CombatSpells[key]), impact(CombatSpells[key])], sounds, key);
+  }
+});
+
 test("every standard combat spell's sounds are the cache's for that spell", () => {
   const standard = {
     WIND_STRIKE: "windstrike", WATER_STRIKE: "waterstrike", EARTH_STRIKE: "earthstrike", FIRE_STRIKE: "firestrike",

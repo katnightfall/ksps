@@ -288,3 +288,24 @@ test('until the player chooses, Hit sounds follows the body type',t=>{
   female.p.setAttribute('hit-sounds:type',0);
   assert.equal(Plugin.hitSoundsType(female.p),0,'a choice wins over the body type');
 });
+
+// Upstream issue #3241: "player hurt sounds sometimes play even when Magic attacks splash". A player's splash lands
+// nothing on its target (CombatFactory applies no hitsplat for it) and has the splash's own sound; the target was
+// still sent the block sound (511).
+test("a player's spell that splashes sends its target no block sound; a missed melee swing and an NPC's failed cast still do",t=>{
+  const magic={type:()=>c.CombatType.MAGIC,accuracyDefenceType:()=>undefined};
+  const zero=(attacker,target,combatMethod,accurate)=>{
+    const h=new c.PendingHit(attacker,target,combatMethod,{damage:0,rollAccuracy:false,experience:false,handleAfterHitEffects:false});
+    h.isAccurate=()=>accurate;
+    return h;
+  };
+  const pvp=fixture(t,{pvp:true});
+  c.CombatFactory.executeHit(zero(pvp.attacker,pvp.p,magic,false));pvp.tick();
+  assert.deepEqual(pvp.frames,[],'a splash is silent for its target');
+  assert.deepEqual(pvp.spectator.frames,[],'and for the caster');
+  c.CombatFactory.executeHit(zero(pvp.attacker,pvp.p,method,false));pvp.tick();
+  assert.deepEqual(pvp.frames,[legacy(511)],'a melee miss is blocked aloud, as before');
+  const pvm=fixture(t);
+  c.CombatFactory.executeHit(zero(pvm.attacker,pvm.p,magic,false));pvm.tick();
+  assert.deepEqual(pvm.frames,[legacy(511)],"an NPC's failed cast still lands its zero and its block");
+});

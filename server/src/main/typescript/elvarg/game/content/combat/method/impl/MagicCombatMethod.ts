@@ -52,6 +52,11 @@ export class MagicCombatMethod extends CombatMethod {
         // Ours (upstream issue #3584): Tele Block was silent. The cache names its sounds teleportblock_cast and
         // teleportblock_impact (sound gamevals, as the rest of this table is named: <spell>_cast_and_fire, <spell>_hit).
         12445: 202,
+        // Ours (upstream issue #3241): the Arceuus spells cast at a target, other than Undead Grasp, were silent.
+        // The cache names their sounds as it names Undead Grasp's two above (undead_grasp_cast_and_fire,
+        // undead_grasp_hit): ghostly_grasp_cast_and_fire, skeleton_grasp_cast_and_fire,
+        // inferior/superior/dark_demonbane_cast, dark_lure_cast_and_fire.
+        21826: 5042, 21829: 5026, 20398: 5038, 20399: 5027, 20400: 5053, 15303: 5059,
     };
     /** Live plays a spell's cast sound for everyone but the caster as an area sound this far round the caster. */
     public static readonly CAST_SOUND_RADIUS = 10;
@@ -74,6 +79,9 @@ export class MagicCombatMethod extends CombatMethod {
         21876: 4027, 21877: 4029, 21878: 4026, 21879: 4031,
         // Tele Block (see CAST_SOUNDS).
         12445: 203,
+        // The Arceuus spells (see CAST_SOUNDS): ghostly_grasp_hit, skeleton_grasp_hit,
+        // inferior/superior/dark_demonbane_hit, dark_lure_hit.
+        21826: 5029, 21829: 5050, 20398: 5036, 20399: 5060, 20400: 5035, 15303: 5031,
     };
 
     public type(): CombatType {
