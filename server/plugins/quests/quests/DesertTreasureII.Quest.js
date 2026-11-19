@@ -4850,8 +4850,15 @@ module.exports = function registerDesertTreasureII(api) {
     if (s >= S.GUARDIAN) return ["Search the military installation beneath the Digsite."];
     if (s >= S.ROCKS) return ["Mine through the rocks and defeat the Ancient Guardian."];
     if (s >= S.DIG) return ["Find Dr Banikan at the Digsite excavation."];
-    if (s >= S.VAULT) return ["Speak to Asgarnia Smith about the statues and plaque."];
-    if (s >= S.STARTED) return ["Inspect the four statues and plaque in the Ancient Vault."];
+    // Ours (upstream issue #5607): the journal ran one step behind. Once Smith has sent the player to
+    // Terry Balando (S.VAULT) it still said to speak to Smith about the statues, which read as a
+    // stalled quest; Smith's own closing line is "You'll find Terry at the Digsite Exam Centre."
+    if (s >= S.VAULT) return ["Speak to Terry Balando at the Digsite Exam Centre."];
+    if (s >= S.STARTED) {
+      return (Number(player.getAttribute("desert-treasure-ii:statues")) & 31) === 31
+        ? ["Speak to Asgarnia Smith about the statues and plaque."]
+        : ["Inspect the four statues and plaque in the Ancient Vault."];
+    }
     return ["I can start this quest by investigating the <col=800000>Ancient Vault</col> north-east of <col=800000>Nardah</col>."];
   }
 
