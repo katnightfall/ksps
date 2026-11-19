@@ -1318,6 +1318,8 @@ module.exports = function registerMonkeyMadnessIQuest(api) {
     event.after = () => placeInCage(player, from);
   }
 
+  const TRAVEL_LAST_LINE = "As you wish.";
+
   function handleLine(event) {
     exchanges.line(event);
     const { player, npcId, text } = event;
@@ -1361,25 +1363,32 @@ module.exports = function registerMonkeyMadnessIQuest(api) {
       setDaeroState(player, 7);
       return;
     }
-    // Waydar's "Yes, let's go." flies the player to Crash Island from the hangar,
-    // and Waydar on Crash Island offers the return to the stronghold.
-    if (WAYDAR_IDS.has(npcId) && text === "Yes, let's go.") {
-      if (inHangar(player)) {
-        if (stageOf(player) < STAGE_CRASH_ISLAND) setStage(player, STAGE_CRASH_ISLAND);
-        player.moveTo(CRASH_ISLAND_LANDING);
-      } else if (onCrashIsland(player)) {
-        player.moveTo(STRONGHOLD_LANDING);
-      }
+    // Waydar's "As you wish." (his answer to "Yes, let's go.", the last line of both travel talks) flies the
+    // player to Crash Island from the hangar, and from Crash Island back to the stronghold.
+    // Ours (upstream issue #4101): once that line has been read. A line's event comes when the lines after a
+    // choice are laid out, before any of them is shown, so moving the player here put them on Crash Island
+    // while "Yes, let's go." was still on screen; `after` runs when the player continues past the line.
+    if (WAYDAR_IDS.has(npcId) && text === TRAVEL_LAST_LINE) {
+      event.after = () => {
+        if (inHangar(player)) {
+          if (stageOf(player) < STAGE_CRASH_ISLAND) setStage(player, STAGE_CRASH_ISLAND);
+          player.moveTo(CRASH_ISLAND_LANDING);
+        } else if (onCrashIsland(player)) {
+          player.moveTo(STRONGHOLD_LANDING);
+        }
+      };
       return;
     }
-    // Lumdo's "As you wish." rows the boat to whichever island the player is not on.
-    if (LUMDO_IDS.has(npcId) && text === "As you wish.") {
-      if (onCrashIsland(player)) {
-        if (stageOf(player) < STAGE_ATOLL) setStage(player, STAGE_ATOLL);
-        player.moveTo(ATOLL_LANDING);
-      } else {
-        player.moveTo(CRASH_ISLAND_LANDING);
-      }
+    // Lumdo's "As you wish." rows the boat to whichever island the player is not on, likewise once it is read.
+    if (LUMDO_IDS.has(npcId) && text === TRAVEL_LAST_LINE) {
+      event.after = () => {
+        if (onCrashIsland(player)) {
+          if (stageOf(player) < STAGE_ATOLL) setStage(player, STAGE_ATOLL);
+          player.moveTo(ATOLL_LANDING);
+        } else {
+          player.moveTo(CRASH_ISLAND_LANDING);
+        }
+      };
       return;
     }
   }
@@ -2057,6 +2066,8 @@ module.exports = function registerMonkeyMadnessIQuest(api) {
     startTranscript(api, player, CRATE_CHATHEAD_ID, PAGE, "chapter-1-the-underground-hangar-upon-solving-the-puzzle");
   }
   const puzzle = require("./Puzzle.MonkeyMadnessI")(api, { onSolved: puzzleSolved, isActive: player => stageOf(player) < STAGE_REINITIALISED });
+  // Ours (upstream issue #4101): the Jungle Demon casts its waves from a distance and swings within two tiles.
+  require("./JungleDemon.MonkeyMadnessI")(api, { npcId: JUNGLE_DEMON_NPC_ID });
 
   api.onNpcDialogueVariant(selectVariant);
   api.onNpcDialogueCondition(answerCondition);

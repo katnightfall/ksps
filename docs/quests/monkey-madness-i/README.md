@@ -25,6 +25,21 @@ been played in a client.
 
 Newest first. Nothing is filed as an issue yet; the fixes are in this branch's PR and #1645.
 
+- **fixed (tests, not played in a client)** Upstream issue #4101, in our copy:
+  - The Jungle Demon only ever swung in melee (the engine takes one style from the monster data's
+    "slash, magic"). It now casts the four wave spells in turn from a distance (maximum 32) and swings
+    within two tiles, as the Wiki's Jungle Demon page describes
+    (`server/plugins/quests/quests/JungleDemon.MonkeyMadnessI.js`,
+    `server/tests/monkey-madness-jungle-demon-attacks.test.cjs`). The order of the waves is ours; the
+    10th Squad still does not fight.
+  - Waydar's flight and Lumdo's boat moved the player as the lines after the choice were laid out,
+    so the player was on Crash Island while "Yes, let's go." was still showing. Both now follow
+    their last line, "As you wish." (`server/tests/monkey-madness-travel-after-last-line.test.cjs`).
+  - The Bamboo Gate's two watchtower ladders (4775/4777 west, 4774/4776 east) put the player on
+    plane 1 in mid-air, from where the sea could be walked. Their pairs are declared in
+    `server/plugins/objects/data/climb-links.json`: ground to the platform on plane 2 and back
+    (`server/tests/ape-atoll-gate-watchtower-ladders.test.cjs`).
+
 - **fixed** The hangar Teleportation Device (4868-4870, Operate) did nothing. It is the hangar's
   exit (wiki): it now lands the player south of the Gnome Ball field at 2393,3466.
 - **fixed** A human could not leave Marim except by the gate or a teleport: the south-east Bamboo

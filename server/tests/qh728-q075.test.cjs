@@ -279,6 +279,10 @@ test('Monkey Madness I: stage 0 route reaches completion and grants the reward o
   assert.equal(p.varbits.get(123), 7);
   assert.equal(h.variant(p, N.WAYDAR).variant, 'chapter-1-speaking-to-waydar-after-solving-the-puzzle-travelling-with-waydar');
   h.line(p, N.WAYDAR, "Yes, let's go.");
+  // The flight follows Waydar's answer, once the player continues past it (upstream issue #4101).
+  const flight = h.line(p, N.WAYDAR, 'As you wish.');
+  assert.notEqual(p.getLocation().getX(), 2892, 'showing the line has not flown the player yet');
+  flight.after();
   assert.equal(h.quest.getStage(p), STAGE.crash);
   assert.equal(p.getLocation().getX(), 2892);
 
@@ -290,7 +294,7 @@ test('Monkey Madness I: stage 0 route reaches completion and grants the reward o
   assert.equal(h.quest.getStage(p), STAGE.atoll);
   assert.equal(p.configs.get(MM_MAIN), 3, 'Quest Helper keys chapter 2 on mm_main 3');
   assert.equal(h.variant(p, N.LUMDO_3).variant, 'chapter-2-talking-to-lumbo-on-crash-island');
-  h.line(p, N.LUMDO_3, 'As you wish.');
+  h.line(p, N.LUMDO_3, 'As you wish.').after();
   assert.equal(p.getLocation().getX(), 2803);
 
   // The west valley jails a human; the cell door opens by picking its lock.

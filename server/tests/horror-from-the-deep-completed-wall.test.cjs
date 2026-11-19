@@ -56,8 +56,8 @@ function playerFixture() {
     : () => sender });
   player.getPacketSender = () => sender;
   player.sendMessage = (message) => messages.push(message);
-  // West of the far wall (4545 at 2516,10003), in the strange-wall room.
-  player.setLocation(new core.Location(2515, 10003, 0));
+  // In the basement, on the tile south of the wall's eastern half (4545, a wall on the south edge of 2516,10003).
+  player.setLocation(new core.Location(2516, 10002, 0));
   return { player, varbits, messages };
 }
 
@@ -80,7 +80,7 @@ test("a quest pack's completion opens the strange wall and sends the completed v
   assert.equal(event.handled, true);
   assert.ok(!messages.includes("You cannot see any way to move this part of the wall..."));
   assert.ok(messages.includes("You pass through the opening in the strange wall."));
-  assert.equal(player.getLocation().getX(), 2517, "crosses to the far side");
+  assert.deepEqual([player.getLocation().getX(), player.getLocation().getY()], [2516, 10003], "crosses to the far side");
 });
 
 test("a save completed before the fix opens the wall and replays the varbits on login", () => {
@@ -101,7 +101,7 @@ test("an unfinished quest still keeps the wall shut until all six offerings are 
   assert.equal(varbits.get(35), 0);
   clickFarWall(player);
   assert.ok(messages.includes("You cannot see any way to move this part of the wall..."));
-  assert.equal(player.getLocation().getX(), 2515);
+  assert.deepEqual([player.getLocation().getX(), player.getLocation().getY()], [2516, 10002]);
 });
 
 test("unlocking the lighthouse front door sends horrorlighthouseentrance (39)", () => {

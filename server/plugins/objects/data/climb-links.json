@@ -2,6 +2,16 @@
   "$comment": "Endpoints verified from cache osrs-241_2026-10-20 placements and climb actions; the Lady Lumbridge landing is from a revision 242 capture. The Wizards' Tower surface and basement are 6414 tiles apart, beyond the generic 6400-tile underground search. Each pair's up object offers Climb-up; down offers Climb-down.",
   "pairs": [
     {
+      "name": "Ape Atoll, the Bamboo Gate's west watchtower (upstream issue #4101). Cache: the ladder runs from the ground (4775, Climb-up) to the platform on plane 2 (4777, Climb-down); the piece of it on plane 1 (4775 again, Climb-up) stands inside the tower's legs with no floor round it, so the search for a ladder one plane up found nothing and the climb put the player on plane 1 in mid-air",
+      "up": { "id": 4775, "x": 2713, "y": 2766, "z": 0 },
+      "down": { "id": 4777, "x": 2713, "y": 2766, "z": 2 }
+    },
+    {
+      "name": "Ape Atoll, the Bamboo Gate's east watchtower (as the west one: 4774 on the ground, 4776 on plane 2)",
+      "up": { "id": 4774, "x": 2729, "y": 2766, "z": 0 },
+      "down": { "id": 4776, "x": 2729, "y": 2766, "z": 2 }
+    },
+    {
       "name": "Lady Lumbridge's hold ladder, Port Sarim (Dragon Slayer I capture 20261106T101002 tick 2917: down from 3049,3208,1 lands on 3048,9640,1 in the hold, 6432 tiles north)",
       "up": { "id": 2592, "x": 3049, "y": 9640, "z": 1 },
       "down": { "id": 2590, "x": 3049, "y": 3208, "z": 1 },

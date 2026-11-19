@@ -109,6 +109,7 @@ module.exports = function registerHorrorFromTheDeepQuest(api) {
   // front of it is one south, inside the room.
   const LIGHTHOUSE_LANDING = new Location(2508, 3643, 0);
   const FOYER_LANDING = new Location(2515, 10005, 0);
+  const STRANGE_WALL_OUTSIDE = new Location(2516, 10002, 0);
   const DUNGEON_LANDING = new Location(2515, 4632, 0);
 
   const BRIDGE_NAILS = 30;
@@ -638,8 +639,10 @@ module.exports = function registerHorrorFromTheDeepQuest(api) {
       if (quest.getStage(owner) >= STAGE_DEFEATED_DAGANNOTH && !quest.isComplete(owner)) {
         quest.complete(owner);
         // Transcript: "(The player is teleported to outside the strange wall.)", then the player and Jossik's lines.
-        // No recording gives the tile: the one west of the far strange wall (4545 at 2516,3627), where it is entered from.
-        owner.moveTo(new Location(2514, 3627, 0));
+        // Ours (upstream issue #5229): the strange wall is in the basement (4545 at 2516,10003, on that tile's
+        // south edge); 2514,3627 was a tile on the surface south of the lighthouse. No recording gives the
+        // exact tile: this is the one the wall's eastern door is opened from, on the basement side.
+        owner.moveTo(STRANGE_WALL_OUTSIDE);
         // The variant's first two steps are the completion and the teleport, done here; the rest is the spoken lines.
         require("../QuestRuntime").startTranscript(api, owner, JOSSIK_DUNGEON_ID, PAGE, MOTHER_KILLED_VARIANT,
           (steps) => steps.filter((step) => step.type !== "action"));
@@ -757,10 +760,13 @@ module.exports = function registerHorrorFromTheDeepQuest(api) {
     }
     const from = player.getLocation();
     const wall = event.location;
-    const stepX = Math.sign(wall.x - from.getX());
-    const stepY = Math.sign(wall.y - from.getY());
     event.handled = true;
-    player.moveTo(new Location(wall.x + stepX, wall.y + stepY, from.getZ()));
+    // Ours (upstream issue #5229): the wall stands on the south edge of its own tile (cache: shape 0,
+    // rotation 3, in both copies of the map), so the room behind it is reached from the wall's tile and
+    // the basement from the tile south of it. Stepping "away from where the player stands" left a player
+    // coming back from the cave on the wall's tile, where they already stood: there was no way out.
+    const toBasement = from.getY() >= wall.y;
+    player.moveTo(new Location(wall.x, toBasement ? wall.y - 1 : wall.y, from.getZ()));
     player.sendMessage("You pass through the opening in the strange wall.");
   }
 
@@ -971,5 +977,6 @@ module.exports = function registerHorrorFromTheDeepQuest(api) {
     vetoLighthouseJossik,
     JOSSIK_LIGHTHOUSE,
     LIGHTHOUSE_LANDING,
+    STRANGE_WALL_OUTSIDE,
   };
 };

@@ -66,9 +66,9 @@
  *    lunar bars are smithed on any anvil with a hammer, no Smithing interface.
  *  - Suqah leather is crafted through a chatbox menu with a needle; thread is not
  *    consumed. Hides/tiara/tooth still come from the existing Suqah drop table.
- *  - The Pirate's Cove jinx symbols can be rubbed from any cannon/wallchart/chest/
- *    support/crate on either ship deck, one symbol per object; the wiki's exact
- *    five tiles are not enforced.
+ *  - The five jinx symbols are the five map objects the cache gives a symbol state
+ *    (SYMBOL_SPOTS): one cannon, one wallchart, one chest, one crate and one support
+ *    on the galleon at Pirates' Cove, the ones the wiki describes.
  *  - The "no Seal of Passage" teleport-off-Lunar-Isle rule, the boat cutscenes and
  *    the town-entry cutscene are not played. The Astral Altar's permission
  *    refusals and its post-quest Lunar/Standard spellbook toggle are handled.
@@ -114,7 +114,6 @@ module.exports = function registerLunarDiplomacyQuest(api) {
   // ==========================================================================
 
   const VARBIT_STAGE = 2448; // lunar_quest_main, varp 823 bits 0-19
-  const SYMBOL_VARBITS = [2431, 2432, 2433, 2434, 2435]; // lunar_quest_symbolpres1-5
   const VARBIT_GIVEN_HELM = 2436;
   const VARBIT_GIVEN_CAPE = 2437;
   const VARBIT_GIVEN_AMULET = 2438;
@@ -344,16 +343,30 @@ module.exports = function registerLunarDiplomacyQuest(api) {
   const WATER_ALTAR = ObjectIdentifiers.ALTAR_35;
   const EARTH_ALTAR = ObjectIdentifiers.ALTAR_36;
   const FIRE_ALTAR = ObjectIdentifiers.ALTAR_37;
-  const CANNON_IDS = new Set([ObjectIdentifiers.CANNON_9, ObjectIdentifiers.CANNON_10]); // 16938/16939
-  const SUPPORT_ID = ObjectIdentifiers.SUPPORT; // 16941
-  const WALLCHART_ID = ObjectIdentifiers.WALLCHART; // 16975
-  const CHEST_ID = ObjectIdentifiers.CHEST_62; // 16891
-  const CRATE_IDS = new Set([
-    ObjectIdentifiers.CRATE_144, // 16862
-    ObjectIdentifiers.CRATE_145, // 16863
-    ObjectIdentifiers.CRATE_147, // 16865
+  // Ours (upstream issue #5162): the symbols are not on "any cannon, wallchart, chest, support or crate" (five
+  // cannons used to find all five). The cache places five objects of their own on the galleon at Pirates' Cove,
+  // each switched by one of lunar_quest_symbolpres1-5 (0 the plain object, 1 the same object with the symbol
+  // showing, 2 plain again), each placed once in the whole map: support 15587 at 2224,3793,0 (lowest deck),
+  // cannon 17015 at 2227,3785,3 (top deck, by the cabin boy), crate 17016 at 2226,3790,0, wallchart 17017 at
+  // 2222,3790,2 (the captain's deck) and chest 17018 at 2223,3811,0. These are the wiki's five.
+  const SYMBOL_SPOTS = [
+    { key: "support", objectId: 15587, varbit: 2431 },
+    { key: "cannon", objectId: 17015, varbit: 2432 },
+    { key: "crate", objectId: 17016, varbit: 2433 },
+    { key: "wallchart", objectId: 17017, varbit: 2434 },
+    { key: "chest", objectId: 17018, varbit: 2435 },
+  ];
+  const SYMBOL_HIDDEN = 0;
+  const SYMBOL_SHOWING = 1;
+  const SYMBOL_RUBBED_OUT = 2;
+  // What a save from before that change recorded: "<object id>@<x>,<y>" of whichever scenery was used.
+  const LEGACY_SYMBOL_KINDS = new Map([
+    [ObjectIdentifiers.CANNON_9, "cannon"], [ObjectIdentifiers.CANNON_10, "cannon"], // 16938/16939
+    [ObjectIdentifiers.SUPPORT, "support"], // 16941
+    [ObjectIdentifiers.WALLCHART, "wallchart"], // 16975
+    [ObjectIdentifiers.CHEST_62, "chest"], // 16891
+    [ObjectIdentifiers.CRATE_144, "crate"], [ObjectIdentifiers.CRATE_145, "crate"], [ObjectIdentifiers.CRATE_147, "crate"],
   ]);
-  const SYMBOL_OBJECT_IDS = new Set([...CANNON_IDS, SUPPORT_ID, WALLCHART_ID, CHEST_ID, ...CRATE_IDS]);
 
   const RELLEKKA_DOCK = new Location(2620, 3693, 0);
   const PIRATES_COVE_DOCKS = new Location(2213, 3795, 0);
@@ -371,6 +384,8 @@ module.exports = function registerLunarDiplomacyQuest(api) {
   // rows only cover z1<->z2, so the quest claims these two ids.
   const SHIP_STAIRS_BOTTOM = ObjectIdentifiers.STAIRS_62; // 16945, deck -> forecastle
   const SHIP_STAIRS_TOP = ObjectIdentifiers.STAIRS_64; // 16947, forecastle -> deck
+  const SHIP_STAIRS_UP = new Set([SHIP_STAIRS_BOTTOM, ObjectIdentifiers.STAIRS_63]); // 16945, 16946 (hold -> lower deck)
+  const SHIP_STAIRS_DOWN = new Set([SHIP_STAIRS_TOP, ObjectIdentifiers.STAIRS_65]); // 16947, 16948 (lower deck -> hold)
   // Land on the side the pairing stair leaves open before the far edges: on the cove
   // galleon the down stair sits one tile south of the up stair, so the forecastle
   // landing is two tiles south ([0,-2]); the tile north ([0,1]) is a shelf the walls
@@ -621,9 +636,30 @@ module.exports = function registerLunarDiplomacyQuest(api) {
     return pages.some((entry) => entry.page === PAGE);
   }
 
+  /**
+   * The symbols rubbed out so far, as SYMBOL_SPOTS keys. An older save lists the scenery it used instead, several
+   * of one kind included: each still counts as one symbol found (the stage was counted from them), the first of a
+   * kind as that kind's symbol and the rest as the first symbols not yet found.
+   */
   function symbolList(player) {
     const raw = player.getAttribute(SYMBOLS_ATTRIBUTE);
-    return Array.isArray(raw) ? raw : [];
+    if (!Array.isArray(raw)) return [];
+    const found = [];
+    let spare = 0;
+    for (const entry of raw) {
+      const key = SYMBOL_SPOTS.some((spot) => spot.key === entry)
+        ? entry
+        : LEGACY_SYMBOL_KINDS.get(Number.parseInt(String(entry), 10));
+      if (key && !found.includes(key)) found.push(key);
+      else spare++;
+    }
+    for (const spot of SYMBOL_SPOTS) {
+      if (spare <= 0) break;
+      if (found.includes(spot.key)) continue;
+      found.push(spot.key);
+      spare--;
+    }
+    return found;
   }
 
   function setSymbolList(player, list) {
@@ -631,7 +667,17 @@ module.exports = function registerLunarDiplomacyQuest(api) {
   }
 
   function symbolCount(player) {
-    return Math.min(5, symbolList(player).length);
+    return symbolList(player).length;
+  }
+
+  function sendSymbolVarbits(player) {
+    const sender = player.getPacketSender();
+    const found = symbolList(player);
+    const showing = player.getAttribute(PENDING_SYMBOL_ATTRIBUTE);
+    for (const spot of SYMBOL_SPOTS) {
+      sender.sendVarbit(spot.varbit, found.includes(spot.key) ? SYMBOL_RUBBED_OUT
+        : spot.key === showing ? SYMBOL_SHOWING : SYMBOL_HIDDEN);
+    }
   }
 
   function oneiroGiven(player) {
@@ -745,8 +791,7 @@ module.exports = function registerLunarDiplomacyQuest(api) {
 
   function syncVarbits(player) {
     const sender = player.getPacketSender();
-    const count = symbolCount(player);
-    SYMBOL_VARBITS.forEach((varbit, index) => sender.sendVarbit(varbit, index < count ? 2 : 0));
+    sendSymbolVarbits(player);
     const state = challenges(player);
     for (const [key, varbit] of Object.entries(CHALLENGE_VARBITS)) {
       if (key === "number") sender.sendVarbit(varbit, state[key].done ? 6 : 0);
@@ -1894,12 +1939,21 @@ module.exports = function registerLunarDiplomacyQuest(api) {
     player.setAttribute(PENDING_SYMBOL_ATTRIBUTE, null);
     if (typeof key !== "string") return;
     const list = symbolList(player);
-    if (list.includes(key)) return;
+    if (list.includes(key) || !SYMBOL_SPOTS.some((spot) => spot.key === key)) return;
     list.push(key);
     setSymbolList(player, list);
-    const count = Math.min(5, list.length);
-    player.getPacketSender().sendVarbit(SYMBOL_VARBITS[count - 1], 2);
-    setStage(player, STAGE_SYMBOLS + 2 * count);
+    sendSymbolVarbits(player);
+    setStage(player, STAGE_SYMBOLS + 2 * list.length);
+  }
+
+  /** "Rub out symbol?" answered "I'm no cleaner!": the symbol that briefly showed is hidden again. */
+  function handleSymbolChoice(event) {
+    if (!pageGuard(event)) return;
+    const { player } = event;
+    if (event.prompt !== "Rub out symbol?" || event.option === "Rub away!") return;
+    if (player.getAttribute(PENDING_SYMBOL_ATTRIBUTE) == null) return;
+    player.setAttribute(PENDING_SYMBOL_ATTRIBUTE, null);
+    sendSymbolVarbits(player);
   }
 
   function handleHook(event) {
@@ -2192,12 +2246,7 @@ module.exports = function registerLunarDiplomacyQuest(api) {
       if (!stageBetween(player, STAGE_STAFF_GIVEN, STAGE_KINDLING)) {
         return reject(player, "You have no reason to dig up the Moon Clan's flowers.");
       }
-      if (held(player, LUNAR_RING) || oneiroGiven(player).ring) {
-        return reject(player, "You already have the lunar ring.");
-      }
-      if (!hasFreeSlots(player)) return reject(player, "You need a free inventory space for the lunar ring.");
-      startTranscript(api, player, SELENE_ID, PAGE, "obtaining-the-lunar-clothing-digging-up-the-lunar-ring");
-      player.getInventory().adds(LUNAR_RING, 1);
+      digUpRing(player);
       return;
     }
 
@@ -2270,14 +2319,46 @@ module.exports = function registerLunarDiplomacyQuest(api) {
       }
     }
 
-    if (itemId === EMERALD_LANTERN_LIT && SYMBOL_OBJECT_IDS.has(objectId) && inShipBox(event.location)) {
+    const symbol = itemId === EMERALD_LANTERN_LIT
+      ? SYMBOL_SPOTS.find((spot) => spot.objectId === event.objectId || spot.objectId === event.object?.getId?.())
+      : null;
+    if (symbol && inShipBox(event.location)) {
       if (stageOf(player) < STAGE_SYMBOLS || stageOf(player) >= STAGE_LUNAR_ISLE) return;
-      const key = `${objectId}@${event.location.x},${event.location.y}`;
-      if (symbolList(player).includes(key)) return;
+      if (symbolList(player).includes(symbol.key)) return;
       event.handled = true;
-      player.setAttribute(PENDING_SYMBOL_ATTRIBUTE, key);
+      // "A symbol briefly appears on the scenery": the object's own symbol state, until it is rubbed out or left.
+      player.setAttribute(PENDING_SYMBOL_ATTRIBUTE, symbol.key);
+      sendSymbolVarbits(player);
       startTranscript(api, player, NpcIdentifiers.CABIN_BOY, PAGE, "pirates-cove-using-the-emerald-lantern-on-the-ship-s-scenery-if-the-scenery-has-a-symbol");
     }
+  }
+
+  function digUpRing(player) {
+    if (held(player, LUNAR_RING) || oneiroGiven(player).ring) {
+      return reject(player, "You already have the lunar ring.");
+    }
+    // The transcript's own two endings: no room ("There appears to be something in the dirt, but you have no
+    // space to hold it.") or "You've found a lunar ring!".
+    const room = hasFreeSlots(player);
+    startTranscript(api, player, SELENE_ID, PAGE, "obtaining-the-lunar-clothing-digging-up-the-lunar-ring");
+    if (room) player.getInventory().adds(LUNAR_RING, 1);
+    return room;
+  }
+
+  /**
+   * Ours (upstream issue #5162): the ring is dug up with the spade's own Dig, standing at the blue flowers at the
+   * island's south-west corner (the wiki's "dig on the blue flowers"; the cache's Flowers 1196 at 2090,3877). Only
+   * the spade used on the flowers was wired, so Dig answered "Nothing interesting happens." and the ring looked
+   * unobtainable. On the flowers' tile or one beside it; elsewhere, and outside this step of the quest, the click
+   * is left to whatever else digs there.
+   */
+  function digForRing(event) {
+    const { player } = event;
+    const at = player.getLocation();
+    if (coordZ(at) !== 0 || !nearTile(at, RING_TILE, 1)) return false;
+    if (!stageBetween(player, STAGE_STAFF_GIVEN, STAGE_KINDLING)) return false;
+    digUpRing(player);
+    return true;
   }
 
   function altarStaffResult(objectId, itemId) {
@@ -2336,7 +2417,22 @@ module.exports = function registerLunarDiplomacyQuest(api) {
       objectId === SHIP_STAIRS_BOTTOM && fromZ === 2 ? 3
         : objectId === SHIP_STAIRS_TOP && fromZ === 3 ? 2
           : null;
-    if (targetZ === null) return;
+    if (targetZ === null) {
+      // Ours (upstream issue #5162): the ship's other stairs have one "Climb" option too, and only the ones a
+      // recording covers (loc-teleports.json) were wired: the rest asked "Which way would you like to climb?".
+      // Each stair goes one way only (16945/16946 up, 16947/16948 down, as the recorded ones do), so say which
+      // and let Ladders find the stair at the other end and a tile beside it.
+      const direction = SHIP_STAIRS_UP.has(objectId) ? "ladders:climbUp" : SHIP_STAIRS_DOWN.has(objectId) ? "ladders:climbDown" : null;
+      if (!direction || !object) return;
+      request.handled = true;
+      api.emitCustomEvent(direction, {
+        player: request.player,
+        object,
+        definition: object.getDefinition?.(),
+        location: { x: coordX(location), y: coordY(location), z: fromZ },
+      });
+      return;
+    }
     const destination = stairLanding(coordX(location), coordY(location), targetZ);
     if (!destination) return;
     request.handled = true;
@@ -2594,6 +2690,8 @@ module.exports = function registerLunarDiplomacyQuest(api) {
   // ==========================================================================
 
   function handleLogin({ player }) {
+    // A symbol left showing by a conversation the logout cut short is hidden again.
+    if (player.getAttribute(PENDING_SYMBOL_ATTRIBUTE) != null) player.setAttribute(PENDING_SYMBOL_ATTRIBUTE, null);
     syncVarbits(player);
     reconcileDreamNpcs(player);
     ensureJack(player);
@@ -2680,6 +2778,7 @@ module.exports = function registerLunarDiplomacyQuest(api) {
 
   api.onNpcDialogueVariant(selectVariant);
   api.onNpcDialogueCondition(answerCondition);
+  api.onCustomEvent("npc-dialogue:choice", handleSymbolChoice);
   api.onNpcInteraction(talkToBrundt);
   api.onCustomEvent("npc-dialogue:condition", handleCondition);
   api.onCustomEvent("npc-dialogue:choice", handleChoice);
@@ -2690,6 +2789,7 @@ module.exports = function registerLunarDiplomacyQuest(api) {
   api.onObjectRoute(routeShipStairs);
   api.onItemOnItem(handleItemOnItem, { noted: false });
   api.onItemOnObject(handleItemOnObject, { noted: false });
+  api.onItemAction("Spade", { Dig: digForRing });
   api.onObjectInteraction("Stalagmite", { Mine: mineStalagmite });
   api.onObjectInteraction("Stalagmites", { Mine: mineStalagmite });
   api.onObjectInteraction("My life", { Read: readMyLife });
