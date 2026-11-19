@@ -33,8 +33,15 @@ class UpstreamClanTest {
     }
 
     @Test
-    fun `a clan tsps has no chat for is dropped, not sent`() {
+    fun `a Group Ironman group's line goes to tsps on clan type 1`() {
         upstream.handle(chat(type = 3, clanType = 1))
+        assertArrayEquals(clanChat(1), sent.single())
+    }
+
+    @Test
+    fun `a clan tsps has no chat for is dropped, not sent`() {
+        // 2 is a PvP Arena group.
+        upstream.handle(chat(type = 3, clanType = 2))
         assertTrue(sent.isEmpty())
     }
 
