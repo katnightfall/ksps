@@ -53,6 +53,11 @@
  *    in a copy stays dead until the next copy.
  *  - Entrance landing tiles are chosen from open collision tiles near the real
  *    portals; the boss rooms' entrances land in front of each Moon's statue.
+ *    Which entrance leads where follows the OSRS Wiki's Neypotzli map.
+ *  - The builders wait on the bridge until the player is inside Cam Torum
+ *    (the cache's stages for them); the guard who comes out of the gate, the
+ *    builders carrying their plank through the city and the citizens' remarks
+ *    there are not staged (no recording of where and when).
  *  - The Eclipse meeting uses the captured camera track and ends on the recorded
  *    28->29 stage boundary; Eyatlalli's meeting/ritual lines send the captured
  *    camera shakes, and entering Neypotzli uses the captured fade/camera pull.
@@ -129,6 +134,18 @@ module.exports = function registerPerilousMoonsQuest(api) {
   const NAHTA_NPC_ID = NpcIdentifiers.NAHTA; // 13036, static magic shop spawn
   const BLACKSMITH_NPC_ID = NpcIdentifiers.BLACKSMITH_2; // 13038, static forge spawn
   const SULPHUR_NAGUA_NPC_ID = NpcIdentifiers.SULPHUR_NAGUA; // 12879, combat 98
+  // Ours (upstream issue #5161): the builders kept waiting on the bridge. The cache's
+  // pmoon_digsite_workers_plank shows Builder 12876 while pmoon_quest is 0-5 and nothing after.
+  const SURFACE_BUILDERS_RAW_NPC_ID = 12871;
+  // Ours (upstream issue #5161): the transcript's "Guard", "Builder 1" and "Builder 2" lines name no
+  // NPC, so they were drawn with no head (or another world's guard). The cache's own heads for them:
+  // pmoon_quest_guard_vis, and the two pmoon_builder*_chathead_spoof NPCs (Builder 12876/12877 has no head).
+  const SPEAKER_HEAD_NPC_IDS = new Map([
+    ["Guard", NpcIdentifiers.GUARD_224], // 12881
+    ["Builder 1", NpcIdentifiers.BUILDER_5], // 12872
+    ["Builder 2", NpcIdentifiers.BUILDER_6], // 12873
+  ]);
+  const HEAD_PAGES = new Set(["Perilous Moons", "Builder (Perilous Moons)"]);
 
   // Objects (ObjectIdentifiers; 62193 is unnamed in the identifier file).
   // pmoon_camp_supplies_1..3: the antechamber's Building Supplies, each with Take-from.
@@ -241,6 +258,7 @@ module.exports = function registerPerilousMoonsQuest(api) {
   // Tiles.
   const SURFACE_ATTALA_TILE = { x: 1435, y: 3124, z: 0 };
   const SURFACE_ZUMA_TILE = { x: 1437, y: 3124, z: 0 };
+  const SURFACE_BUILDERS_TILE = { x: 1436, y: 3122, z: 0 }; // OSRS Wiki "Builder (Perilous Moons)", before the quest
   const CITY_JESSAMINE_TILE = { x: 1441, y: 9596, z: 1 };
   const NEY_ATTALA_TILE = { x: 1433, y: 9632, z: 1 };
   const NEY_ZUMA_TILE = { x: 1447, y: 9632, z: 1 };
@@ -257,8 +275,22 @@ module.exports = function registerPerilousMoonsQuest(api) {
   const PRISON_LANDING = { x: 1388, y: 9575, z: 0 };
   const EARTHBOUND_LANDING = { x: 1403, y: 9717, z: 0 };
   const STREAMBOUND_LANDING = { x: 1481, y: 9669, z: 0 };
-  const CAVE_TO_ANTECHAMBER_LANDING = { x: 1522, y: 9719, z: 0 };
-  const CAVE_TO_EARTHBOUND_LANDING = { x: 1522, y: 9719, z: 0 };
+  const CAVE_TO_STREAMBOUND_LANDING = { x: 1522, y: 9719, z: 0 };
+  // Ours (upstream issue #5161). The OSRS Wiki's Neypotzli map joins the Earthbound Cavern's cave
+  // (1389,9674) to the Streambound Cavern's (1521,9720), and the Earthbound Cavern's south entrance
+  // (1373,9664) to the Ancient Prison's north-west one (1345,9590). The Streambound cave used to land
+  // beside itself and the other pair did nothing. The Earthbound and prison tiles are the ones The
+  // Final Dawn's capture 3128 landed on through the same two entrances; the tile north of the
+  // Earthbound south entrance is not captured: it is the open tile in front of that entrance.
+  const CAVE_TO_EARTHBOUND_LANDING = { x: 1390, y: 9676, z: 0 };
+  const PRISON_NORTH_WEST_LANDING = { x: 1347, y: 9590, z: 0 };
+  const EARTHBOUND_SOUTH_LANDING = { x: 1374, y: 9667, z: 0 };
+  // Ours (upstream issue #5161): a cavern's way back to the antechamber came out at the Cam Torum
+  // door whichever cavern it was. Each now comes out in front of the antechamber entrance that
+  // leads to that cavern (the open tile diagonally inside it; no capture shows these three).
+  const ANTECHAMBER_FROM_PRISON = { x: 1423, y: 9615, z: 1 }; // south-west entrance 1421,9613
+  const ANTECHAMBER_FROM_EARTHBOUND = { x: 1423, y: 9649, z: 1 }; // north-west entrance 1421,9650
+  const ANTECHAMBER_FROM_STREAMBOUND = { x: 1457, y: 9649, z: 1 }; // north-east entrance 1458,9650
   // Captured arena-side landings (the old values were outside the arenas).
   const BLUE_ROOM_LANDING = { x: 1441, y: 9676, z: 0 };
   const BLOOD_ROOM_LANDING = { x: 1418, y: 9632, z: 0 };
@@ -845,6 +877,7 @@ module.exports = function registerPerilousMoonsQuest(api) {
       wanted.add("surface-attala");
       wanted.add("surface-zuma");
     }
+    if (stage < STAGE_IN_CITY) wanted.add("surface-builders");
     if (stage === STAGE_CITY_OPEN || stage === STAGE_IN_CITY) wanted.add("city-jessamine");
     if (stage >= STAGE_IN_NEY) {
       wanted.add("ney-attala");
@@ -861,6 +894,9 @@ module.exports = function registerPerilousMoonsQuest(api) {
     }
     if (wanted.has("surface-zuma")) {
       spawnTracked(player, "surface-zuma", { id: ZUMA_SURFACE_RAW_NPC_ID, ...SURFACE_ZUMA_TILE, wanderRadius: 0 });
+    }
+    if (wanted.has("surface-builders")) {
+      spawnTracked(player, "surface-builders", { id: SURFACE_BUILDERS_RAW_NPC_ID, ...SURFACE_BUILDERS_TILE, wanderRadius: 0 });
     }
     if (wanted.has("city-jessamine")) {
       spawnTracked(player, "city-jessamine", { id: JESSAMINE_CITY_NPC_ID, ...CITY_JESSAMINE_TILE, wanderRadius: 0 });
@@ -1265,6 +1301,11 @@ module.exports = function registerPerilousMoonsQuest(api) {
   const DIALOGUE_NPC_IDS = new Set([...ATTALA_NPC_IDS, ...ZUMA_NPC_IDS, ...JESSAMINE_NPC_IDS, ...EYATLALLI_NPC_IDS]);
 
   function handleLine(event) {
+    const head = SPEAKER_HEAD_NPC_IDS.get(event.step?.speaker);
+    if (head !== undefined && event.speakerId === undefined
+      && event.pages?.some((entry) => HEAD_PAGES.has(String(entry?.page ?? "").replace(/^Transcript:/, "")))) {
+      event.speakerId = head;
+    }
     if (!event.player || !DIALOGUE_NPC_IDS.has(event.npcId)) return;
     const handler = LINES.get(event.text);
     if (handler) handler(event);
@@ -1574,7 +1615,7 @@ module.exports = function registerPerilousMoonsQuest(api) {
       return;
     }
     if (entrance.kind === "cavern-exit") {
-      travelTo(player, NEYPOTZLI_LANDING);
+      travelTo(player, entrance.landing);
       return;
     }
     if (entrance.kind === "cavern") {
@@ -1801,12 +1842,14 @@ module.exports = function registerPerilousMoonsQuest(api) {
     [`${ENTRANCE_DIAGONAL_OBJECT_ID}:1421:9650:1`, { kind: "cavern", landing: EARTHBOUND_LANDING }],
     [`${ENTRANCE_DIAGONAL_OBJECT_ID}:1458:9613:1`, { kind: "cavern", landing: STREAMBOUND_LANDING }],
     [`${ENTRANCE_DIAGONAL_OBJECT_ID}:1458:9650:1`, { kind: "cavern", landing: STREAMBOUND_LANDING }],
-    [`${ENTRANCE_CAVE_OBJECT_ID}:1389:9674:0`, { kind: "cavern", landing: CAVE_TO_ANTECHAMBER_LANDING }],
+    [`${ENTRANCE_CAVE_OBJECT_ID}:1389:9674:0`, { kind: "cavern", landing: CAVE_TO_STREAMBOUND_LANDING }],
     [`${ENTRANCE_CAVE_OBJECT_ID}:1521:9720:0`, { kind: "cavern", landing: CAVE_TO_EARTHBOUND_LANDING }],
-    [`${ENTRANCE_2X2_OBJECT_ID}:1388:9576:0`, { kind: "cavern-exit" }],
-    [`${ENTRANCE_2X2_OBJECT_ID}:1388:9591:0`, { kind: "cavern-exit" }],
-    [`${ENTRANCE_2X2_OBJECT_ID}:1404:9716:0`, { kind: "cavern-exit" }],
-    [`${ENTRANCE_2X2_OBJECT_ID}:1480:9667:0`, { kind: "cavern-exit" }],
+    [`${ENTRANCE_2X2_OBJECT_ID}:1345:9590:0`, { kind: "cavern", landing: EARTHBOUND_SOUTH_LANDING }],
+    [`${ENTRANCE_3X3_OBJECT_ID}:1373:9664:0`, { kind: "cavern", landing: PRISON_NORTH_WEST_LANDING }],
+    [`${ENTRANCE_2X2_OBJECT_ID}:1388:9576:0`, { kind: "cavern-exit", landing: ANTECHAMBER_FROM_PRISON }],
+    [`${ENTRANCE_2X2_OBJECT_ID}:1388:9591:0`, { kind: "cavern-exit", landing: ANTECHAMBER_FROM_PRISON }],
+    [`${ENTRANCE_2X2_OBJECT_ID}:1404:9716:0`, { kind: "cavern-exit", landing: ANTECHAMBER_FROM_EARTHBOUND }],
+    [`${ENTRANCE_2X2_OBJECT_ID}:1480:9667:0`, { kind: "cavern-exit", landing: ANTECHAMBER_FROM_STREAMBOUND }],
     [`${ENTRANCE_3X3_OBJECT_ID}:1404:9703:0`, { kind: "boss-entrance", boss: "blue", landing: BLUE_ROOM_LANDING }],
     [`${ENTRANCE_2X2_OBJECT_ID}:1388:9589:0`, { kind: "boss-entrance", boss: "blood", landing: BLOOD_ROOM_LANDING }],
     [`${ENTRANCE_2X2_OBJECT_ID}:1509:9673:0`, { kind: "boss-entrance", boss: "eclipse", landing: ECLIPSE_ROOM_LANDING }],
@@ -1815,6 +1858,8 @@ module.exports = function registerPerilousMoonsQuest(api) {
     [`${ENTRANCE_3X3_OBJECT_ID}:1512:9560:0`, { kind: "tunnel", landing: { x: 1355, y: 9538, z: 0 } }],
     // Inferred return landing from the reciprocal shrine-to-prison tunnel in capture 1693 tick 2430.
     [`${ENTRANCE_2X2_OBJECT_ID}:1356:9536:0`, { kind: "tunnel", landing: { x: 1512, y: 9563, z: 0 } }],
+    // Ours (upstream issue #5161): the same doorway's other half (the map has two 2x2 locs side by side).
+    [`${ENTRANCE_2X2_OBJECT_ID}:1354:9536:0`, { kind: "tunnel", landing: { x: 1512, y: 9563, z: 0 } }],
   ]);
 
   // ==========================================================================

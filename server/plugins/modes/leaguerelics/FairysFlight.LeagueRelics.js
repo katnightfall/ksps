@@ -5,7 +5,10 @@
  * leprechaun, in unlocked areas, from the Wilderness too except to a spirit tree (Wiki, Fairy
  * mushroom); Last-destination repeats the last. The cache's options: Teleport and
  * Last-destination carried; Fairy-Ring, Spirit-tree, Tool-leprechauns and Last-destination worn.
- * Not here: the Tree Gnome Village autocompletion (the quests' own completion, not a relic's).
+ * Choosing Raging Echoes' completes Tree Gnome Village (Wiki: "Unlocking it automatically completes
+ * Tree Gnome Village"; the effect's `completesQuests`, through `league:complete-quests`, so with no
+ * XP). Ours (upstream issue #5586): it was left out, so the mushroom's spirit trees stayed shut
+ * until the quest was done by hand.
  */
 const Common = require("./Common.LeagueRelics");
 const Teleports = require("./Teleports.LeagueRelics");
@@ -74,8 +77,16 @@ function only(fn) {
   };
 }
 
+/** `league:relic-unlocked` { player, league, relic }: the quests this league's relic completes. */
+function relicUnlocked({ player, league, relic }) {
+  if (!player || ![effect.key, ...(effect.aliases ?? [])].includes(relic)) return;
+  const quests = effect.completesQuests?.[league ?? Common.leagueOf(player)];
+  if (Array.isArray(quests) && quests.length) Common.api.emitCustomEvent("league:complete-quests", { player, quests });
+}
+
 module.exports = function attach(api) {
   effect = Common.data.effects.fairysFlight;
+  api.onCustomEvent("league:relic-unlocked", relicUnlocked);
   api.persistAttribute(Teleports.lastAttribute(KEY), null);
   api.onItemAction(effect.toolName, {
     Teleport: only((player) => teleport({ player })),

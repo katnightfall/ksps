@@ -2502,9 +2502,10 @@
       "at": [1324,3784,0],
       "level": 29,
       "steps": [
-        {"move":[1324,3777],"anim":"CLIMB_ROCKS","speed":[0,180],"ticks":5},
+        {"move":[1324,3777],"anim":"CLIMB_ROCKS","speed":[0,180],"dir":"north","ticks":5},
         {"anim":-1}
-      ]
+      ],
+      "note": "Ours (upstream issue #5158): climbed down facing the mountain (north), not the drop. No capture of these rocks: the facing follows the captured Cairn Isle rock slide (capture 352), where the same climb keeps facing the rock in both directions."
     },
     {
       "name": "Rocks (Mount Karuulm, upper, up)",
@@ -2526,11 +2527,12 @@
       "level": 62,
       "levelMessage": "You need an Agility level of 62 to climb these rocks.",
       "steps": [
-        {"move":[1324,3791],"anim":"CLIMB_ROCKS","speed":[0,90],"ticks":2},
+        {"move":[1324,3791],"anim":"CLIMB_ROCKS","speed":[0,90],"dir":"north","ticks":2},
         {"walk":[[1324,3790]]},
-        {"move":[1324,3787],"anim":"CLIMB_ROCKS","speed":[0,60]},
+        {"move":[1324,3787],"anim":"CLIMB_ROCKS","speed":[0,60],"dir":"north"},
         {"anim":-1}
-      ]
+      ],
+      "note": "Ours (upstream issue #5158): climbed down facing the mountain (north), as the lower rocks."
     },
     {
       "name": "Rocks (Karuulm Slayer Dungeon, east of the entrance)",

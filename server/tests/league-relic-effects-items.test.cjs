@@ -417,6 +417,59 @@ test("Grimoire: the Mage Arena's god spells cast anywhere without their 100 cast
   for (const player of others(who)) assert.equal(disabled(player), true, player.getUsername());
 });
 
+// Ours (upstream issue #5586): "Unlocking it automatically completes Tree Gnome Village" (Wiki, Raging Echoes'
+// relics page). The completion itself is LeagueMode's `league:complete-quests` (no XP), asked for here.
+test("Fairy's Flight (Raging Echoes): choosing it completes Tree Gnome Village", () => {
+  const asked = [];
+  const record = (request) => asked.push([request.player.getUsername(), request.quests]);
+  custom["league:complete-quests"] = (custom["league:complete-quests"] ?? []).concat(record);
+  try {
+    const echoes = character("echoes-fairy", "league", {}, 5);
+    const reloaded = character("reloaded-fairy", "league", {}, 4);
+    const unlocked = (player, league, relic) => { for (const handler of custom["league:relic-unlocked"]) handler({ player, league, tier: 2, slot: 3, relic }); };
+    unlocked(echoes, 5, "bank-heist");
+    assert.deepEqual(asked, [], "another relic completes nothing");
+    unlocked(echoes, 5, "fairys-flight");
+    assert.deepEqual(asked, [["echoes-fairy", ["Tree Gnome Village"]]]);
+    unlocked(reloaded, 4, "fairys-flight");
+    assert.equal(asked.length, 1, "Trailblazer Reloaded's page says nothing of the quest");
+    // The name is one the quest runtime knows, so `league:complete-quests` can complete it.
+    assert.match(require("fs").readFileSync(require("path").resolve(__dirname, "../plugins/quests/quests/TreeGnomeVillage.Quest.js"), "utf8"), /name: "Tree Gnome Village"/);
+  } finally {
+    custom["league:complete-quests"] = custom["league:complete-quests"].filter((handler) => handler !== record);
+  }
+});
+
+// Ours (upstream issue #5586): the Wiki's Raging Echoes relics page and the relic's own page both give its
+// Grimoire "all Prayers and spells regardless of area, quest and diary requirements" and a grimoire that
+// switches "between all spellbooks freely". Both used to be Demonic Pacts' only.
+test("Grimoire (Raging Echoes): every prayer is unlocked, and its Arcane grimoire opens every spellbook", () => {
+  const who = cases(GRIMOIRE, 5);
+  const bypass = (player) => {
+    const request = { player, prayer: "PIETY", bypass: false };
+    for (const handler of custom["prayer:unlocks-bypass"]) handler(request);
+    return request.bypass;
+  };
+  assert.equal(bypass(who.relic), true, "Piety without King's Ransom, Rigour and Augury without their scrolls");
+  for (const player of others(who)) assert.equal(bypass(player), false, player.getUsername());
+
+  // The Arcane grimoire: Ancients without Desert Treasure I (no quest plugin is loaded here: no quest is complete).
+  const { MagicSpellbook } = core;
+  const swapTo = (player, name) => {
+    prompts = [];
+    click("Arcane grimoire", "Change Spellbook", player);
+    const prompt = prompts.at(-1);
+    assert.ok(prompt, "the spellbook menu opens");
+    prompt.options.find(([label]) => label === name)[1]();
+    return player.getSpellbook();
+  };
+  assert.equal(swapTo(who.relic, "Ancient"), MagicSpellbook.ANCIENT, "the relic's grimoire switches freely");
+  assert.equal(swapTo(who.relic, "Arceuus"), MagicSpellbook.ARCEUUS, "the Arceuus book too, without Tyss");
+  assert.equal(swapTo(who.without, "Ancient"), MagicSpellbook.NORMAL, "a Raging Echoes character without the relic still needs the quest");
+  assert.match(who.without.messages.at(-1), /Desert Treasure I/);
+  assert.equal(swapTo(who.other, "Ancient"), MagicSpellbook.NORMAL, "Trailblazer Reloaded opens only unlocked books");
+});
+
 test("Grimoire (Demonic Pacts): choosing it re-sends the prayer book's unlock flags (capture 237/01107)", () => {
   const synced = [];
   const record = ({ player }) => synced.push(player.getUsername());
@@ -427,9 +480,13 @@ test("Grimoire (Demonic Pacts): choosing it re-sends the prayer book's unlock fl
     for (const handler of custom["league:relic-unlocked"]) handler({ player: pacts, relic: "grimoire" });
     for (const handler of custom["league:relic-unlocked"]) handler({ player: pacts, relic: "abundance" });
     for (const handler of custom["league:relic-unlocked"]) handler({ player: echoes, relic: "grimoire" });
-    assert.deepEqual(synced, ["pacts"], "only Demonic Pacts' Grimoire hands out the prayers");
+    // Ours (upstream issue #5586): Raging Echoes' Grimoire hands out the prayers as well.
+    assert.deepEqual(synced, ["pacts", "echoes"], "the Grimoire of both leagues hands out the prayers; another relic does not");
     for (const handler of custom["league:relics-reset"]) handler({ player: pacts });
-    assert.deepEqual(synced, ["pacts", "pacts"], "a relic reset takes them back");
+    assert.deepEqual(synced, ["pacts", "echoes", "pacts"], "a relic reset takes them back");
+    const reloaded = character("reloaded4", "league", {}, 4);
+    for (const handler of custom["league:relic-unlocked"]) handler({ player: reloaded, relic: "grimoire" });
+    assert.deepEqual(synced, ["pacts", "echoes", "pacts"], "not Trailblazer Reloaded");
   } finally {
     custom["prayer:sync-unlocks"] = custom["prayer:sync-unlocks"].filter((handler) => handler !== record);
   }

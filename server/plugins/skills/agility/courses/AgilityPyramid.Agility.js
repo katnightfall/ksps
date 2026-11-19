@@ -246,7 +246,14 @@ function takePyramidTop({ player, core, api }) {
     player.sendMessage("You don't have enough inventory space to pick up this item.");
     return;
   }
-  player.getInventory().addItem(new Item(ItemIds.PYRAMID_TOP, 1));
+  // Content may change how many come ("agility:course-item" { player, course, itemId, amount }: a league relic's
+  // doubled pyramid top, upstream issue #5586); what the inventory has no room for goes to the floor.
+  const request = { player, course: "pyramid", itemId: ItemIds.PYRAMID_TOP, amount: 1 };
+  api.emitCustomEvent("agility:course-item", request);
+  const amount = Math.max(1, request.amount | 0);
+  let fits = 0;
+  for (; fits < amount && !player.getInventory().isFull(); fits++) player.getInventory().addItem(new Item(ItemIds.PYRAMID_TOP, 1));
+  if (amount > fits) core.ItemOnGroundManager.registerLocation(player, new Item(ItemIds.PYRAMID_TOP, amount - fits), player.getLocation().clone());
   player.setAttribute(PYRAMID_TOP_ATTRIBUTE, true);
   player.getPacketSender().sendVarbit(PYRAMID_TOP_VARBIT, 1);
   // In an item box, the top beside the line (rsprox 1757).

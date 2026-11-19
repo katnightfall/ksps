@@ -9,6 +9,10 @@
  * Heredit pet at 1/200. Each wave's loot is rolled before the wave and shown on the
  * intermission screen (the capture's preview of wave 1 was the 80 splinters).
  * Not included: the Varlamore token on wave 3 (its rate "varies").
+ *
+ * Ours (upstream issue #5220): a league's boosted drops ("drops:chance" { player, source: "Fortis
+ * Colosseum", rules }, asked by Rewards.Colosseum.js) make a row the rules name that many times
+ * as heavy, and its table's total with it, as NpcDrops does for a weighted roll.
  */
 
 const FANATIC = -1;
@@ -207,16 +211,18 @@ function received(player, items) {
   player.setAttribute(ATTR_FANATIC, had);
 }
 
-function pickWeighted(table, random) {
-  const total = table.reduce((sum, [, , weight]) => sum + weight, 0);
+function pickWeighted(table, random, boost = null) {
+  // A fanatic row stands for any of the three pieces: the helm's name answers for it.
+  const weights = table.map(([id, , weight]) => weight * (boost ? boost(id === FANATIC ? FANATIC_PIECES[0] : id) : 1));
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
   let roll = random() * total;
-  return table.find(([, , weight]) => (roll -= weight) < 0) ?? table[table.length - 1];
+  return table.find((_, index) => (roll -= weights[index]) < 0) ?? table[table.length - 1];
 }
 
-/** The items a wave adds, as [{ id, amount }]. */
-function roll(wave, player, random = Math.random) {
+/** The items a wave adds, as [{ id, amount }]; `boost(itemId)` is a row's multiplier (a league's boosted drops). */
+function roll(wave, player, random = Math.random, boost = null) {
   if (wave <= 1) return [{ id: SUNFIRE_SPLINTERS, amount: 80 }];
-  const [id, quantity] = pickWeighted(TABLES[Math.min(wave, 12)], random);
+  const [id, quantity] = pickWeighted(TABLES[Math.min(wave, 12)], random, boost);
   const [min, max] = Array.isArray(quantity) ? quantity : [quantity, quantity];
   const amount = min + Math.floor(random() * (max - min + 1));
   const items = [{ id: id === FANATIC ? fanaticPiece(player, random) : id, amount }];

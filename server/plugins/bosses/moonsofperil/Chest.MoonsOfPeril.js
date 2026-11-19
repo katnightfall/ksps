@@ -23,6 +23,8 @@ const PIECES_ATTRIBUTE = "moons-of-peril:set-pieces";
 const COUNT_ATTRIBUTE = Scoreboard.CHESTS_ATTRIBUTE;
 
 const MONSTER = "Moons of Peril";
+/** The source the chest names on "drops:chance" (a league's boosted drops). */
+const CHANCE_SOURCE = "Moons of Peril";
 
 const chest = () => Common.data.chest;
 const itemId = (name) => Common.core.ItemIdentifiers[name];
@@ -63,6 +65,19 @@ function piece(player, moon) {
   return name;
 }
 
+/**
+ * Ours (upstream issue #5220): "drops:chance" { player, source: "Moons of Peril", rules } (a league's
+ * boosted drops) makes each Moon's 1/56 that many times as likely for a piece its rules name.
+ */
+function pieceBoost(player, moon) {
+  const rules = [];
+  Common.api?.emitCustomEvent?.("drops:chance", { player, source: CHANCE_SOURCE, rules });
+  if (rules.length === 0) return 1;
+  // A set's pieces are one row of the Wiki's table: the set's first piece answers for the set.
+  const name = Common.core.ItemDefinition.forId(itemId(chest().sets[moon][0]))?.getName?.() ?? "";
+  return rules.reduce((value, rule) => (rule.pattern.test(name) ? value * rule.multiplier : value), 1);
+}
+
 function roll(player, moons) {
   const spec = chest();
   const { ItemDefinition } = Common.core;
@@ -73,7 +88,7 @@ function roll(player, moons) {
     else loot.push({ id, amount });
   };
   for (const moon of moons) {
-    if (Common.randomInt(1, spec.uniqueChance) === 1) add(itemId(piece(player, moon)), 1);
+    if (Math.random() * spec.uniqueChance < pieceBoost(player, moon)) add(itemId(piece(player, moon)), 1);
   }
   if (loot.length > 0) return loot;
   for (let i = 0; i < spec.rolls[moons.length]; i++) {

@@ -521,7 +521,8 @@ test("Bank Heist, Grimoire, Reloaded and Nature's Fairy mushroom answer for Demo
   assert.equal(emit("magic:spell-unlocked", { player: grimoire.relic, unlocked: false }).unlocked, true);
   const echoes = character("echoes-grimoire", "league", { 6: 2 }, 5);
   assert.equal(Common.hasRelic(echoes, "grimoire"), true);
-  assert.equal(bypass(echoes), false, "Raging Echoes' Grimoire leaves the prayers alone");
+  // Ours (upstream issue #5586): the Wiki gives Raging Echoes' Grimoire "all Prayers and spells regardless of area, quest and diary requirements" too.
+  assert.equal(bypass(echoes), true, "Raging Echoes' Grimoire unlocks every prayer as well");
   for (const player of others(grimoire)) assert.equal(bypass(player), false);
   // The cache proc arceuus_spellbook_unlocked counts Demonic Pacts' Grimoire (struct 1132) as speaking to Tyss.
   const arceuus = (player) => emit(core.SpellbookLocks.ARCEUUS_UNLOCK_QUERY_EVENT, { player, unlocked: false }).unlocked;
@@ -2421,8 +2422,11 @@ test("Hotfoot: Prifddinas's portal shard comes tenfold (agility:course-item), wi
   assert.equal(who.relic.sent.messages.at(-1), portal.message);
   for (const player of others(who)) {
     giveCourseItem(player, { key: "prifddinas" }, portal);
-    assert.equal(player.getInventory().getAmount(I.CRYSTAL_SHARD), 1, player.getUsername());
+    // Ours (upstream issue #5586): the same pick is Corner Cutter on Raging Echoes, whose shards come twofold (Wiki).
+    const cornerCutter = Common.hasRelic(player, "corner-cutter");
+    assert.equal(player.getInventory().getAmount(I.CRYSTAL_SHARD), cornerCutter ? 2 : 1, player.getUsername());
   }
+  assert.equal(Common.hasRelic(who.other, "corner-cutter"), true, "the Raging Echoes character with this pick holds Corner Cutter");
   giveCourseItem(who.relic, { key: "seers" }, portal);
   assert.equal(who.relic.getInventory().getAmount(I.CRYSTAL_SHARD), 11, "another course's find is its own");
   const full = character("full-hotfoot", "league", HOTFOOT);

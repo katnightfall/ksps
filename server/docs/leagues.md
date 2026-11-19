@@ -899,9 +899,9 @@ These relics have their effects (`leaguerelics/*.LeagueRelics.js`, numbers in th
   Trailblazer Reloaded relics page says "providing players have unlocked them". The previous book
   is the attribute `league:grimoire-previous-spellbook`, remembered only when a swap went through.
   Holding the item is the only check (it is untradeable and only a relic grants it; a spawned one
-  works for any league character). Not covered: its Book of the Dead role (the resurrection
-  spells' requirement, checked in core), and Raging Echoes' Grimoire unlocking every prayer and
-  spell.
+  works for any league character). A Raging Echoes character with the Grimoire relic switches to
+  any book, whatever quest the book needs (the relic's `booksLeagues`; upstream issue #5586). Not
+  covered: its Book of the Dead role (the resurrection spells' requirement, checked in core).
 - **Archer's Embrace** (tier 4): ranged speed halved (`onAttackSpeed`: above 4 rounded down,
   below 3 rounded up, so 3, 4 and 5 all become 2 as the Wiki's notes say), ranged accuracy x2,
   on a landed ranged hit a 10% chance of an extra `PendingHit` at the same target with a roll of
@@ -1023,8 +1023,10 @@ Animal Wrangler's Hunter and cooking ones) do not.
 - **Corner Cutter** (tier 2): Agility rolls always succeed (`agility:roll`), a lap counts twice
   and its completion bonus pays 25% more (`agility:lap-reward`; the obstacles' own XP is not
   raised: ours), and a mark of grace spawns with 10,000 coins
-  (`agility:mark`). Not here: the Sage's greaves, and the doubled pyramid tops, hallowed marks,
-  Brimhaven vouchers and crystal shards (their plugins hand them out without a seam).
+  (`agility:mark`). The golden pyramid and the Prifddinas course's crystal shards
+  (`agility:course-item`), the Brimhaven Agility Arena's tickets and vouchers and the Hallowed
+  Sepulchre's marks (`minigame:points`, after the tier passive's) come twofold (upstream issue
+  #5586). Not here: the Sage's greaves.
 - **Dodgy Deals** (tier 2): every pickpocket lands (`alwaysSucceeds` on
   `thieving:pickpocket-target`) and the pouch limit is tripled, the loot is noted and multiplied
   by the NPCs of the same name alive within 5 tiles of the player (the Wiki's 11x11; coins a pouch
@@ -1184,7 +1186,8 @@ open). Each item remembers its last destination. The menus' grouping and wording
   Teleport (or, worn, Fairy-Ring, Spirit-tree, Tool-leprechauns) goes to any fairy ring by its
   code, any spirit tree the character could travel to by tree, and any tool leprechaun (named
   after their nearest fairy ring: ours); from any Wilderness level except to a spirit tree (level
-  20, Wiki). Not here: the Tree Gnome Village autocompletion (the quest's own).
+  20, Wiki). Choosing Raging Echoes' completes Tree Gnome Village (Wiki; the effect's
+  `completesQuests`, through `league:complete-quests`, no XP; upstream issue #5586).
 - **Globetrotter** (Trailblazer Reloaded tier 2): the pendant's Nexus goes to the spellbooks'
   teleports (standard, ancient, lunar, Arceuus, and the house when the character owns one: not
   a Last-destination, which could not enter it), its
@@ -1246,9 +1249,11 @@ open). Each item remembers its last destination. The menus' grouping and wording
   from any Wilderness level and sets the three back; Check-memories says what is kept (ours). Not
   in an instance, nor underwater at Fossil Island. No cooldown; the memory outlasts death.
 - **Grimoire** (Raging Echoes tier 7): spells' area, quest and diary requirements are lifted
-  (`magic:spell-unlocked`; here the Mage Arena's god spells without their 100 casts); the Prayer
-  level still counts, and no prayer here is gated by a quest. The Arcane grimoire's spellbook
-  swap is the item's own plugin (above).
+  (`magic:spell-unlocked`; here the Mage Arena's god spells without their 100 casts), and every
+  prayer is unlocked whatever its quest or scroll (`prayer:unlocks-bypass`, the relic's
+  `prayersLeagues`; the Prayer level still counts), as the Wiki's relics page and the relic's own
+  page say (upstream issue #5586: it was Demonic Pacts' only). The Arcane grimoire's spellbook
+  swap is the item's own plugin (above), and for this relic opens every book.
 - **Reloaded** (Raging Echoes tier 4): one more relic of tiers 1-3, a different one from that
   tier's own pick, chosen with the same click on it (`league:relics-extra`; any item it hands out
   is given). The relic interface shows only each tier's own pick: ours.
@@ -1311,12 +1316,18 @@ Tier 1 counts once the character chose its first relic.
   Pyramid Plunder's sceptre (`Pyramid plunder`), the Grand Hallowed Coffin's ring of endurance,
   Fishing Trawler's angler pieces, Tai Bwo Wannai's gout tuber and, in Raging Echoes and Demonic
   Pacts, aerial fishing's golden tench (the coffins' strange lockpick is not on the pages).
+  The Gauntlet's chest (`The Gauntlet`, `The Corrupted Gauntlet`: the crystal seeds' own 1-in-n
+  rolls), the Lunar Chest (`Moons of Peril`: each Moon's 1/56), the Colosseum's wave rolls
+  (`Fortis Colosseum`: a boosted row's weight grows and the wave table's total with it), the
+  Doom of Mokhaiotl's delve uniques (`Doom of Mokhaiotl`: the delve's unique chance grows by the
+  unlocked uniques' mean boost) and a pickpocket target's own rare rolls (the target's Wiki
+  page, `Elf (Thieving)`, or that without " (Thieving)", `Vyre`) ask the same way (upstream
+  issue #5220); their pets and clues are not boosted.
   Sources rolled by their own plugins are in the data but inert until that plugin asks
   `drops:chance` with the source's name: the Grotesque Guardians, Corporeal Beast's sigils (not
-  on its table here), the Gauntlet, Moons of Peril, the Colosseum, Hunter rumours, the Shrine,
-  the seed pack, the Fountain of Rune, Larran's and the brimstone chest, the Zombie Pirate's
-  Locker, chewed bones, the Volcanic Mine ore pack, Shades of Mort'ton, and the pickpocketed
-  blood shards (vyres) and teleport seeds (elves).
+  on its table here), Hunter rumours, the Shrine, the seed pack, the Fountain of Rune, Larran's
+  and the brimstone chest, the Zombie Pirate's Locker, chewed bones, the Volcanic Mine ore pack
+  and Shades of Mort'ton.
 - **Minigame points** (Trailblazer Reloaded 3x/5x/8x from tiers 2/5/7; Raging Echoes and Demonic
   Pacts 4x/8x from tiers 1/4): a minigame asks `minigame:points { player, minigame, points }` as it awards and
   the league multiplies `points` (floored) when the passive's `minigames` (leagues.json) lists it. Other

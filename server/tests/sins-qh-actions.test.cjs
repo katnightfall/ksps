@@ -164,7 +164,7 @@ test('Sins login keeps the capture-zero lab bit clear', () => {
     'capture 1637 never sets 13719, so login must not publish it');
 });
 
-test('Sins canonical long vine uses branch 38004 then swings 38005', () => {
+test('Sins canonical long vine uses branch 38004', () => {
   const h = harness();
   const p = makePlayer();
   h.quest.setStage(p, 36);
@@ -176,12 +176,8 @@ test('Sins canonical long vine uses branch 38004 then swings 38005', () => {
   assert.equal(p.items.get(7777) ?? 0, 0, 'long vine is consumed by the branch');
   assert.equal(p.attrs.get('sins-of-the-father:vine-attached'), true);
   assert.ok(p.messages.some(text => text.includes('throw the vine up')), 'primary throw/wrap message');
-
-  const swing = { player: p, objectId: 38005, handled: false };
-  (h.hooks.onObjectInteraction ?? []).forEach(fn => fn(swing));
-  assert.equal(swing.handled, true);
-  assert.equal(p.attrs.get('quest.sins_of_the_father.bits') & (1 << 13), 1 << 13, 'swing sets BIT_TREK');
-  assert.deepEqual(p.moves.at(-1), [3437, 3402, 0], 'swing lands on the captured crossing tile');
+  // Ours (upstream issue #6068): the swing (38005) moves on to the nail beasts' room, a real instance,
+  // so it is played with a real player in tests/sins-escort-rooms.test.cjs.
 });
 
 test('Sins valve Turn opens the 187:3 numeric menu and applies the chosen value', () => {
@@ -241,4 +237,24 @@ test('Sins ruby sickle accepts the real Enchant ruby or topaz tablet', () => {
   assert.equal(p.items.get(8018) ?? 0, 0, 'tablet consumed');
   assert.equal(p.items.get(24695), 1, 'enchanted ruby sickle produced');
   assert.ok(p.messages.includes('You enchant the ruby sickle.'));
+});
+
+// Ours (upstream issue #6068): a scene's recorded camera track ends when its dialogue hands the player back.
+test('Sins scene cameras stop when the dialogue reaches the step that hands the player back', () => {
+  for (const [stage, stepId, what] of [[6, 'bsrbMj', 'Carl sets off'], [14, '5Nx48P', 'Kroy attacks'], [24, 'uRyt8i', 'Ivan and Veliaf leave'], [78, 'oKCkn5', 'Damien attacks']]) {
+    const h = harness();
+    const cancelled = [];
+    h.api.core.TaskManager.cancelTasks = key => cancelled.push(key);
+    const p = makePlayer();
+    h.quest.setStage(p, stage);
+    p.log.length = 0;
+    (h.events['npc-dialogue:action'] ?? []).forEach(fn => fn({ player: p, npcId: 9558, stepId }));
+    assert.ok(p.log.some(row => row[0] === 'sendCameraReset'), `${what}: the camera is given back`);
+  }
+  // A step in the middle of a scene leaves the track alone.
+  const h = harness(), p = makePlayer();
+  h.quest.setStage(p, 66);
+  p.log.length = 0;
+  (h.events['npc-dialogue:action'] ?? []).forEach(fn => fn({ player: p, npcId: 9558, stepId: 'A5NXtS' }));
+  assert.ok(!p.log.some(row => row[0] === 'sendCameraReset'));
 });

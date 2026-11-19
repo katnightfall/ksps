@@ -26620,7 +26620,7 @@
   {"level":0,"name":"Shopkeeper","x":1380,"y":3351,"id":14656,"source":"wiki","wanderRadius":3},
   {"level":0,"name":"Shopkeeper","x":1373,"y":3045,"id":14760,"source":"wiki"},
   {"level":0,"name":"Shopkeeper","x":1889,"y":3298,"id":14906,"source":"wiki","wanderRadius":2},
-  {"level":0,"name":"Primio","x":1703,"y":3142,"id":12889,"source":"wiki","wanderRadius":0},
+  {"level":0,"name":"Primio","x":1702,"y":3141,"id":12889,"source":"wiki","wanderRadius":0},
   {"level":0,"name":"Cuali, Teoki of Ralos","x":1699,"y":3087,"id":13324,"source":"wiki"},
   {"level":0,"name":"Guildmaster Apatura","x":1555,"y":3035,"id":13120,"source":"wiki","direction":6,"wanderRadius":0},
   {"level":0,"name":"Prisoner","x":1651,"y":3165,"id":13321,"source":"wiki","wanderRadius":1},

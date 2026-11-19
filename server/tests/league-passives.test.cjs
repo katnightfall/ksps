@@ -573,3 +573,102 @@ test("Demonic Pacts master access bypasses only the master's levels", () => {
     assert.equal(Tasks.meetsMaster(ordinary, master), true, "meeting both requirements still works");
   }
 });
+
+// Ours (upstream issue #5220): rollers that used to roll their rares without asking "drops:chance",
+// so a league's boosted drops did nothing for them. Each is given the league's own rules and rolled at
+// a point where only a boosted roll finds the rare.
+test("boosted drops reach the Gauntlet, the Colosseum, the Doom of Mokhaiotl and pickpockets' rares", () => {
+  const PACTS = 6;
+  const boosted = character("dp4rollers", "league", 4, PACTS); // 5x
+  const main = character("mainrollers", "main");
+  const rule = (player, source) => ask("drops:chance", { player, source, rules: [] }).rules[0] ?? null;
+  const emitting = new Proxy({ core, emitCustomEvent: (name, payload) => ask(name, payload) }, { get: (target, key) => target[key] ?? (() => {}) });
+  const nameOf = (id) => core.ItemDefinition.forId(id).getName();
+
+  // The league answers the names these rollers ask with, for the items they roll.
+  for (const [source, itemName] of [
+    ["The Gauntlet", "Crystal weapon seed"], ["The Gauntlet", "Crystal armour seed"], ["The Corrupted Gauntlet", "Enhanced crystal weapon seed"],
+    ["Moons of Peril", "Blood moon helm"], ["Fortis Colosseum", "Sunfire fanatic helm"], ["Fortis Colosseum", "Tonalztics of Ralos (uncharged)"],
+    ["Doom of Mokhaiotl", "Avernic treads"], ["Vyre", "Blood shard"], ["Elf (Thieving)", "Enhanced crystal teleport seed"],
+  ]) {
+    const answer = rule(boosted, source);
+    assert.ok(answer, `${source} is a boosted source in Demonic Pacts`);
+    assert.equal(answer.multiplier, 5);
+    assert.equal(answer.pattern.test(itemName), true, `${source} boosts ${itemName}`);
+    assert.equal(rule(main, source), null, `${source}: nothing for a main character`);
+  }
+
+  // The Gauntlet: a weapon seed is 1/120; at 0.025 of the way an unboosted roll misses (3 of 120) and a 5x one hits.
+  const GauntletShared = require("../plugins/minigames/gauntlet/Shared.Gauntlet");
+  const Gauntlet = require("../plugins/minigames/gauntlet/Rewards.Gauntlet");
+  GauntletShared.bind(emitting);
+  const gauntlet = (player) => Gauntlet.rollReward({ kind: "completed", mode: "regular" }, true, () => 0.025, Gauntlet.chestBoost(player, "regular")).map((item) => item.id);
+  assert.equal(nameOf(Gauntlet.ID.WEAPON_SEED), "Crystal weapon seed");
+  assert.equal(gauntlet(main).includes(Gauntlet.ID.WEAPON_SEED), false);
+  assert.equal(gauntlet(boosted).includes(Gauntlet.ID.WEAPON_SEED), true);
+  assert.equal(gauntlet(boosted).includes(Gauntlet.ID.ARMOUR_SEED), true);
+  assert.equal(gauntlet(boosted).includes(Gauntlet.ID.YOUNGLLEF), false, "the pet is not boosted (50 of 2000 misses either way)");
+  assert.equal(Gauntlet.chestBoost(main, "corrupted"), null);
+
+  // The Colosseum: wave 4's fanatic row is the last 210 of 43,400; 5x makes it the last 1,050 of 44,240.
+  const ColosseumLoot = require("../plugins/minigames/colosseum/Loot.Colosseum");
+  const boostFor = (source) => (player) => {
+    const rules = ask("drops:chance", { player, source, rules: [] }).rules;
+    return rules.length ? (id) => rules.reduce((value, each) => (each.pattern.test(nameOf(id)) ? value * each.multiplier : value), 1) : null;
+  };
+  const colosseumBoost = boostFor("Fortis Colosseum");
+  const wave4 = (player) => ColosseumLoot.roll(4, player, () => 0.98, colosseumBoost(player))[0].id;
+  assert.equal(ColosseumLoot.FANATIC_PIECES.includes(wave4(main)), false);
+  assert.equal(ColosseumLoot.FANATIC_PIECES.includes(wave4(boosted)), true);
+  assert.equal(ColosseumLoot.roll(4, boosted, () => 0.5, colosseumBoost(boosted))[0].id, ColosseumLoot.roll(4, main, () => 0.5, null)[0].id, "the commons stay where they were");
+
+  // The Doom of Mokhaiotl: delve 4's uniques are 1/450 together; at 1/200 only a 5x roll finds one.
+  const DoomLoot = require("../plugins/bosses/doom/Loot.DoomOfMokhaiotl");
+  const doomBoost = boostFor("Doom of Mokhaiotl");
+  assert.equal(DoomLoot.rollUnique(4, () => 0.005, doomBoost(main)), null);
+  assert.ok(DoomLoot.UNIQUES.some(([id]) => id === DoomLoot.rollUnique(4, () => 0.005, doomBoost(boosted))));
+  assert.equal(DoomLoot.rollUnique(1, () => 0, doomBoost(boosted)), null, "no unique before delve 2, boosted or not");
+
+  // Pickpocketing: a vyre's blood shard is 1/5000 and an elf's teleport seed 1/1024.
+  const Pickpocket = require("../plugins/skills/thieving/Pickpocket.Thieving");
+  Pickpocket.register(emitting);
+  const { rollLoot, targetFor } = Pickpocket._test;
+  const vyre = targetFor("Mort Nightshade");
+  assert.ok(vyre, "a vyre is a pickpocket target");
+  const shard = (player) => rollLoot(player, vyre, () => 0.0005).some((item) => item.id === core.ItemIdentifiers.BLOOD_SHARD);
+  assert.equal(shard(main), false, "2.5 of 5000 misses unboosted");
+  assert.equal(shard(boosted), true, "and hits at 5x");
+  const elf = targetFor("Anaire");
+  assert.ok(elf, "a Prifddinas elf is a pickpocket target");
+  const SEED = 23959;
+  assert.equal(nameOf(SEED), "Enhanced crystal teleport seed");
+  // The crystal shard (1/35) is rolled first and is not boosted: past it at 0.04, then the seed's own roll.
+  const rolls = (values) => { let index = 0; return () => values[Math.min(index++, values.length - 1)]; };
+  const seed = (player) => rollLoot(player, elf, rolls([0.04, 0.003, 0.5])).some((item) => item.id === SEED);
+  assert.equal(seed(main), false, "3 of 1024 misses unboosted");
+  assert.equal(seed(boosted), true, "and hits at 5x");
+});
+
+test("boosted drops reach the Lunar Chest: each Moon's 1/56 is that many times as likely", () => {
+  const PACTS = 6;
+  const boosted = character("dp4moons", "league", 4, PACTS);
+  const main = character("mainmoons", "main");
+  const Common = require("../plugins/bosses/moonsofperil/Common.MoonsOfPeril");
+  Common.init(new Proxy({ core, emitCustomEvent: (name, payload) => ask(name, payload) }, { get: (target, key) => target[key] ?? (() => {}) }));
+  const Chest = require("../plugins/bosses/moonsofperil/Chest.MoonsOfPeril");
+  const pieces = new Set(Object.values(Common.data.chest.sets).flat().map((name) => core.ItemIdentifiers[name]));
+  const realRandom = Math.random;
+  try {
+    // 3 of 56: past the unboosted 1 in 56, inside the 5 in 56.
+    Math.random = () => 3 / 56;
+    assert.equal(Chest.roll(main, ["blood"]).some((item) => pieces.has(item.id)), false);
+    const loot = Chest.roll(boosted, ["blood"]);
+    assert.equal(loot.length, 1);
+    assert.equal(pieces.has(loot[0].id), true, "a piece of the Blood Moon's set");
+    // 6 of 56: past both.
+    Math.random = () => 6 / 56;
+    assert.equal(Chest.roll(boosted, ["blood"]).some((item) => pieces.has(item.id)), false);
+  } finally {
+    Math.random = realRandom;
+  }
+});

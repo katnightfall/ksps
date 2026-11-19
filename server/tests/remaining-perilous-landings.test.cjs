@@ -69,7 +69,8 @@ test('every captured mandatory entrance lands on its real destination', () => {
   gate(h, p, O.ENTRANCE_16, 1458, 9650, 1); assert.deepEqual(pos(p), [1481, 9669, 0]);
   gate(h, p, O.ENTRANCE_17, 1439, 9612, 1); assert.deepEqual(pos(p), [1439, 9599, 1]);
   gate(h, p, O.ENTRANCE_18, 1389, 9674); assert.deepEqual(pos(p), [1522, 9719, 0]);
-  gate(h, p, O.ENTRANCE_18, 1521, 9720); assert.deepEqual(pos(p), [1522, 9719, 0]);
+  // Ours (upstream issue #5161): the Streambound cave leads to the Earthbound one (it used to land beside itself).
+  gate(h, p, O.ENTRANCE_18, 1521, 9720); assert.deepEqual(pos(p), [1390, 9676, 0]);
   gate(h, p, O.ENTRANCE_17, 1527, 9670); assert.deepEqual(pos(p), [1513, 9596, 0]);
   gate(h, p, O.ENTRANCE_17, 1512, 9560); assert.deepEqual(pos(p), [1355, 9538, 0]);
   gate(h, p, O.ENTRANCE_17, 1404, 9703); assert.deepEqual(pos(p), [1441, 9676, 0]);

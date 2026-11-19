@@ -194,8 +194,23 @@ function claimedElsewhere(event) {
   return request.handled;
 }
 
+/** Whether a climb this way has somewhere to land, decided as climbUp and climbDown decide it. */
+function canClimb(event, delta) {
+  if (mapDestination(event, delta)) return true;
+  if (!resolveDestination(event, delta)) return false;
+  const name = interactObjectName(event);
+  return delta > 0 ? hasObjectAbove(event.location, name) : hasObjectBelow(event.location, name);
+}
+
 function climbOption(event) {
-  return claimedElsewhere(event) || promptClimb(event);
+  if (claimedElsewhere(event)) return true;
+  // Ours (upstream issue #5158): a plain "Climb" asked "Which way would you like to climb?" even on
+  // stairs that only go one way (the Tower of Magic's ground-floor stairs only go up, its first-floor
+  // ones only down). The question is for a flight that goes both ways; one that goes one way is climbed.
+  const up = canClimb(event, 1), down = canClimb(event, -1);
+  if (up && !down) return climbUp(event);
+  if (down && !up) return climbDown(event);
+  return promptClimb(event);
 }
 
 function climbUpOption(event) {
