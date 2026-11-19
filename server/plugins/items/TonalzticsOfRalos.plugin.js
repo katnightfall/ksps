@@ -12,6 +12,8 @@
  * with Wield, Check, Charge and Uncharge, so an uncharged one is charged by using splinters on
  * it. Its special, Division, is in combat/specials/TonalzticsOfRalos.SpecialAttack.js.
  */
+const { splitOnPvpDeath, answerLostToPvpKiller } = require("./ChargedItemDeath");
+
 const CHARGES_META_KEY = "tonalztics-of-ralos:charges";
 const SHOT_EVENT = "tonalztics:shot";
 const MAX_CHARGES = 20000;
@@ -164,6 +166,31 @@ function completeUncharge(api, request) {
   inventory.addItem(new core.Item(ids.SUNFIRE_SPLINTERS, amount));
   setCharges(api, player, item, 0);
   player.sendMessage(`You uncharge your Tonalztics of Ralos, regaining ${amount.toLocaleString("en-US")} sunfire splinter${amount === 1 ? "" : "s"} in the process.`);
+}
+
+/** The uncharged weapon a charged one becomes, or null. */
+function unchargedId(api, item) {
+  return isChargedId(api, item.getId()) ? api.core.ItemIdentifiers.TONALZTICS_OF_RALOS_UNCHARGED_ : null;
+}
+
+/**
+ * `player-death:pvp-item-parts` (PlayerDeathTask). The Wiki's Tonalztics of Ralos page does not mention death, so the
+ * rule is the one for every chargeable item (Wiki, Items Kept on Death, "Chargable items"): "Dropped to the PKer as the
+ * tradeable uncharged item, and drops the items that would result from uncharging the item to the PKer too." Uncharge
+ * gives every sunfire splinter back, so the killer gets the uncharged weapon and the splinters in it.
+ */
+// Ours (upstream issue #6002): before this an unprotected charged weapon came back whole from a PvP death.
+function unchargeOnPvpDeath(api, query) {
+  splitOnPvpDeath(api.core, query, unchargedId.bind(null, api), (item, player) => {
+    const splinters = charges(item);
+    setCharges(api, player, item, 0);
+    return [[api.core.ItemIdentifiers.SUNFIRE_SPLINTERS, splinters]];
+  });
+}
+
+/** `items:lost-to-pvp-killer`: the Items Kept on Death screen's PvP preview shows a charged weapon lost. */
+function lostToPvpKiller(api, query) {
+  answerLostToPvpKiller(api.core, query, unchargedId.bind(null, api));
 }
 
 function cancelUncharge(request) {
@@ -325,6 +352,8 @@ module.exports = {
     api.onItemOnItem("Sunfire splinters", "Tonalztics of Ralos (uncharged)", chargeWithSplinters.bind(null, api), { noted: false });
     api.onItemOnItem("Sunfire splinters", "Tonalztics of Ralos", chargeWithSplinters.bind(null, api), { noted: false });
     api.onCustomEvent(SHOT_EVENT, handleShot.bind(null, api));
+    api.onCustomEvent("player-death:pvp-item-parts", unchargeOnPvpDeath.bind(null, api));
+    api.onCustomEvent("items:lost-to-pvp-killer", lostToPvpKiller.bind(null, api));
     api.onPlayerLogout(clearShot);
     api.registerWeaponProfile({
       itemIds: [api.core.ItemIdentifiers.TONALZTICS_OF_RALOS_UNCHARGED_],

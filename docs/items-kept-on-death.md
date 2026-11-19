@@ -76,12 +76,18 @@ The rule for every chargeable item (Wiki, Items Kept on Death, "Chargable items"
 | Trident of the Seas, (e) | Uncharged trident, Uncharged trident (e) | | every charge: runes and coins | Trident of the Seas: "If lost on death, only the uncharged trident will appear on the floor"; (e): the same |
 | Trident of the Swamp, (e) | Uncharged toxic trident, (e); 1 Zulrah's scale a charge | | the runes | Trident of the Swamp, (e): "any scales that were used to charge the trident will appear on the floor along with the uncharged trident" |
 | Tridents (o) | as the trident, and the Demonic trident ornament kit | | as the trident | the same, and the ornament kits' rule (the kit trades) |
+| Venator bow | Venator bow (uncharged), 1 ancient essence a charge | | | Venator bow: "if the item is protected, no charges will be lost"; where they go: "Chargable items", Uncharge "returns all essence" |
+| Echo venator bow | as the Venator bow, and the Echo venator bow ornament kit | | | the same, and the ornament kits' rule (the kit trades) |
+| Warped sceptre | Warped sceptre (uncharged), 2 chaos and 5 earth runes a charge | | | Warped sceptre: protected, "it will not lose charges"; where they go: "Chargable items", Uncharge "grants all the runes back" |
+| Eye of Ayak | Eye of Ayak (uncharged), 1 demon tear a charge, or 2 death runes and 1 chaos rune a charge | | | Eye of Ayak: it "does not lose charges on death in the Wilderness if the item is protected"; where they go: "Chargable items" |
+| Tonalztics of Ralos | Tonalztics of Ralos (uncharged), 1 sunfire splinter a charge | | | the page does not mention death; "Chargable items" |
 
 - **Our choices, where the Wiki's pages are silent or disagree:**
   - *Sanguinesti staff, Tumeken's shadow:* their pages do not say where an unprotected staff's charges go. They follow the "Chargable items" rule, so the killer gets what Uncharge gives back.
   - *Holy and Sanguine ornament kits:* the kits do not trade (Wiki and our data), so they stay with the victim, as their pages say.
   - *Tridents:* the "Chargable items" rule would give the killer the runes Uncharge returns; the tridents' own pages say only the uncharged trident (and a swamp trident's scales) appears. The tridents' pages are followed: the runes are destroyed.
   - *Trident of the Seas (full):* it trades between players as it stands, so it drops for the killer whole, as it did before, although the trident's page says "only the uncharged trident will appear on the floor". Once a charge is used it is the partly charged trident and is lost as that.
+  - *Venator bow, Warped sceptre, Eye of Ayak:* their pages say a protected item loses no charges, and not where an unprotected one's go; the Tonalztics of Ralos page does not mention death. They follow the "Chargable items" rule too.
 - **Left as they were:**
   - *Drygore blowpipe* (a league's): never trades, and the Wiki gives it no death rule.
   - *Viggora's chainmace, Craw's bow, Ursine chainmace, Webweaver bow, Thammaron's and Accursed sceptre* have their own Wilderness rule, already in their plugins: the ether drops for the killer, protected or not.

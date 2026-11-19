@@ -1,5 +1,6 @@
 // OSRS Wiki: https://oldschool.runescape.wiki/w/Warped_sceptre
 const { definePoweredStaff, refundsFit, restricted, plainAmount, takePlain, PRESET_TEXT } = require("./PoweredStaff");
+const { splitOnPvpDeath, answerLostToPvpKiller } = require("./ChargedItemDeath");
 
 const MAX_CHARGES = 20000;
 const CHAOS_RUNES_PER_CHARGE = 2;
@@ -212,12 +213,22 @@ function chargeWithRunes(event) {
   event.handled = chargeSceptre(player, sceptre);
 }
 
-function hasRefundSpace(player, amount) {
-  const refunds = [
+/** The runes Uncharge gives back for `amount` charges: all of them (Wiki). */
+function unchargeRefunds(amount) {
+  return [
     new core.Item(ItemIdentifiers.CHAOS_RUNE, amount * CHAOS_RUNES_PER_CHARGE),
     new core.Item(ItemIdentifiers.EARTH_RUNE, amount * EARTH_RUNES_PER_CHARGE),
   ];
-  if (refundsFit(player.getInventory(), refunds)) return true;
+}
+
+/** Empties the sceptre where it is, as Uncharge does. */
+function emptySceptre(item) {
+  item.setId(unchargedByCharged.get(item.getId()));
+  item.setMetaValue(CHARGES_META_KEY, undefined);
+}
+
+function hasRefundSpace(player, amount) {
+  if (refundsFit(player.getInventory(), unchargeRefunds(amount))) return true;
   player.sendMessage("You don't have enough inventory space for the runes gained from uncharging your warped sceptre.");
   return false;
 }
@@ -226,10 +237,8 @@ function refundCharges(player, item) {
   const inventory = player.getInventory();
   const amount = charges(item);
   if (!inventory.getItems().includes(item) || amount <= 0 || !hasRefundSpace(player, amount)) return;
-  inventory.addItem(new core.Item(ItemIdentifiers.CHAOS_RUNE, amount * CHAOS_RUNES_PER_CHARGE));
-  inventory.addItem(new core.Item(ItemIdentifiers.EARTH_RUNE, amount * EARTH_RUNES_PER_CHARGE));
-  item.setId(unchargedByCharged.get(item.getId()));
-  item.setMetaValue(CHARGES_META_KEY, undefined);
+  for (const refund of unchargeRefunds(amount)) inventory.addItem(refund);
+  emptySceptre(item);
   refresh(player);
   syncWornCharges(player);
   itemStatement(player, item, `You uncharge your warped sceptre, regaining ${format(amount * CHAOS_RUNES_PER_CHARGE)} chaos runes and ${format(amount * EARTH_RUNES_PER_CHARGE)} earth runes in the process.`);
@@ -249,6 +258,27 @@ function uncharge({ player, item }) {
   ));
   markInterfaceBusy(player);
   return true;
+}
+
+/**
+ * `player-death:pvp-item-parts` (PlayerDeathTask). Wiki, Warped sceptre: "On death in the wilderness, if you have the
+ * sceptre as one of your protected items, it will not lose charges"; it does not say where an unprotected sceptre's
+ * charges go, so the rule is the one for every chargeable item (Wiki, Items Kept on Death, "Chargable items"): "Dropped
+ * to the PKer as the tradeable uncharged item, and drops the items that would result from uncharging the item to the
+ * PKer too." Uncharging "grants all the runes back", so the killer gets the uncharged sceptre and its runes.
+ */
+// Ours (upstream issue #6002): before this an unprotected charged sceptre came back whole from a PvP death.
+function unchargeOnPvpDeath(query) {
+  splitOnPvpDeath(core, query, (item) => unchargedByCharged.get(item.getId()) ?? null, (item) => {
+    const runes = unchargeRefunds(charges(item)).map((refund) => [refund.getId(), refund.getAmount()]);
+    emptySceptre(item);
+    return runes;
+  });
+}
+
+/** `items:lost-to-pvp-killer`: the Items Kept on Death screen's PvP preview shows a charged sceptre lost. */
+function lostToPvpKiller(query) {
+  answerLostToPvpKiller(core, query, (item) => unchargedByCharged.get(item.getId()) ?? null);
 }
 
 function canEquip(event) {
@@ -329,5 +359,7 @@ module.exports = {
     api.onPlayerLogout(closeChargingInterface);
     api.registerCombatMethodResolver({ resolve: resolveSceptre });
     api.onCustomEvent("item:fill-charges", fillCharges);
+    api.onCustomEvent("player-death:pvp-item-parts", unchargeOnPvpDeath);
+    api.onCustomEvent("items:lost-to-pvp-killer", lostToPvpKiller);
   },
 };

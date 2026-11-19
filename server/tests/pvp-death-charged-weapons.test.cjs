@@ -18,6 +18,8 @@
 //   with the uncharged" item; Magma / Tanzanite helm: "the magma mutagen will be placed in their gravestone", and Items
 //   Kept on Death, "Tradeable items with untradeable modifications": "Dropped to the PKer as the tradeable uncharged
 //   unmodified version. The PKer gets the charges stored in the helm as well."
+// - Venator bow, Warped sceptre, Eye of Ayak, Tonalztics of Ralos: the page does not say where an unprotected item's
+//   charges go, so the "Chargable items" rule gives the killer what Uncharge gives back.
 process.env.DISABLE_PLAYER_BOTS = "1";
 const assert = require("node:assert/strict");
 const path = require("node:path");
@@ -110,6 +112,19 @@ function cases() {
       killer: { [I.UNCHARGED_TOXIC_TRIDENT_E_]: 1, [I.ZULRAHS_SCALES]: 15000 }, kept: [] },
     { name: "Trident of the Swamp (e) (o)", item: () => make(I.TRIDENT_OF_THE_SWAMP_E_O_, { "trident-charges": 2 }),
       killer: { [I.UNCHARGED_TOXIC_TRIDENT_E_]: 1, [I.ZULRAHS_SCALES]: 2, [I.DEMONIC_TRIDENT_ORNAMENT_KIT]: 1 }, kept: [] },
+    // Ancient essence, runes, demon tears and sunfire splinters
+    { name: "Venator bow", item: () => make(I.VENATOR_BOW, { "venator-bow:charges": 2500 }),
+      killer: { [I.VENATOR_BOW_UNCHARGED_]: 1, [I.ANCIENT_ESSENCE]: 2500 }, kept: [] },
+    { name: "Echo venator bow", item: () => make(I.ECHO_VENATOR_BOW, { "venator-bow:charges": 50000 }),
+      killer: { [I.VENATOR_BOW_UNCHARGED_]: 1, [I.ANCIENT_ESSENCE]: 50000, [I.ECHO_VENATOR_BOW_ORNAMENT_KIT]: 1 }, kept: [] },
+    { name: "Warped sceptre", item: () => make(I.WARPED_SCEPTRE, { "warped-sceptre": 400 }),
+      killer: { [I.WARPED_SCEPTRE_UNCHARGED_]: 1, [I.CHAOS_RUNE]: 800, [I.EARTH_RUNE]: 2000 }, kept: [] },
+    { name: "Eye of Ayak charged with demon tears", item: () => make(I.EYE_OF_AYAK, { "eye-of-ayak-charges": 300, "eye-of-ayak-charge-material": "tears" }),
+      killer: { [I.EYE_OF_AYAK_UNCHARGED_]: 1, [I.DEMON_TEAR]: 300 }, kept: [] },
+    { name: "Eye of Ayak charged with runes", item: () => make(I.EYE_OF_AYAK, { "eye-of-ayak-charges": 300, "eye-of-ayak-charge-material": "runes" }),
+      killer: { [I.EYE_OF_AYAK_UNCHARGED_]: 1, [I.DEATH_RUNE]: 600, [I.CHAOS_RUNE]: 300 }, kept: [] },
+    { name: "Tonalztics of Ralos", item: () => make(I.TONALZTICS_OF_RALOS, { "tonalztics-of-ralos:charges": 900 }),
+      killer: { [I.TONALZTICS_OF_RALOS_UNCHARGED_]: 1, [I.SUNFIRE_SPLINTERS]: 900 }, kept: [] },
   ];
 }
 
@@ -271,6 +286,8 @@ test("a charged item id that holds no charges gives the uncharged item and nothi
     [I.SANGUINESTI_STAFF, I.SANGUINESTI_STAFF_UNCHARGED_], [I.TUMEKENS_SHADOW, I.TUMEKENS_SHADOW_UNCHARGED_],
     [I.SERPENTINE_HELM, I.SERPENTINE_HELM_UNCHARGED_], [I.TRIDENT_OF_THE_SWAMP, I.UNCHARGED_TOXIC_TRIDENT],
     [I.TOXIC_STAFF_OF_THE_DEAD, I.TOXIC_STAFF_UNCHARGED_],
+    [I.VENATOR_BOW, I.VENATOR_BOW_UNCHARGED_], [I.TONALZTICS_OF_RALOS, I.TONALZTICS_OF_RALOS_UNCHARGED_],
+    [I.WARPED_SCEPTRE, I.WARPED_SCEPTRE_UNCHARGED_], [I.EYE_OF_AYAK, I.EYE_OF_AYAK_UNCHARGED_],
   ];
   staged.forEach(([charged], slot) => victim.getInventory().setItem(slot, make(charged)));
   const result = die(t, victim, killer, WILDERNESS(), { skulled: true });
@@ -305,6 +322,15 @@ test("an Ironman killer gets none of it: the uncharged item and its contents lie
   assert.deepEqual(pile(result), {});
   assert.deepEqual(pile(result, "victim"), { [I.TOXIC_BLOWPIPE_EMPTY_]: 1, [I.ZULRAHS_SCALES]: 4000, [I.DRAGON_DART]: 300 });
   assert.deepEqual(result.keptIds, []);
+});
+
+test("the death gives what Uncharge by hand gives: the Venator bow's essence, the Eye of Ayak's tears or runes", (t) => {
+  const Eye = require("../plugins/items/EyeOfAyak.plugin")._test;
+  assert.deepEqual(byHand(t, "Eye of Ayak charged with demon tears", (player, item) => Eye.refund(player, item)), expected("Eye of Ayak charged with demon tears"));
+  assert.deepEqual(byHand(t, "Eye of Ayak charged with runes", (player, item) => Eye.refund(player, item)), expected("Eye of Ayak charged with runes"));
+  assert.deepEqual(byHand(t, "Venator bow", (player, item) => PM.emitItemAction({ player, item, itemId: item.getId(), slot: 0,
+    interfaceId: core.CacheDefinitions.getComponentId("inventory:items"),
+    clickType: core.CacheDefinitions.getItem(item.getId()).inventoryActions.indexOf("Uncharge") + 1, handled: false })), expected("Venator bow"));
 });
 
 test("the Items Kept on Death PvP preview shows every one of them lost", () => {
@@ -449,6 +475,7 @@ test("an uncharged item carried, with nothing in it, drops as any tradeable item
   const ids = [
     I.SCYTHE_OF_VITUR_UNCHARGED_, I.SANGUINESTI_STAFF_UNCHARGED_, I.TUMEKENS_SHADOW_UNCHARGED_,
     I.TOXIC_BLOWPIPE_EMPTY_, I.SERPENTINE_HELM_UNCHARGED_, I.UNCHARGED_TOXIC_TRIDENT, I.TOXIC_STAFF_UNCHARGED_,
+    I.VENATOR_BOW_UNCHARGED_, I.WARPED_SCEPTRE_UNCHARGED_, I.EYE_OF_AYAK_UNCHARGED_, I.TONALZTICS_OF_RALOS_UNCHARGED_,
   ];
   ids.forEach((id, slot) => victim.getInventory().setItem(slot, make(id)));
   const result = die(t, victim, killer, WILDERNESS(), { skulled: true });
