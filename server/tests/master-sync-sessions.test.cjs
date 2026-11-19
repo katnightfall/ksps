@@ -608,3 +608,25 @@ test("a save changed just after its player logged out, the logout save still on 
   assert.equal(await miami.login("Kat"), null, "and the character is free");
   assert.deepEqual(JSON.parse(miami.rows.get("kat")), { at: "logout", rank: 2 });
 });
+
+test("the old copy of a login that was put out is refused also when its hand-in only gets through at a later try", async (t) => {
+  const hub = await master(t);
+  const dallas = world(t, "1 - Dallas", hub);
+  const miami = world(t, "2 - Miami", hub);
+  await dallas.login("Kat");
+  await dallas.logout("Kat", "kat", { at: "Dallas" });
+  assert.equal(await dallas.accepted("Kat"), null);
+  await miami.login("Kat");
+  await miami.logout("Kat", "kat", { at: "Miami" });
+  await dallas.sync.mirror(); // Dallas's copying runs while the login waits on the picker
+  await dallas.sync.entered("Kat");
+  assert.equal(dallas.kicked.length, 1, "put out: the copy read at login is out of date");
+  // Her logout save from the old copy: its hand-in fails once, and is tried again when she is long gone.
+  hub.answers.status = (request) => (request.url === "/sync/save" ? 502 : 0);
+  await dallas.logout("Kat", "kat", { at: "Dallas, from the old copy" });
+  hub.answers.status = null;
+  assert.deepEqual(dallas.sync.state().dirty, ["kat"]);
+  await dallas.sync.tick();
+  assert.deepEqual(dallas.sync.state().dirty, []);
+  assert.deepEqual(hub.saved("kat"), { at: "Miami" }, "refused then too");
+});

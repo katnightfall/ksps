@@ -483,8 +483,11 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
         const here = online();
         for (const row of answer.rows ?? []) {
           if (typeof row.json !== "string" || BOT_KEY.test(row.key)) continue;
-          // A save of someone here, or one this world has yet to hand in, is newer here.
-          if (tracked.get(row.key)?.online || dirty.has(row.key) || here.has(row.key)) continue;
+          // A save of someone here, or one this world has yet to hand in, is newer here. And a
+          // login still waiting to enter has read its copy: the version noted for that save stays
+          // the one it read, so whatever it hands in, now or at a later try, is taken as coming
+          // after that copy and refused if the master has a newer one.
+          if (tracked.has(row.key) || dirty.has(row.key) || here.has(row.key)) continue;
           versions.set(row.key, Number(row.version) || 0);
           if (persistence.currentJson(row.key) !== row.json) {
             apply(row.key, row.json);
