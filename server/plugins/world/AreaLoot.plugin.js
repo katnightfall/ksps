@@ -10,13 +10,16 @@
  *
  * What may be taken is what the player could take by walking there, decided by the game's own
  * rules for ground items (ItemOnGroundManager): it is on their floor, they can see it, the
- * take option is theirs (another player's fresh drop is not, an Ironman's rules apply), and the
- * backpack has room. Each pile goes through the same hand-over as a normal take, so every plugin
- * that watches or limits pick-ups still does.
+ * take option is theirs (another player's fresh drop is not), there is a way to walk to it (no
+ * wall or fence between), and the backpack has room. Each pile is offered to the pick-up hooks
+ * a click's Take runs (an Ironman takes no other player's drop, a minigame keeps its own items)
+ * and then goes through the same hand-over as a normal take, so every plugin that watches or
+ * limits pick-ups still does.
  *
  * Left where it lies: an item that spawns in the world (a quest item on a table has its own
- * way of being taken), and, unless the world allows it, anything while the player is in the
- * Wilderness, where a kill's loot is fought over on foot.
+ * way of being taken), and, unless the world allows it, anything in the Wilderness, where a
+ * kill's loot is fought over on foot: neither while the player is in it, nor a pile lying in it
+ * swept up from the safe side of its edge.
  *
  * World settings: AreaLoot:enabled, AreaLoot:radius (1 to 30 tiles, default 10),
  * AreaLoot:wilderness.
@@ -30,9 +33,12 @@ const MAX_RADIUS = 30;
 const COOLDOWN_TICKS = 2;
 /** The most piles one sweep takes: a backpack holds 28, and stacks may add a few more. */
 const MAX_PILES = 60;
+/** How far beyond the loot distance the walk to a pile may stray (round a fence, through a doorway). */
+const REACH_MARGIN = 6;
 
 let api;
 let core;
+let routes;
 const lastSweep = new WeakMap();
 
 function radius() {
@@ -65,6 +71,8 @@ function nearby(player, within = radius()) {
     const at = pile.getPosition();
     if (at.getZ() !== here.getZ() || distance(here, at) > within) continue;
     if (pile.getPrivateArea?.() !== player.getPrivateArea?.()) continue;
+    // The Wilderness rule is the pile's too: standing a tile outside it is not being out of it.
+    if (!wildernessAllowed() && core.Wilderness?.isInLocation?.(at) === true) continue;
     if (!ItemOnGroundManager.canInteract(player, pile, "pickup")) continue;
     piles.push(pile);
   }
@@ -72,15 +80,103 @@ function nearby(player, within = radius()) {
 }
 
 /**
- * Takes `piles` in order. Returns { taken (piles emptied or drawn from), items (how many items
- * came), full (piles left because the backpack had no room) }.
+ * The tiles the player can walk to from where they stand, step by step past walls, fences and
+ * closed doors, without straying more than REACH_MARGIN tiles beyond the loot distance. One
+ * search answers for every pile of a sweep, and its cost has a ceiling whatever lies around.
+ * Returns has(x, y).
  */
-function take(player, piles) {
+function walkable(player, within) {
+  const { RegionManager } = core;
+  const here = player.getLocation();
+  const [homeX, homeY, level] = [here.getX(), here.getY(), here.getZ()];
+  const privateArea = player.getPrivateArea?.() ?? null;
+  const limit = within + REACH_MARGIN;
+  const side = limit * 2 + 1;
+  const seen = new Uint8Array(side * side);
+  const index = (x, y) => (x - homeX + limit) * side + (y - homeY + limit);
+  const inside = (x, y) => Math.abs(x - homeX) <= limit && Math.abs(y - homeY) <= limit;
+  const queue = [homeX, homeY];
+  seen[index(homeX, homeY)] = 1;
+  for (let head = 0; head < queue.length; head += 2) {
+    const x = queue[head];
+    const y = queue[head + 1];
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const [toX, toY] = [x + dx, y + dy];
+        if ((!dx && !dy) || !inside(toX, toY) || seen[index(toX, toY)]) continue;
+        if (!RegionManager.canMove(x, y, toX, toY, level, 1, 1, privateArea)) continue;
+        seen[index(toX, toY)] = 1;
+        queue.push(toX, toY);
+      }
+    }
+  }
+  return { has: (x, y) => inside(x, y) && seen[index(x, y)] === 1 };
+}
+
+/**
+ * Whether the player could walk to the pile and take it: its tile can be walked to, or a tile
+ * beside it can with nothing between (an item on a table or a counter is taken from the tile
+ * next to it), as ItemOnGroundManager.pickup asks of a player who has walked up.
+ */
+function reachable(player, pile, tiles) {
+  const at = pile.getPosition();
+  if (tiles.has(at.getX(), at.getY())) return true;
+  const finder = (routes ??= new core.RsmodRouteFinding());
+  const privateArea = player.getPrivateArea?.() ?? null;
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dy = -1; dy <= 1; dy++) {
+      if ((!dx && !dy) || !tiles.has(at.getX() + dx, at.getY() + dy)) continue;
+      if (finder.reachedAbsolute({
+        level: at.getZ(), srcX: at.getX() + dx, srcY: at.getY() + dy, srcSize: 1, destX: at.getX(), destY: at.getY(),
+        destWidth: 1, destLength: 1, locShape: -2, privateArea,
+      })) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Whether a pick-up hook answers for this pile, as it would for a click's Take (an Ironman is
+ * refused another player's drop, a minigame keeps its own items, a pouch takes its runes): the
+ * ordinary hand-over is then not ours to make.
+ */
+function hooked(player, pile) {
+  const at = pile.getPosition();
+  return core.PluginManager?.emitGroundItemPickup?.({
+    player, groundItem: pile, groundItemId: pile.getItem().getId(), clickType: 1,
+    location: { x: at.getX(), y: at.getY(), z: at.getZ() }, handled: false,
+  }) === true;
+}
+
+/**
+ * Takes `piles` in order. Returns { taken (piles emptied or drawn from), items (how many items
+ * came), full (piles left because the backpack had no room), unreachable (piles there is no way
+ * to walk to) }.
+ */
+function take(player, piles, within = radius()) {
   const { ItemOnGroundManager } = core;
   let taken = 0;
   let items = 0;
   let full = 0;
-  for (const pile of piles.slice(0, MAX_PILES)) {
+  let unreachable = 0;
+  let tried = 0;
+  const tiles = piles.length ? walkable(player, within) : null;
+  for (const pile of piles) {
+    if (!reachable(player, pile, tiles)) {
+      unreachable++;
+      continue;
+    }
+    if (++tried > MAX_PILES) break;
+    // The hooks first, as a click's Take has them: one may take the pile where the backpack has no room.
+    const lying = pile.getItem().getAmount();
+    if (hooked(player, pile)) {
+      // A hook that took the pile itself (into a pouch or a quiver) took all of it.
+      if (pile.isPendingRemoval?.() === true) {
+        taken++;
+        items += lying;
+      }
+      continue;
+    }
     // No room for this one: the next may still stack on to something carried.
     if (ItemOnGroundManager.inventoryCapacity(player, ItemOnGroundManager.rewardItem(player, pile, "pickup")) <= 0) {
       full++;
@@ -92,17 +188,20 @@ function take(player, piles) {
       items += came;
     }
   }
-  return { taken, items, full };
+  return { taken, items, full, unreachable };
 }
 
-function report(player, { taken, items, full }, within) {
+function report(player, { taken, items, full, unreachable = 0 }, within) {
   if (taken > 0) {
     core.Sounds?.sendSound?.(player, core.Sound.PICK_UP_ITEM);
     player.getLastItemPickup?.()?.reset?.();
     player.sendMessage(`You pick up ${items.toLocaleString("en-US")} ${items === 1 ? "item" : "items"} from ${taken} ${taken === 1 ? "pile" : "piles"} nearby.`
-      + (full > 0 ? ` You have no room for ${full} more.` : ""));
+      + (full > 0 ? ` You have no room for ${full} more.` : "")
+      + (unreachable > 0 ? ` You can't reach ${unreachable} more.` : ""));
   } else if (full > 0) {
     player.sendMessage("You don't have enough inventory space to pick anything up.");
+  } else if (unreachable > 0) {
+    player.sendMessage(unreachable === 1 ? "You can't reach that." : "You can't reach what lies nearby.");
   } else {
     player.sendMessage(`There is nothing to pick up within ${within} ${within === 1 ? "tile" : "tiles"}.`);
   }
@@ -132,7 +231,7 @@ function lootCommand({ player, parts }) {
       return true;
     }
   }
-  report(player, take(player, piles), within);
+  report(player, take(player, piles, within), within);
   return true;
 }
 
@@ -165,5 +264,5 @@ module.exports = {
     api.registerCommand("loot", lootCommand, undefined, "Pick up everything nearby: ::loot, or ::loot <item> <x> <y> for one pile");
     api.registerContentEndpoint("area-loot", settings);
   },
-  _test: { lootCommand, nearby, take, radius, settings, refusal, setApi: (pluginApi) => { api = pluginApi; core = pluginApi.core; }, DEFAULT_RADIUS, MAX_RADIUS, COOLDOWN_TICKS },
+  _test: { lootCommand, nearby, take, walkable, reachable, radius, settings, refusal, setApi: (pluginApi) => { api = pluginApi; core = pluginApi.core; routes = undefined; }, DEFAULT_RADIUS, MAX_RADIUS, COOLDOWN_TICKS },
 };

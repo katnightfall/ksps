@@ -95,19 +95,22 @@ test("the book is kept through a restart", (t) => {
   assert.deepEqual(second.collect("sitebot1"), { coins: 180, items: [] });
 });
 
-test("a player's buy offer the bots cover fills at once; one they cover in part fills that much sooner", () => {
+test("a player's buy offer the bots cover fills at once and is final; one they cover only in part is left to the market", () => {
   const { exchange } = book();
   exchange.list("sitebot1", LOGS, 30, 90);
   const now = 5_000_000;
   const whole = { itemId: LOGS, sell: false, quantity: 10, price: 100, completesAt: now + 600_000 };
   assert.equal(Exchange.meetOffer(exchange, whole, now), 10);
   assert.equal(whole.completesAt, now + 5000, "from the bots, at once");
+  assert.equal(whole.met, true, "it has traded: the exchange no longer aborts it (tests/bot-exchange-abort.test.cjs)");
   assert.equal(exchange.onSale(LOGS, 100), 20);
+  // An offer fills whole or is aborted whole, so a part sold to it could be paid for and then given back.
   const part = { itemId: LOGS, sell: false, quantity: 80, price: 100, completesAt: now + 800_000 };
-  assert.equal(Exchange.meetOffer(exchange, part, now), 20);
-  assert.equal(part.completesAt, now + 600_000, "a quarter came from the bots: a quarter less of the wait");
-  assert.equal(exchange.onSale(LOGS, 100), 0);
-  assert.deepEqual(exchange.collect("sitebot1"), { coins: 30 * 90, items: [] });
+  assert.equal(Exchange.meetOffer(exchange, part, now), 0);
+  assert.equal(part.completesAt, now + 800_000, "the market's wait, untouched");
+  assert.equal(part.met, undefined);
+  assert.equal(exchange.onSale(LOGS, 100), 20, "the bots keep their logs");
+  assert.deepEqual(exchange.collect("sitebot1"), { coins: 10 * 90, items: [] });
 });
 
 test("an offer below the bots' price takes nothing, and one the market would never fill only trades whole", () => {
@@ -182,6 +185,33 @@ test("at the exchange a bot puts up what it gathered, keeps food for itself, and
   const second = visit(t, p, exchange);
   assert.equal(second.result, "success");
   assert.ok(OwnItems.carried(p, Items.COINS) >= 120 * price, `paid for all of it (${OwnItems.carried(p, Items.COINS)} coins)`);
+});
+
+test("a bot's goods meet a player's waiting offer once: one already met is not sold to again", (t) => {
+  const price = Exchange.guide.buy(Items.LOGS);
+  const waiting = (met) => {
+    const buyer = new Player(null);
+    buyer.getSession = () => ({ sendClientPacket: () => true, write: () => true });
+    buyer.setUsername(`LogBuyer${++names}`);
+    buyer.sendMessage = () => {};
+    // As the exchange saves it: a buy of ten logs at the going price, still waiting.
+    buyer.setAttribute("grand-exchange-offers", { 0: { slot: 0, itemId: Items.LOGS, sell: false, quantity: 10, price, total: 10 * price,
+      finished: false, placedAt: Date.now(), completesAt: Date.now() + 1000, ...(met ? { met: true } : {}) } });
+    t.after(() => core.TaskManager.cancelTasks(buyer));
+    return buyer;
+  };
+  for (const met of [false, true]) {
+    const { exchange } = book();
+    const buyer = waiting(met);
+    const seller = bot(t);
+    seller.getBank(0).adds(Items.LOGS, 120);
+    atExchange(seller);
+    const world = { core: { ...core, World: { ...core.World, getPlayers: () => [buyer] } }, log: () => {} };
+    const action = Exchange.createExchangeAction({ type: "exchange" }, world, exchange, [Items.LOGS]);
+    action.update({ player: seller, world, state: {}, frame: {}, nowMs: 1000, activity: { id: "grand_exchange" }, brain: { registry: { blockActivity() {} } } });
+    assert.equal(exchange.onSale(Items.LOGS, price), met ? 120 : 110, met ? "already traded: the logs stay up" : "ten go to the waiting offer");
+    assert.equal(buyer.getAttribute("grand-exchange-offers")[0].met, true, "final either way");
+  }
 });
 
 test("it bids for what it is saving for, coins down, and takes the item home from its next visit", (t) => {

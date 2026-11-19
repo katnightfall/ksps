@@ -75,8 +75,13 @@ function botExchange() {
 }
 
 /**
- * A player's offer as it is placed (the exchange's "ge:offer-placing"): what the bots have up
- * or bid for is taken first, and the offer fills that much sooner, at once when they cover it all.
+ * A player's offer as it is placed (the exchange's "ge:offer-placing"): when what the bots have
+ * up, or bid for, covers all of it, it trades with them, at once.
+ *
+ * The bots are paid for their goods (or handed what they bid for) here and now, so the offer is
+ * final from here (`met`: the exchange completes it rather than aborting it). An offer they
+ * cover only in part takes nothing of theirs: an offer fills whole or is aborted whole, and a
+ * part sold to it would be paid for and then given back with the rest.
  */
 function meetOffer(exchange, offer, nowMs = Date.now()) {
   const itemId = unNote(offer.itemId);
@@ -85,14 +90,12 @@ function meetOffer(exchange, offer, nowMs = Date.now()) {
   if (!(price > 0) || !(quantity > 0)) return 0;
   exchange.settle();
   const there = offer.sell ? exchange.wanted(itemId, price) : exchange.onSale(itemId, price);
-  const covered = Math.min(quantity, there);
-  // An offer the market will never fill (priced out of it) only trades when the bots cover all of it.
-  if (covered <= 0 || (covered < quantity && offer.completesAt === null)) return 0;
-  if (offer.sell) exchange.sellToBots(itemId, covered, price);
-  else exchange.buyFromBots(itemId, covered, price);
-  const soon = nowMs + PLAYER_FILL_MS;
-  offer.completesAt = covered >= quantity ? soon : Math.max(soon, nowMs + (offer.completesAt - nowMs) * (1 - covered / quantity));
-  return covered;
+  if (there < quantity) return 0;
+  if (offer.sell) exchange.sellToBots(itemId, quantity, price);
+  else exchange.buyFromBots(itemId, quantity, price);
+  offer.completesAt = nowMs + PLAYER_FILL_MS;
+  offer.met = true;
+  return quantity;
 }
 
 function createExchangeAction(spec, world, exchange = botExchange(), goods = null) {
@@ -155,8 +158,9 @@ function createExchangeAction(spec, world, exchange = botExchange(), goods = nul
     for (const player of world.core.World.getPlayers()) {
       if (!player || player.isPlayerBot?.() === true) continue;
       for (const [slot, offer] of Object.entries(player.getAttribute?.(PLAYER_OFFERS_ATTRIBUTE) ?? {})) {
-        // A bot selling meets players buying, and the other way round.
-        if (!offer || offer.finished || offer.aborted || Boolean(offer.sell) === selling || unNote(offer.itemId) !== itemId) continue;
+        // A bot selling meets players buying, and the other way round. An offer the bots have met already has
+        // traded (it is only waiting out its few seconds): another bot's goods are not sold to it a second time.
+        if (!offer || offer.finished || offer.aborted || offer.met === true || Boolean(offer.sell) === selling || unNote(offer.itemId) !== itemId) continue;
         const price = Number(offer.price) || 0;
         const there = selling ? exchange.onSale(itemId, price) : exchange.wanted(itemId, price);
         if (there < offer.quantity) continue;

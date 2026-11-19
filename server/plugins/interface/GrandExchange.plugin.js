@@ -412,6 +412,24 @@ function recordHistory(player, offer) {
   return true;
 }
 
+/** The offer trades: what it bought or was paid waits in its collection slots. */
+function complete(player, offer) {
+  offer.finished = true;
+  offer.completedAt = Date.now();
+  countFilledBuy(player, offer, offer.completedAt);
+  offer.traded = Math.min(offer.sell ? MAX_TRADE : offer.total, offer.quantity * fillUnitPrice(offer));
+  recordHistory(player, offer);
+  saveOffers(player);
+  refreshCollectionBox(player);
+  const sender = player.getPacketSender();
+  sender.sendInterfaceScript(786, [], marketVarps(offer.slot, offer), undefined,
+    { [COLLECTIONS[offer.slot]]: collection(offer) });
+  if (player.getInterfaceId() === GE && viewing.get(player) === offer.slot && !offers.has(player)) {
+    sender.sendVarbit(SELECTED_SLOT, 0).sendVarbit(SELECTED_SLOT, offer.slot + 1);
+  }
+  sender.sendMessage(`${offer.sell ? "Sold" : "Bought"} ${offer.quantity.toLocaleString("en-US")} x ${ItemDefinition.forId(offer.itemId).getName()}. Click Collect.`);
+}
+
 function scheduleCompletion(player, offer) {
   if (offer.finished || offer.completesAt === null) {
     if (recordHistory(player, offer)) saveOffers(player);
@@ -425,20 +443,7 @@ function scheduleCompletion(player, offer) {
     // A second timer for the same offer (e.g. rescheduled on login) must not
     // re-save and re-announce an already-completed offer.
     if (offer.finished) return;
-    offer.finished = true;
-    offer.completedAt = Date.now();
-    countFilledBuy(player, offer, offer.completedAt);
-    offer.traded = Math.min(offer.sell ? MAX_TRADE : offer.total, offer.quantity * fillUnitPrice(offer));
-    recordHistory(player, offer);
-    saveOffers(player);
-    refreshCollectionBox(player);
-    const sender = player.getPacketSender();
-    sender.sendInterfaceScript(786, [], marketVarps(offer.slot, offer), undefined,
-      { [COLLECTIONS[offer.slot]]: collection(offer) });
-    if (player.getInterfaceId() === GE && viewing.get(player) === offer.slot && !offers.has(player)) {
-      sender.sendVarbit(SELECTED_SLOT, 0).sendVarbit(SELECTED_SLOT, offer.slot + 1);
-    }
-    sender.sendMessage(`${offer.sell ? "Sold" : "Bought"} ${offer.quantity.toLocaleString("en-US")} x ${ItemDefinition.forId(offer.itemId).getName()}. Click Collect.`);
+    complete(player, offer);
   }, Math.max(0, offer.completesAt - Date.now()));
   timers.add(timer);
 }
@@ -1162,6 +1167,14 @@ function abort(player, slot = viewing.get(player)) {
     player.sendMessage("That offer has already completed.");
     return;
   }
+  // Ours: an offer the bots' book met (`met`, set as it was placed or by fillBy) has traded already:
+  // the bots were paid for their goods, or handed what they bid for, at that moment. Aborting it
+  // gave the player's coins or items back as well, so it completes here instead.
+  if (offer.met === true) {
+    complete(player, offer);
+    player.sendMessage("That offer has already completed.");
+    return;
+  }
   offer.finished = true;
   offer.aborted = true;
   if (!offer.sell) releaseLimit(player, offer);
@@ -1412,6 +1425,21 @@ function handleHistoryButton({ player, buttonId, slot, action }) {
   return true;
 }
 
+/**
+ * Ours. By command the exchange is at hand wherever the player stands, and it does a bank's work: an item
+ * put up for sale has left the backpack (and a death, and a minigame's own gear left with it for coins), and
+ * what is collected can go to the bank. So ::ge and ::gecollect are refused where ::bank is (AdminCommands:
+ * the Wilderness, a fight, Entrana, wherever teleporting away is refused). The clerks and booths are not asked.
+ */
+function byCommand(open) {
+  return (event) => {
+    const refusal = require("../commands/AdminCommands.plugin").commandAccessRefusal?.(event.player, "the Grand Exchange", "trading");
+    if (!refusal) return open(event);
+    event.player.sendMessage(refusal);
+    return true;
+  };
+}
+
 const COLLECTION_BUTTONS = Array.from({ length: 10 }, (_, i) => collectUid(i + 3));
 // Child 34 is the offer setup panel; its quantity and price controls are dynamic children (slot 1-13).
 const EXCHANGE_BUTTONS = [SETUP_FEE_INFO, DETAILS_FEE_INFO, uid(3), uid(4), uid(6), uid(23), uid(24), uid(26), uid(30), uid(34), ...Array.from({ length: 8 }, (_, i) => uid(i + 7))];
@@ -1420,11 +1448,13 @@ const HISTORY_BUTTONS = [historyUid(2), historyUid(3)];
 
 /**
  * Ours: brings a waiting offer's fill forward to `at` (a bot's goods or bid met it:
- * bots/brain/actions/Exchange). False when there is no such offer waiting.
+ * bots/brain/actions/Exchange). The offer has traded from that moment (`met`): it can no longer
+ * be aborted. False when there is no such offer waiting.
  */
 function fillBy(player, slot, at) {
   const offer = completedOffers(player)[slot];
   if (!offer || offer.finished || offer.aborted) return false;
+  offer.met = true;
   if (offer.completesAt !== null && offer.completesAt <= at) return true;
   offer.completesAt = at;
   scheduleCompletion(player, offer);
@@ -1499,8 +1529,8 @@ module.exports = {
       completionTimers.delete(player);
     });
     api.registerContentEndpoint("item-prices", itemPricesResource);
-    api.registerCommand("ge", openGrandExchange, undefined, "Open the Grand Exchange");
-    api.registerCommand("gecollect", openCollectionBox, undefined, "Open the Grand Exchange collection box");
+    api.registerCommand("ge", byCommand(openGrandExchange), undefined, "Open the Grand Exchange");
+    api.registerCommand("gecollect", byCommand(openCollectionBox), undefined, "Open the Grand Exchange collection box");
 
     api.onNpcInteraction(CLERK, { "Exchange": openGrandExchange, "History": openHistory });
     api.onNpcDialogueCondition(clerkCondition);
