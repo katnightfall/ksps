@@ -15,12 +15,16 @@
  * exactly what went in. A piece nobody charged (one spawned by a preset, a command or a bot's kit) holds no coins: a
  * death still leaves it inactive, and pays the killer nothing.
  *
- * The weapons made with the store's imbue scrolls (Dark bow (bh) and the rest) are lost to a PvP death as the weapon
- * they were made from, and the scroll is kept (loseImbuedWeaponOnPvpDeath).
+ * The weapons made with the store's imbue scrolls (Dark bow (bh) and the rest): "It is created by using a dark bow imbue
+ * scroll on a dark bow" (Wiki, each weapon's page), which uses the scroll up (imbueWeapon). They are lost to a PvP death
+ * as the weapon they were made from, and the scroll is kept (loseImbuedWeaponOnPvpDeath). Dismantle takes one apart
+ * into the same two items (dismantleWeapon).
  *
  * Ours, where the Wiki says nothing: Uncharge gives the coins back to the player; the wording of every message; the
- * Yes/No before the coins are taken; and `bounty-hunter:can-convert`, by which the Corrupted Warrior refuses a charged
- * piece whose corrupted (or plain) form takes a different amount, so that converting never changes what a piece holds.
+ * Yes/No before the coins are taken; what Dismantle gives back (the cache has the option, the Wiki names it and no
+ * more: the weapon and the scroll are what the item was made of and what a death makes of it); and
+ * `bounty-hunter:can-convert`, by which the Corrupted Warrior refuses a charged piece whose corrupted (or plain) form
+ * takes a different amount, so that converting never changes what a piece holds.
  */
 // Ours (upstream issue #6002): before this an activated piece came back from a PvP death as it was, skulled or not, and
 // the inactive pieces the store sells could not be activated at all.
@@ -38,6 +42,8 @@ const byActive = new Map();
 const byInactive = new Map();
 /** Imbued weapon id -> { weapon, scroll }: what it is made of. */
 const imbuedWeapons = new Map();
+/** "scroll id|weapon id" -> the imbued weapon the scroll makes of it. */
+const madeByScroll = new Map();
 
 function load(identifiers) {
   byActive.clear();
@@ -53,12 +59,15 @@ function load(identifiers) {
     byInactive.set(inactive, entry);
   }
   imbuedWeapons.clear();
+  madeByScroll.clear();
   for (const row of DATA.imbuedWeapons) {
     const [imbued, weapon, scroll] = [row.imbued, row.weapon, row.scroll].map((name) => identifiers[name]);
     if (![imbued, weapon, scroll].every(Number.isInteger)) {
       throw new Error(`bounty-hunter-equipment.json: unknown item in ${JSON.stringify(row)}`);
     }
     imbuedWeapons.set(imbued, { weapon, scroll });
+    // A poisoned form is made by poisoning the imbued dagger (Wiki), not by a scroll on a poisoned dagger.
+    if (row.poisoned !== true) madeByScroll.set(`${scroll}|${weapon}`, imbued);
   }
 }
 
@@ -139,6 +148,58 @@ function uncharge(event) {
 }
 
 /**
+ * An imbue scroll used on its weapon, either way round (Wiki, Dark bow (bh): "It is created by using a dark bow imbue
+ * scroll on a dark bow"; the Recipe on each weapon's page lists the weapon and the scroll, and the imbued weapon as
+ * what they make). The scroll is used up and the weapon, the same Item, becomes the imbued one.
+ */
+// Ours (upstream issue #6002): before this nothing answered the scrolls the store sells, so a player had an imbued
+// weapon only where one was spawned.
+function imbueWeapon(event) {
+  const { player, usedItem, usedWithItem, usedItemSlot, usedWithItemSlot } = event;
+  const scrollFirst = madeByScroll.has(`${usedItem.getId()}|${usedWithItem.getId()}`);
+  const [scroll, weapon, scrollSlot, weaponSlot] = scrollFirst
+    ? [usedItem, usedWithItem, usedItemSlot, usedWithItemSlot]
+    : [usedWithItem, usedItem, usedWithItemSlot, usedItemSlot];
+  const imbued = madeByScroll.get(`${scroll.getId()}|${weapon.getId()}`);
+  if (imbued == null) return false;
+  if (!inInventory(player, scrollSlot, scroll, scroll.getId()) || !inInventory(player, weaponSlot, weapon, weapon.getId())) return;
+  // A preset copy would come out of Dismantle as a real scroll, or take a real scroll with it when it is deleted.
+  if (restricted(scroll) || restricted(weapon)) {
+    player.sendMessage("You can't imbue that.");
+    return;
+  }
+  const name = nameOf(weapon.getId());
+  player.getInventory().deleteAtSlot(scrollSlot, 1, false);
+  weapon.setId(imbued);
+  player.getInventory().refreshItems();
+  player.sendMessage(`You use the scroll to imbue your ${name}.`);
+}
+
+/** Dismantle: the weapon the imbued one was made from, the same Item, and its scroll, which needs a free slot. */
+function dismantleWeapon(event) {
+  const { player, item, slot } = event;
+  const made = imbuedWeapons.get(item.getId());
+  if (!made) return false;
+  if (!inInventory(player, slot, item, item.getId())) return;
+  // A preset copy was never made with a scroll.
+  if (restricted(item)) {
+    player.sendMessage("You can't dismantle that.");
+    return;
+  }
+  const inventory = player.getInventory();
+  const scroll = new core.Item(made.scroll, 1);
+  if (inventory.getAddableAmount(scroll) < 1) {
+    player.sendMessage(NOT_ENOUGH_SPACE);
+    return;
+  }
+  const name = nameOf(item.getId());
+  item.setId(made.weapon);
+  inventory.add(scroll, false);
+  inventory.refreshItems();
+  player.sendMessage(`You dismantle the ${name} and take the imbue scroll back.`);
+}
+
+/**
  * `player-death:pvp-item-parts` (PlayerDeathTask, asked for the items a PvP death does not protect): the piece goes
  * inactive, the same Item, which the victim then keeps as any untradeable; the coins it held become a part of their
  * own, which the death drops for the killer with the rest of the loot.
@@ -194,9 +255,9 @@ function canConvert(query) {
 
 module.exports = {
   name: "BountyHunterEquipment",
-  description: "Bounty Hunter Store equipment: Activate charges a piece of Ancient Warriors' equipment with coins, Uncharge takes them back, an unprotected piece lost to a player goes inactive and pays its coins to the killer, and an imbued weapon is lost as the plain weapon.",
+  description: "Bounty Hunter Store equipment: Activate charges a piece of Ancient Warriors' equipment with coins, Uncharge takes them back, an unprotected piece lost to a player goes inactive and pays its coins to the killer; an imbue scroll makes its weapon the imbued one, Dismantle takes it apart again, and an imbued weapon is lost as the plain weapon.",
   members: true,
-  _test: { byActive, byInactive, imbuedWeapons, heldCoins, FEE_META },
+  _test: { byActive, byInactive, imbuedWeapons, madeByScroll, heldCoins, FEE_META },
   register(pluginApi) {
     api = pluginApi;
     core = pluginApi.core;
@@ -206,6 +267,15 @@ module.exports = {
       api.onItemAction(nameOf(entry.inactive), { Activate: activate });
       api.onItemAction(nameOf(entry.active), { Uncharge: uncharge });
     }
+    const pairs = new Set();
+    for (const key of madeByScroll.keys()) {
+      const [scroll, weapon] = key.split("|").map((id) => nameOf(Number(id)));
+      // Several cache items can share a name; one hook a pair, and the handler takes only the listed ids.
+      if (pairs.has(`${scroll}|${weapon}`)) continue;
+      pairs.add(`${scroll}|${weapon}`);
+      api.onItemOnItem(scroll, weapon, imbueWeapon, { noted: false });
+    }
+    for (const name of new Set([...imbuedWeapons.keys()].map(nameOf))) api.onItemAction(name, { Dismantle: dismantleWeapon });
     api.onCustomEvent("player-death:pvp-item-parts", deactivateOnPvpDeath);
     api.onCustomEvent("player-death:pvp-item-parts", loseImbuedWeaponOnPvpDeath);
     api.onCustomEvent("items:lost-to-pvp-killer", answerLostToPvpKiller);
