@@ -33,8 +33,13 @@
  *   per-row button behaviour is not established.
  * - Oaknock's exchanger is worked by using a disc on it; it deterministically splits
  *   one disc into two of equal total value instead of offering random exchanges.
- * - Brimstail's "three random discs" are a fixed set (green square, blue triangle,
+ * - Brimstail's first "three random discs" are a fixed set (green square, blue triangle,
  *   yellow pentagon) so the fixed puzzle is always solvable; the real quest rolls them.
+ *   After that he hands out three more, rolled this time, whenever the player carries no
+ *   disc at all (the Wiki's drop trick: "drop the discs and talk to him again to get more
+ *   discs"), never a circle or a red disc ("Brimstail cannot directly give you any circles,
+ *   or red coloured shapes"). How many times live hands them out before the player has to
+ *   drop is not established, so here it is once.
  * - the six spies are spawned per player (ownerOnly) when the machine activates, at
  *   fixed tiles; the cute-creature models, the Brimstail-kills-his-creature case and
  *   the entrance re-spawn are not simulated.
@@ -149,6 +154,8 @@ module.exports = function registerEyesOfGlouphrieQuest(api) {
     if (!ITEM_BY_VALUE.has(value)) ITEM_BY_VALUE.set(value, itemId);
   }
   const VALUES_DESCENDING = [...ITEM_BY_VALUE.keys()].sort((a, b) => b - a);
+  /** What Brimstail can hand out: every colour but red, every shape but the circle (Wiki, see the header). */
+  const BRIMSTAIL_DISCS = COLOUR_DISCS.slice(1).flatMap((row) => row.slice(1));
 
   const UNLOCK_VALUE = 4; // red square
   const OPERATE_SLOTS = [1, 2, 3];
@@ -308,16 +315,37 @@ module.exports = function registerEyesOfGlouphrieQuest(api) {
     player.getInventory().adds(YELLOW_TRIANGLE_ITEM_ID, 1);
   }
 
+  /** Whether the player carries any crystal disc at all. */
+  function holdsDisc(player) {
+    for (const itemId of DISC_VALUE_BY_ITEM.keys()) if (held(player, itemId)) return true;
+    return false;
+  }
+
+  /**
+   * Ours (upstream issue #6257): Brimstail's extra discs were handed out once and never again, so a player who lost
+   * or used up their discs had no way to get more. He owes them the first time, and after that whenever the player
+   * carries none (the Wiki's drop trick; see the header).
+   */
+  function owedExtraDiscs(player) {
+    return !hasBit(player, BIT_EXTRA_DISCS) || !holdsDisc(player);
+  }
+
   function ensureExtraDiscs(player) {
-    if (hasBit(player, BIT_EXTRA_DISCS)) return;
+    if (!owedExtraDiscs(player)) return;
     if (player.getInventory().getFreeSlots() < 3) {
       player.sendMessage("You need three free inventory slots.");
       return;
     }
-    setBit(player, BIT_EXTRA_DISCS);
-    player.getInventory().adds(GREEN_SQUARE_ITEM_ID, 1);
-    player.getInventory().adds(BLUE_TRIANGLE_ITEM_ID, 1);
-    player.getInventory().adds(YELLOW_PENTAGON_ITEM_ID, 1);
+    if (!hasBit(player, BIT_EXTRA_DISCS)) {
+      setBit(player, BIT_EXTRA_DISCS);
+      player.getInventory().adds(GREEN_SQUARE_ITEM_ID, 1);
+      player.getInventory().adds(BLUE_TRIANGLE_ITEM_ID, 1);
+      player.getInventory().adds(YELLOW_PENTAGON_ITEM_ID, 1);
+      return;
+    }
+    for (let i = 0; i < 3; i++) {
+      player.getInventory().adds(BRIMSTAIL_DISCS[Math.floor(Math.random() * BRIMSTAIL_DISCS.length)], 1);
+    }
   }
 
   /** Splits a disc value into two valid disc values, largest first. */
@@ -440,6 +468,11 @@ module.exports = function registerEyesOfGlouphrieQuest(api) {
         : "assassination-talking-to-brimstail-after-activating-the-machine";
     }
     if (stage >= STAGE_PANEL_UNLOCKED) {
+      // Ours (upstream issue #6257): the transcript's page for this stage has no disc hand-over, yet the Wiki sends the
+      // player to Brimstail for more discs here too ("For this, you will need more crystal discs - talk to Brimstail
+      // to get some from him"). A player with no disc left gets the earlier page, whose answer hands them over;
+      // without it a player who lost their discs after unlocking the panel could never operate the machine.
+      if (!holdsDisc(player)) return "the-anti-illusion-machine-talking-to-brimstail-again-before-unlocking-the-machine";
       return "the-anti-illusion-machine-talking-to-brimstail-after-unlocking-the-machine-s-front-panel";
     }
     if (stage >= STAGE_REPAIR_REPORTED) {
@@ -519,8 +552,8 @@ module.exports = function registerEyesOfGlouphrieQuest(api) {
         return !held(player, BUCKET_OF_SAP_ITEM_ID);
       case "HXYWYK": // has a bucket of sap
         return held(player, BUCKET_OF_SAP_ITEM_ID);
-      case "r8Ly0u": // has not received the three extra discs
-        return !hasBit(player, BIT_EXTRA_DISCS);
+      case "r8Ly0u": // has not received the three extra discs (or carries none: the drop trick)
+        return owedExtraDiscs(player);
       case "cHfg5Y": // progressed far enough into Monkey Madness I
         return false;
       case "b8Zhn0": // hasn't progressed far enough into Monkey Madness I
