@@ -381,3 +381,30 @@ test("kept: the charged shields come through with their charges", (t) => {
   keptCases(t, () => shieldCharges(I.DRAGONFIRE_WARD, 1));
   keptCases(t, () => shieldCharges(I.ANCIENT_WYVERN_SHIELD, 49));
 });
+
+// --- Amulet of blood fury, Neitiznot faceguard -----------------------------------------------------------------------
+// Wiki, Amulet of blood fury: "When killed by another player and the amulet of blood fury is not one of the items
+// protected on death, the amulet is converted to a normal amulet of fury; the blood shard and any remaining charges
+// are lost." Neitiznot faceguard: "If lost in PvP, it will revert to the normal helm of Neitiznot and basilisk jaw."
+
+const bloodFury = () => withMeta(I.AMULET_OF_BLOOD_FURY, "blood-fury", { charges: 12345 });
+
+test("lost: an amulet of blood fury drops for the killer as an amulet of fury; no blood shard comes out of it", (t) => {
+  for (const at of [WILDERNESS(), CRATER()]) {
+    const result = lost(t, () => [bloodFury()], [plain(I.AMULET_OF_FURY)], [], at);
+    assert.ok(!result.floor.some(({ item }) => item.getId() === I.BLOOD_SHARD));
+  }
+  assert.equal(lostOnPreview(bloodFury()), true);
+});
+
+test("lost: a Neitiznot faceguard drops for the killer as the helm of Neitiznot and the basilisk jaw", (t) => {
+  for (const at of [WILDERNESS(), CRATER()]) lost(t, () => [plain(I.NEITIZNOT_FACEGUARD)], [plain(I.HELM_OF_NEITIZNOT), plain(I.BASILISK_JAW)], [], at);
+  assert.equal(new core.Item(I.HELM_OF_NEITIZNOT, 1).isPlayerTradeable(), true);
+  assert.equal(new core.Item(I.BASILISK_JAW, 1).isPlayerTradeable(), true);
+  assert.equal(lostOnPreview(plain(I.NEITIZNOT_FACEGUARD)), true);
+});
+
+test("kept: the amulet of blood fury and the faceguard come through whole", (t) => {
+  keptCases(t, bloodFury);
+  keptCases(t, () => plain(I.NEITIZNOT_FACEGUARD));
+});

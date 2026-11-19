@@ -243,6 +243,32 @@ function revert({ player, item }) {
   if (item.getId() === AMULET_OF_BLOOD_FURY_ID) revertBloodFury(player, item);
 }
 
+/** An amulet of blood fury a PvP death reverts; a preset copy (or another restricted one) is deleted by the death as it is. */
+function lostToKiller(item) {
+  return !!core && !!item && item.getId?.() === AMULET_OF_BLOOD_FURY_ID
+    && item.isPresetItem?.() !== true && item.isUntradeable?.() !== true;
+}
+
+/**
+ * `player-death:pvp-item-parts` (PlayerDeathTask, asked for the items a PvP death does not protect). Wiki, Amulet of
+ * blood fury: "When killed by another player and the amulet of blood fury is not one of the items protected on death,
+ * the amulet is converted to a normal amulet of fury; the blood shard and any remaining charges are lost." The same
+ * Item, reverted as Revert does (setBloodFuryCharges), and the amulet of fury then drops for the killer.
+ */
+// Ours (upstream issue #6002): before this an amulet of blood fury came back whole to whoever died with it, skulled or not.
+function revertOnPvpDeath(query) {
+  const item = query?.item;
+  // A bot's kit is not loot (DeathLoot.PlayerBots decides what its death gives).
+  if (query?.parts || query?.player?.isPlayerBot?.() === true || !lostToKiller(item)) return;
+  setBloodFuryCharges(item, 0);
+  query.parts = [item];
+}
+
+/** `items:lost-to-pvp-killer` { item, wildernessLevel, lost }: the Items Kept on Death screen's PvP preview. */
+function answerLostToPvpKiller(query) {
+  if (lostToKiller(query?.item)) query.lost = true;
+}
+
 /**
  * "item:fill-charges" { player, item, handled }: content that hands out the amulet ready to use
  * (the PvP Arena's load-outs) asks for a full one.
@@ -265,6 +291,9 @@ module.exports = {
     api.onItemAction("Amulet of blood fury", { Check: check, Revert: revert });
     api.onCustomEvent("item:fill-charges", fillCharges);
     api.onCustomEvent("combat:hit-queued", onHitQueued);
+    api.onCustomEvent("player-death:pvp-item-parts", revertOnPvpDeath);
+    api.onCustomEvent("items:pvp-death-parts-preview", revertOnPvpDeath);
+    api.onCustomEvent("items:lost-to-pvp-killer", answerLostToPvpKiller);
     api.onCombatHitResolved(onHitResolved);
   },
 };
