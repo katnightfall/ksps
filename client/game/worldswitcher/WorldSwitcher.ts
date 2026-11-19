@@ -102,9 +102,9 @@ export interface WorldSwitcherHost {
     switchToServer(index: number, confirmed: boolean): void;
     /**
      * Turn "World Switcher confirmation" off (varbit 4100, All Settings row 347), and have the
-     * world keep it, as the row does.
+     * world keep it, as the row does; resolves once the world has had it, before a logout.
      */
-    stopConfirming(): void;
+    stopConfirming(): Promise<void> | void;
     logout(): void;
     /** A question in the chatbox with options to click; `answer` gets the option's place, from 0. */
     askInChatbox(title: string, options: string[], answer: (option: number) => void): void;
@@ -258,11 +258,15 @@ export class WorldSwitcher {
                 this.dismissQuestion();
                 const answer = CONFIRM_OPTIONS[option];
                 if (!asked || (answer !== CONFIRM_YES && answer !== CONFIRM_YES_ALWAYS)) return;
-                if (answer === CONFIRM_YES_ALWAYS) this.host.stopConfirming();
-                const index = this.host.servers().findIndex((candidate) => candidate === asked ||
-                    (candidate.name === asked.name && candidate.address === asked.address &&
-                        candidate.worldId === asked.worldId && candidate.signalUrl === asked.signalUrl));
-                if (index >= 0) this.host.switchToServer(index, true);
+                const hop = () => {
+                    const index = this.host.servers().findIndex((candidate) => candidate === asked ||
+                        (candidate.name === asked.name && candidate.address === asked.address &&
+                            candidate.worldId === asked.worldId && candidate.signalUrl === asked.signalUrl));
+                    if (index >= 0) this.host.switchToServer(index, true);
+                };
+                // The hop's logout waits for the world to have kept the setting.
+                if (answer === CONFIRM_YES_ALWAYS) void Promise.resolve(this.host.stopConfirming()).then(hop);
+                else hop();
             },
         );
         // After it is shown: showing it takes the place of whatever was asked before.

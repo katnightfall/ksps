@@ -4537,14 +4537,28 @@ export class OsrsClient {
             },
             playSound: (id) => this.soundEffectSystem?.playSoundEffect(id, { loops: 0, delayMs: 0 }),
             switchToServer: (index, confirmed) => this.switchToServer(index, confirmed),
-            stopConfirming: () => {
+            stopConfirming: () => new Promise<void>((resolve) => {
                 const vars = this.varManager;
-                if (!vars) return;
+                if (!vars) return resolve();
                 vars.setVarbit(VARBIT_WORLDSWITCHER_DISABLE_CONFIRMATION, 1);
+                if (!isServerConnected()) return resolve();
                 // Sent whole, as the varps of All Settings' other rows are; the world keeps this
                 // row's bit from it (server/plugins/interface/Settings.plugin.js).
-                if (isServerConnected()) sendVarpTransmit(VARP_WORLDSWITCHER_CONFIRMATION, vars.getVarp(VARP_WORLDSWITCHER_CONFIRMATION));
-            },
+                sendVarpTransmit(VARP_WORLDSWITCHER_CONFIRMATION, vars.getVarp(VARP_WORLDSWITCHER_CONFIRMATION));
+                // The world acts on it on the player's next turn, but on a logout at once
+                // (IMMEDIATE_PACKETS, server net/NetworkBuilder.ts): the hop's logout waits until
+                // three ticks have come back, by when the world has taken it.
+                let ticks = 0;
+                const done = () => {
+                    unsubscribe();
+                    clearTimeout(timer);
+                    resolve();
+                };
+                const unsubscribe = subscribeTick(() => {
+                    if (++ticks >= 3) done();
+                });
+                const timer = setTimeout(done, 5000);
+            }),
             logout: () => this.performLogout(),
             askInChatbox: (title, options, answer) => this.askInChatbox(title, options, answer),
             closeChatboxQuestion: () => this.closeChatboxQuestion(),

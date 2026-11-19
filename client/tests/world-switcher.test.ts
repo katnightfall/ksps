@@ -299,7 +299,7 @@ function harness(servers = fiveWorlds(), current: any = onNewYork) {
     const storage = new Map<string, string>();
     const state = {
         servers, current, mounted: 182 as number | undefined, loaded: false, account: "Kat",
-        refresh: undefined as undefined | (() => void), question: undefined as undefined | { title: string; options: string[]; answer: (option: number) => void },
+        refresh: undefined as undefined | (() => void), kept: undefined as undefined | (() => void), question: undefined as undefined | { title: string; options: string[]; answer: (option: number) => void },
     };
     const host: WorldSwitcherHost = {
         servers: () => state.servers,
@@ -319,7 +319,7 @@ function harness(servers = fiveWorlds(), current: any = onNewYork) {
         setVarbit: (id, value) => { varbits.set(id, value); },
         playSound: (id) => calls.push(`sound ${id}`),
         switchToServer: (index, confirmed) => calls.push(`switch ${index} ${confirmed}`),
-        stopConfirming: () => calls.push("confirmation off"),
+        stopConfirming: () => new Promise<void>((resolve) => { calls.push("confirmation off"); state.kept = resolve; }),
         logout: () => calls.push("logout"),
         askInChatbox: (title, options, answer) => { state.question = { title, options, answer }; calls.push("ask"); },
         closeChatboxQuestion: () => { state.question = undefined; calls.push("close question"); },
@@ -483,10 +483,15 @@ function harness(servers = fiveWorlds(), current: any = onNewYork) {
         h.state.question!.answer(0);
         assert.deepEqual(h.taken(), ["ask", "close question", "switch 0 true"]);
 
-        // "Yes, and don't ask again": the question is turned off, then the hop.
+        // "Yes, and don't ask again": the question is turned off, and the hop waits until the
+        // world has kept that.
         h.switcher.confirm(h.state.servers[1]);
         h.state.question!.answer(1);
-        assert.deepEqual(h.taken(), ["ask", "close question", "confirmation off", "switch 1 true"]);
+        assert.deepEqual(h.taken(), ["ask", "close question", "confirmation off"]);
+        h.state.kept!();
+        await Promise.resolve();
+        await Promise.resolve();
+        assert.deepEqual(h.taken(), ["switch 1 true"]);
 
         // A world that did not answer can be chosen as before; the question says how it is.
         h.state.servers = fiveWorlds();
@@ -578,20 +583,52 @@ function harness(servers = fiveWorlds(), current: any = onNewYork) {
         };
         // The game's own: the varbit is set in the client (sent too, when connected; not here).
         const game = (OsrsClient.prototype as any).createWorldSwitcher.call(Object.assign(Object.create(OsrsClient.prototype), { varManager: client.varManager }));
-        game.host.stopConfirming();
+        await game.host.stopConfirming();
         assert.equal(client.varManager.getVarbit(4100), 1);
+        // Connected, it sends varp 3075 (VARP_TRANSMIT, 191) and lets the hop go on only once three
+        // ticks have come back: the world takes a transmit on the player's next turn but a logout at once.
+        {
+            const { state: connection } = await import("../network/serverConnection/state");
+            const frames: Uint8Array[] = [];
+            const socket = connection.socket;
+            connection.socket = { readyState: WebSocket.OPEN, send: (frame: Uint8Array) => frames.push(frame) } as any;
+            varps.set(3075, 1 << 3);
+            let resolved = false;
+            const waiting = game.host.stopConfirming().then(() => { resolved = true; });
+            assert.deepEqual([...frames[0] ?? []], [191, 12, 3, 4, 0, 0, 8], "varp 3075 with bit 26 set and the rest as it was");
+            const tick = () => { for (const listener of [...connection.tickListeners]) listener(1, 0); };
+            tick();
+            tick();
+            await Promise.resolve();
+            assert.equal(resolved, false, "two ticks: not yet");
+            tick();
+            await waiting;
+            assert.equal(resolved, true);
+            assert.equal(connection.tickListeners.size, 0, "and it stops listening");
+            connection.socket = socket;
+        }
         varps.set(3075, 1 << 3);
         const sent: [number, number][] = [];
+        let kept: (() => void) | undefined;
         client.worldSwitcher = new WorldSwitcher({
             servers: () => client.loginRenderer.serverList,
             current: () => client.loginState,
             switchToServer: (index: number, confirmed: boolean) => client.switchToServer(index, confirmed),
-            stopConfirming: () => { client.varManager.setVarbit(4100, 1); sent.push([3075, client.varManager.getVarp(3075)]); done.push("confirmation off"); },
+            stopConfirming: () => new Promise<void>((resolve) => {
+                client.varManager.setVarbit(4100, 1);
+                sent.push([3075, client.varManager.getVarp(3075)]);
+                done.push("confirmation off");
+                kept = resolve;
+            }),
             askInChatbox: (title: string, options: string[], answer: (option: number) => void) => { asked = { title, options, answer }; },
             closeChatboxQuestion: () => { asked = undefined; },
         } as any);
         client.switchToServer(1, false);
         asked!.answer(1);
+        assert.deepEqual(done, ["confirmation off"], "no logout until the world has it");
+        kept!();
+        await Promise.resolve();
+        await Promise.resolve();
         assert.deepEqual(done, ["confirmation off", "logout", "select_server1"]);
         assert.deepEqual(sent, [[3075, (1 << 3) | (1 << 26)]], "the varp's other bits as they were");
         done.length = 0;
