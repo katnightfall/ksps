@@ -2408,7 +2408,7 @@ module.exports = function registerRecipeForDisasterQuest(api) {
     const { startTranscript } = require("../QuestRuntime");
     const variant = dwarfNpcVariant(player, npcId);
     const speaker = event.definition?.getName?.() ?? api.core.NpcDefinition.forId(npcId)?.getName?.();
-    const select = [NpcIdentifiers.KAYLEE, NpcIdentifiers.KAYLEE_2,
+    const select = [NpcIdentifiers.KAYLEE,
       NpcIdentifiers.TINA, NpcIdentifiers.TINA_2].includes(npcId)
       ? (steps) => fillDwarfBartenderJump(steps, npcId, variant, speaker) : undefined;
     startTranscript(api, player, npcId, DWARF_PAGE, variant, select);
