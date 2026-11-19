@@ -245,7 +245,14 @@ const server = http.createServer((req, res) => {
     if (req.method !== "GET" && req.method !== "HEAD") {
         return respond(req, res, 405, { Allow: "GET, HEAD" });
     }
-    const urlPath = new URL(req.url || "/", "http://localhost").pathname;
+    // Ours: an address that is not one ("//", "http://[") made `new URL` throw, which ended this
+    // process and, with it, the front door and every game connection it carries (deploy/front.mjs).
+    let urlPath;
+    try {
+        urlPath = new URL(req.url || "/", "http://localhost").pathname;
+    } catch {
+        return respond(req, res, 400, { "Content-Type": "text/plain; charset=utf-8" }, "Bad request");
+    }
     const notFound = () =>
         respond(req, res, 404, {
             ...isolationHeaders(req.headers["user-agent"] || "", false),

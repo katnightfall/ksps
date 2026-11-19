@@ -505,13 +505,22 @@ if (process.env.FRONT_STATIC_PORT) {
 } else {
     const staticPort = await freePort();
     const client = path.join(ROOT, "client");
-    const website = spawn(process.execPath, ["scripts/serve-build.mjs"], {
-        cwd: client,
-        env: { ...process.env, PORT: String(staticPort), HOST: LOCAL },
-        stdio: "inherit",
-    });
-    // One service: if the website stops, so does this, and systemd starts both again.
-    website.on("exit", (code) => process.exit(code ?? 1));
-    for (const signal of ["SIGTERM", "SIGINT"]) process.on(signal, () => { website.kill(); process.exit(0); });
+    // The website is started again by itself when it stops, as the admin page is. This process
+    // used to stop with it, and every game connection carried here, to every world, went too:
+    // for a fault in serving a static file.
+    let website = null;
+    const startWebsite = () => {
+        website = spawn(process.execPath, ["scripts/serve-build.mjs"], {
+            cwd: client,
+            env: { ...process.env, PORT: String(staticPort), HOST: LOCAL },
+            stdio: "inherit",
+        });
+        website.on("exit", (code) => {
+            console.log(`[front] the website stopped (exit ${code}); starting it again`);
+            setTimeout(startWebsite, 3_000).unref();
+        });
+    };
+    startWebsite();
+    for (const signal of ["SIGTERM", "SIGINT"]) process.on(signal, () => { website.removeAllListeners("exit"); website.kill(); process.exit(0); });
     listen(staticPort);
 }
