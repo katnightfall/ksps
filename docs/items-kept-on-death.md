@@ -62,6 +62,28 @@ Before the items are dealt with, each one the death does not protect is offered 
 - **Ours** (the Wiki names the options and the amounts, and nothing else): Uncharge makes the piece inactive and gives the coins it holds back to the player, who needs room for them; a Yes/No before Activate takes the coins; every message. The Corrupted Warrior refuses a charged piece whose corrupted (or plain) form takes a different amount ("Uncharge it first"), or a corrupted piece's 1,500,000 coins could become a 5,000,000 piece; inactive and uncharged pieces convert as before, and the piece stays the same item, so a preset copy keeps its restrictions.
 - **Not covered:** using the imbue scrolls the store sells (Dark bow, Barrelchest anchor, Dragon mace, Dragon longsword, Abyssal dagger) on a weapon, and Dismantle on an imbued weapon: nothing answers either yet, so a player has an imbued weapon only where one was spawned.
 
+## Charged, assembled and imbued equipment on a PvP death (Wiki: Items Kept on Death, Mechanics, and each item's page)
+
+The items below are untradeable. Before, a PvP death treated each as any untradeable: it came back whole to whoever died with it, skulled or not, and the killer got nothing. Now each item's own plugin answers `player-death:pvp-item-parts` (What a PvP death takes apart, above) with what the Wiki says the item becomes, using the item's own Revert, Empty, Dismantle or "Remove all pages" code where it has one, so a death hands out what that option would and nothing the item did not hold. Each part then meets the death as an item of its own: one that trades drops for the killer with the rest of the loot (a loot key, or the victim's own pile for an Ironman killer), one that does not stays with the victim.
+
+- **Kept as it is:** a protected item (the three-item rule, Protect Item) keeps its charges, parts and imbue; so does every item on a death to a monster or outside PvP ground (to the grave, or back whole, as before). A preset copy is deleted with the rest of the preset and gives nobody anything; a bot's copy is left as it is.
+- **The Items Kept on Death screen** marks each item below lost on its PvP preview where what the killer gets trades (`items:lost-to-pvp-killer`).
+
+| Item | The killer gets | Stays with the victim | Destroyed | Wiki |
+| --- | --- | --- | --- | --- |
+| Blade of Saeldor, Bow of Faerdhinen, charged (`CrystalWeapon.js`) | the inactive weapon | nothing | the charges, and the shards that bought them | Blade of Saeldor, Bow of Faerdhinen: "On unprotected death in PvP, the inactive blade is dropped, and all shards used to charge it will be lost" |
+| Blade of Saeldor (c), Bow of Faerdhinen (c), every colour (`CrystalWeapon.js`) | the inactive weapon | nothing | the corruption (the shards that made it) and the colour | ours (below), from the (c) pages and Items Kept on Death, "Chargable items" |
+| Crystal helm, body and legs, any colour, active or inactive (`CrystalArmour.plugin.js`) | 1, 3 and 2 crystal armour seeds, as Revert gives | nothing | the charges and the colour | Crystal helm, body, legs: "the crystal body will revert to 3 crystal armour seeds, which will then be dropped for the killer. All crystal shards will be lost should this happen" |
+| Crystal bow, shield and halberd: active, inactive, and the older staged and (i) forms (`CrystalEquipmentDeath.plugin.js`) | a crystal weapon seed | nothing | the charges, and an (i) form's imbue | Crystal equipment: "Upon death in the Wilderness, the killer will receive the seed form of the crystal equipment"; Crystal bow, shield, halberd, Changes: "Crystal equipment now reverts to a seed when dropped on death" |
+| Crystal axe, pickaxe and harpoon, active or inactive (`CrystalEquipmentDeath.plugin.js`) | the dragon axe, pickaxe or harpoon | nothing | the charges and the crystal tool seed | Crystal axe, pickaxe, harpoon: "A dangerous death in PvP causes the crystal axe to revert to a dragon axe, which will then be dropped for the killer. All crystal shards will be lost should this happen" |
+| Crystal felling axe, active or inactive (`CrystalEquipmentDeath.plugin.js`) | a dragon felling axe | nothing | the charges and the crystal tool seed | ours (below) |
+
+- **Ours, where the Wiki's pages are silent or disagree:**
+  - *The corrupted blade and bow:* their pages have no death rule, only "While untradeable, the blade can be uncharged, but the crystal shards used to upgrade it will not be returned". They follow Items Kept on Death's "Chargable items" row ("Dropped to the PKer as the tradeable uncharged item"): the killer gets the inactive weapon their Uncharge makes, and the colour, which the inactive weapon does not have, is gone.
+  - *The crystal felling axe:* its page has no death rule, only that "the standard process of reverting crystal to dragon does apply". It is lost as the other crystal tools are.
+  - *The crystal tool seed:* the tool pages name only the dragon tool as what the killer gets, so the seed is gone with the shards.
+- **Not covered:** Uncharge on the Blade of Saeldor and Bow of Faerdhinen, and Revert on the crystal bow, shield, halberd and tools: nothing answers those options yet, so the death's answers for them are written from the Wiki and not from that code. The Gauntlet's own crystal equipment never leaves the Gauntlet and is not listed.
+
 ## Upgraded Nightmare staffs (Wiki)
 
 The harmonised, volatile and eldritch Nightmare staffs are untradeable. When one is lost on a PvP death, the killer gets the Nightmare staff and the orb.

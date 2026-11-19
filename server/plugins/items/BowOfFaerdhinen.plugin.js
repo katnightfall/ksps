@@ -17,6 +17,7 @@ function attach(api) {
     chargedName: "Bow of Faerdhinen",
     inactiveName: "Bow of Faerdhinen (inactive)",
     pairs: [[ids.BOW_OF_FAERDHINEN, ids.BOW_OF_FAERDHINEN_INACTIVE_]],
+    corrupted: "bow_of_faerdhinen_infinite",
     usedPerPercent: CHARGES_USED_PER_PERCENT,
   });
   bow.attach();
