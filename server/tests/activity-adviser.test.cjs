@@ -116,10 +116,12 @@ test("the Free Quests Only tab leaves out members quests", () => {
 test("the minimap button opens the Adviser in the floater and closes it again", () => {
   const { p, sent } = player();
   assert.equal(click(p, 160, 4).handled, true);
-  assert.deepEqual(sent[0], ["sendSubInterface", FLOATER_UID, CR_UI, 1]);
+  assert.ok(sent.some((packet) => JSON.stringify(packet) === JSON.stringify(["sendSubInterface", FLOATER_UID, CR_UI, 1])));
   assert.ok(sent.some(([method, uid, from, to]) => method === "sendInterfaceFlagsRange" && uid === ((CR_UI << 16) | 14) && from === 0 && to === 1));
   const script = sent.find(([method, id]) => method === "sendInterfaceScript" && id === 2493);
   assert.ok(script);
+  // The list is sent before the interface opens: its onLoad draws from it (client test interface-sweep).
+  assert.ok(sent.indexOf(script) < sent.findIndex(([method]) => method === "sendSubInterface"), "the list goes before the open");
   assert.ok(parse(script[2][0]).length > 0);
   sent.length = 0;
   assert.equal(click(p, 160, 4).handled, true);

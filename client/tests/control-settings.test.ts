@@ -32,7 +32,7 @@ function keyFrame(input: InputManager) {
     const manager: any = {
         rootInterface: 161, interfaceParents: new Map(), beginBatch() {}, endBatch() {},
         getWidgetByUid: () => undefined, isServerOwnedWidget: () => false,
-        invalidateAll() {}, invalidateWidgetRender() {},
+        invalidateAll() {}, invalidateWidgetRender() {}, isEffectivelyHidden: () => false,
     };
     const vm = new Cs2Vm({ widgetManager: manager, loadScript: (id: number) => (id === script.id ? script : undefined) } as any);
     // Script 5141's first argument is event_keycode: record what the listener substitutes for it.
@@ -46,7 +46,7 @@ function keyFrame(input: InputManager) {
     const handler = { scriptId: script.id, intArgs: [-2147483640] };
     const minimap = { uid: (160 << 16) | 1, eventHandlers: { onKeyDown: handler, onKeyUp: { ...handler } } };
     const deps: any = {
-        getCs2Vm: () => vm, getVarManager: () => ({ getVarbit: () => 0 }),
+        getCs2Vm: () => vm, getVarManager: () => ({ getVarbit: () => 0, getVarcInt: () => 0 }),
         getPendingInputDialogAction: () => null, getPendingTradeQuantityAction: () => null,
         getCustomInterfaces: () => ({ handleSearchKeyEvents: () => false }),
     };

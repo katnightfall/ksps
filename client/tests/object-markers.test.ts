@@ -3,6 +3,7 @@ import { ConfigManager } from "@runelite/client/config/ConfigManager";
 import { inject } from "@runelite/client/plugins/PluginInjector";
 import { packTemplateChunk } from "../common/instance/InstanceTypes";
 import { ClientState } from "../game/ClientState";
+import { ModelHighlightManager } from "../game/highlights/ModelHighlightManager";
 import { ObjectIndicatorsConfig } from "../game/plugins/objectindicators/ObjectIndicatorsConfig";
 import { MARK, ObjectIndicatorsPlugin, UNMARK } from "../game/plugins/objectindicators/ObjectIndicatorsPlugin";
 import {
@@ -80,6 +81,7 @@ assert.deepEqual(locModelParts(LocModelType.NORMAL, 2, () => undefined), [{ mode
     const host: any = {
         interactHighlightDrawTargets: [],
         osrsClient: {
+            modelHighlightManager: new ModelHighlightManager(),
             clientPlugins: {
                 locOutlines: () => [{ loc: { id: 1, tileX: 2, tileY: 3, plane: 0, shape: 10, rotation: 0 }, color: 0xffff00, alpha: 1, width: 2 }],
                 npcOutlines: () => [],

@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 
 (globalThis as any).self = globalThis;
+// The renderer modules import shader sources, which the bundler inlines as text (as the other
+// renderer tests do).
+require.extensions[".glsl"] = (module: any, file: string) => { module.exports = require("node:fs").readFileSync(file, "utf8"); };
 
 type Target = { width: number; height: number; samples: number; deletes: number; delete(): void };
 type Framebuffer = { color: Target; deletes: number; delete(): void };

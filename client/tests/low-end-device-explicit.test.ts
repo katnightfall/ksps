@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 import fs from "node:fs";
 import { ClientPluginManager } from "../game/plugins/ClientPluginManager";
 import { GpuConfig } from "../game/plugins/gpu/GpuConfig";
@@ -42,7 +43,7 @@ async function main(): Promise<void> {
 
     // Mobile default: Low-end Device is on without the user choosing it, so the
     // explicitly enabled GPU plugin must still win (the #2539 fix).
-    const result = spawnSync(process.execPath, ["--import", require.resolve("tsx"), "-e", `
+    const result = spawnSync(process.execPath, ["--import", pathToFileURL(require.resolve("tsx")).href, "-e", `
         const assert = require("node:assert/strict");
         Object.defineProperty(globalThis, "navigator", { configurable: true, value: {
             userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)",

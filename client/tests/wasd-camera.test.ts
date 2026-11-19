@@ -220,7 +220,7 @@ async function main() {
         const calls: number[] = [];
         const deps: any = {
             getCs2Vm: () => ({ inputDialogType: 0, invokeEventHandler: (w: { uid: number }) => calls.push(w.uid) }),
-            getVarManager: () => ({ getVarbit: () => 0 }),
+            getVarManager: () => ({ getVarbit: () => 0, getVarcInt: () => 0 }),
             getPendingInputDialogAction: () => null, getPendingTradeQuantityAction: () => null,
             getCustomInterfaces: () => ({ handleSearchKeyEvents: () => false }),
         };
