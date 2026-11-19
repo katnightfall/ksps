@@ -247,7 +247,7 @@
       "freeItems": ["RUNE_POUCH", "HERB_SACK", "LOOTING_BAG"], "bonusKill": 100, "bonusXp": [1000, 15000]
     },
     "_itemsComment": "The item and teleport relics (docs/leagues.md). Wiki numbers unless marked ours: the menus' grouping and wording, the tool leprechauns named after their nearest fairy ring, the banker's note's default quantities (all) and its Toggle (Activate between noting and unnoting) are ours; Reloaded's extra pick comes from tiers 1-3 (tier indexes 0-2).",
-    "fairysFlight": { "league": [4, 5, 6], "key": "fairys-flight", "aliases": ["nature-s-accord"], "toolName": "Fairy mushroom" },
+    "fairysFlight": { "league": [4, 5, 6], "key": "fairys-flight", "aliases": ["nature-s-accord"], "toolName": "Fairy mushroom", "_completesQuests": "By league: the quests choosing the relic completes, as a league completes quests (no XP). Raging Echoes (upstream issue #5586): 'Unlocking it automatically completes Tree Gnome Village' (Wiki, Raging Echoes League/Relics).", "completesQuests": { "5": ["Tree Gnome Village"] } },
     "globetrotter": { "league": 4, "key": "globetrotter", "toolName": "Globetrotter pendant" },
     "bankersNote": { "league": [4, 5], "key": "bankers-note", "toolName": "Banker's note" },
     "clueCompass": { "league": 5, "key": "clue-compass", "toolName": "Clue compass" },

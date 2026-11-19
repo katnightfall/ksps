@@ -1184,7 +1184,8 @@ open). Each item remembers its last destination. The menus' grouping and wording
   Teleport (or, worn, Fairy-Ring, Spirit-tree, Tool-leprechauns) goes to any fairy ring by its
   code, any spirit tree the character could travel to by tree, and any tool leprechaun (named
   after their nearest fairy ring: ours); from any Wilderness level except to a spirit tree (level
-  20, Wiki). Not here: the Tree Gnome Village autocompletion (the quest's own).
+  20, Wiki). Choosing Raging Echoes' completes Tree Gnome Village (Wiki; the effect's
+  `completesQuests`, through `league:complete-quests`, no XP; upstream issue #5586).
 - **Globetrotter** (Trailblazer Reloaded tier 2): the pendant's Nexus goes to the spellbooks'
   teleports (standard, ancient, lunar, Arceuus, and the house when the character owns one: not
   a Last-destination, which could not enter it), its

@@ -417,6 +417,29 @@ test("Grimoire: the Mage Arena's god spells cast anywhere without their 100 cast
   for (const player of others(who)) assert.equal(disabled(player), true, player.getUsername());
 });
 
+// Ours (upstream issue #5586): "Unlocking it automatically completes Tree Gnome Village" (Wiki, Raging Echoes'
+// relics page). The completion itself is LeagueMode's `league:complete-quests` (no XP), asked for here.
+test("Fairy's Flight (Raging Echoes): choosing it completes Tree Gnome Village", () => {
+  const asked = [];
+  const record = (request) => asked.push([request.player.getUsername(), request.quests]);
+  custom["league:complete-quests"] = (custom["league:complete-quests"] ?? []).concat(record);
+  try {
+    const echoes = character("echoes-fairy", "league", {}, 5);
+    const reloaded = character("reloaded-fairy", "league", {}, 4);
+    const unlocked = (player, league, relic) => { for (const handler of custom["league:relic-unlocked"]) handler({ player, league, tier: 2, slot: 3, relic }); };
+    unlocked(echoes, 5, "bank-heist");
+    assert.deepEqual(asked, [], "another relic completes nothing");
+    unlocked(echoes, 5, "fairys-flight");
+    assert.deepEqual(asked, [["echoes-fairy", ["Tree Gnome Village"]]]);
+    unlocked(reloaded, 4, "fairys-flight");
+    assert.equal(asked.length, 1, "Trailblazer Reloaded's page says nothing of the quest");
+    // The name is one the quest runtime knows, so `league:complete-quests` can complete it.
+    assert.match(require("fs").readFileSync(require("path").resolve(__dirname, "../plugins/quests/quests/TreeGnomeVillage.Quest.js"), "utf8"), /name: "Tree Gnome Village"/);
+  } finally {
+    custom["league:complete-quests"] = custom["league:complete-quests"].filter((handler) => handler !== record);
+  }
+});
+
 // Ours (upstream issue #5586): the Wiki's Raging Echoes relics page and the relic's own page both give its
 // Grimoire "all Prayers and spells regardless of area, quest and diary requirements" and a grimoire that
 // switches "between all spellbooks freely". Both used to be Demonic Pacts' only.
