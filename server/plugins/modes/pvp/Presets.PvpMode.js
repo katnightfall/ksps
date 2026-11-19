@@ -91,10 +91,32 @@ function withoutMessages(player, probe) {
 }
 
 /**
+ * Ours: world setting "PvpMode:players" (declared in PvpMode.plugin.js). The original project's worlds are PvP-spawn
+ * worlds. Ours are levelling worlds, where loading a preset handed out PvP gear and set the seven combat levels with
+ * their experience (to 99, or down to 1 with the earned experience gone), and its prayers came without their quests.
+ * With the setting off only an owner's or a developer's account may use presets: accountBarred bars every other one,
+ * which refuses the interface, loading, the opening after a death and PvP mode's prayer bypass alike. Bots are not
+ * players here: they still dress from presets.
+ */
+const PLAYERS_CONFIG = "PvpMode:players";
+const NOT_ON_THIS_WORLD = "That is not available on this world.";
+
+function playersMayUsePresets() {
+  return pluginApi?.getPluginConfig?.(PLAYERS_CONFIG, true) !== false;
+}
+
+/** Whether this world keeps presets from this account: with the setting off, anyone's but an owner's, a developer's or a bot's. */
+function keptFromPresets(player) {
+  if (playersMayUsePresets() || isPlayerBot(player)) return false;
+  return Number(player?.getRights?.()?.getId?.() ?? 0) < pluginApi.core.PlayerRights.OWNER.getId();
+}
+
+/**
  * "presets:account-barred" { player, barred, message }: an account that may never use presets,
  * wherever it stands (an Ironman, and so every league character), answers barred = true.
  */
 function accountBarred(player) {
+  if (keptFromPresets(player)) return { player, barred: true, message: NOT_ON_THIS_WORLD };
   const request = { player, barred: false, message: null };
   pluginApi?.emitCustomEvent?.("presets:account-barred", request);
   return request;
@@ -1001,6 +1023,10 @@ module.exports = {
   shouldOpenOnDeath,
   canUsePresets,
   accountMayUsePresets,
+  playersMayUsePresets,
+  keptFromPresets,
+  PLAYERS_CONFIG,
+  NOT_ON_THIS_WORLD,
   _test: { spawnPresetItem, bankCarriedItems, bankRefusal, presetCombatLevel },
   register(api) {
     pluginApi = api;

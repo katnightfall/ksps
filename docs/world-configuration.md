@@ -401,6 +401,7 @@ After changing a plugin's `description` or `config`, run `yarn --cwd server worl
 | --- | --- | --- | --- |
 | `DeadmanMode:enabled` | boolean | `false` | **Deadman source preparation.** Unfinished isolated character preparation. Blocks all XP and PvP; not a playable Deadman world. Restart to change. |
 | `HardcoreWorld:enabled` | boolean | `false` | **Hardcore World.** Makes this world a Hardcore World: every login is the account's Hardcore character (a save of its own) with one life. Off leaves the world as it is. |
+| `PvpMode:players` | boolean | `true` | **Presets for every player.** On, as on the original project's PvP worlds: every player may open presets (::presets, ::kits, the Character Summary's Presets button) and load one, which hands out PvP gear and sets the seven combat levels with their experience; presets open after a PvP death; and an account that may use presets has every prayer without its quest or scroll. Off, for a world where levels are earned: all of that is for owners and developers only, and other players are told it is not available. Bots still dress from presets. |
 | `league:end` | date | *Not set* | **League end date.** When the league ends, as YYYY-MM-DD. The welcome message then shows how many days remain. |
 | `league:start` | date | *Not set* | **League start date.** When the league began, as YYYY-MM-DD. Sets the client's league clock. |
 | `league:type` | enum: `0` (Not a league world), `1` (Leagues I - Twisted), `2` (Leagues II - Trailblazer), `3` (Leagues III - Shattered Relics), `4` (Leagues IV - Trailblazer Reloaded), `5` (Leagues V - Raging Echoes), `6` (Leagues VI - Demonic Pacts) | `0` | **League.** Runs this world as a league: every login is the account's league character, kept apart from its main save. Not a league world is a normal world. The list follows data/leagues.json. Restart to change. |
@@ -893,7 +894,7 @@ This table lists bundled plugins that have a description. The world config page 
 | `HardcoreWorld` | HardcoreWorld | modes | yes | Hardcore Worlds: every login is the account's Hardcore character, with one life; a death that counts is announced to the world and the character resets or transfers out. |
 | `Ironman` | Ironman | modes | yes | Adds Ironman, Ultimate, Hardcore and Group Ironman accounts (Group, Hardcore Group and Unranked Group), chosen at the Ironman tutor, downgraded with Adam, or set by the ::ironman command. |
 | `LeagueMode` | LeagueMode | modes | yes | Leagues characters, progression, tasks, relics, region unlocks, combat masteries, Demonic Pacts and rewards. (members only) |
-| `PvpMode` | PvpMode | modes | yes | Adds the ::presets and ::kits commands, opens presets after a PvP death, and lets accounts that may use presets have their prayers without the unlock quests. |
+| `PvpMode` | PvpMode | modes | yes | Adds the ::presets and ::kits commands, opens presets after a PvP death, and lets accounts that may use presets have their prayers without the unlock quests. A world may keep all of it for owners and developers (PvpMode:players); bots still dress from presets. |
 | `AggressionToggle` | AggressionToggle | npcs | yes | Adds the ::aggro command, an administrator cheat that keeps monsters aggressive after the ten-minute tolerance, usable by all if commands allow. |
 | `AliLeafletDropper` | AliLeafletDropper | npcs | yes | Ali the Leaflet Dropper in Al Kharid hands out the Al kharid flyer (Take-flyer and his Talk-to), and the flyer can be read. |
 | `Alpaca` | Alpaca | npcs | yes | Lets players shear Varlamore's alpacas for wool with shears, as captured: the sheared alpaca grows its wool back 50 ticks later. (members only) |
@@ -1109,6 +1110,7 @@ Character Summary checks the registered `teleports`, `presets`, `commands`, and 
 commands for its Teleports, Presets, Commands, and Combat XP controls. Their usual providers
 are `TeleportInterface`, `PvpMode`, `Commands`, and `PlayerCommands`. Disabling a provider
 through the host's plugin switches hides its button when the world loads that configuration.
+`PvpMode:players` off gives `presets` the owner rank, so only owners and developers see Presets.
 The summary also refreshes command access while open and rejects clicks on unavailable controls.
 Its layout and behavior live under `plugins/interface/sidejournaldefaults/`; it does not
 require the optional PvP statistics plugin to display.
