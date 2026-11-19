@@ -10,7 +10,8 @@
  * "You remove the Basilisk Jaw from the Neitiznot Faceguard." box.
  * The story is played from Olaf's own transcript (his after-the-Trials variant, from the "You show"
  * step on), so Music's Talk-to menu is untouched. This plugin owns varbit 9472.
- * Not done: the Wiki's revert on PvP death, the full-inventory wording (the Accursed sceptre's
+ * A PvP death that does not protect the faceguard takes it apart for the killer (splitOnPvpDeath).
+ * Not done: the full-inventory wording (the Accursed sceptre's
  * line is reused, not captured), and the inventory slots the items land in (captured: the
  * faceguard takes the helm's slot, the helm the faceguard's, the jaw slot 0; here the first free
  * slot is used).
@@ -185,6 +186,31 @@ function dismantle({ player, item }) {
   return true;
 }
 
+/** A faceguard a PvP death takes apart; a preset copy (or another restricted one) is deleted by the death as it is. */
+function lostToKiller(item) {
+  return !!core && !!item && item.getId?.() === core.ItemIdentifiers.NEITIZNOT_FACEGUARD && !restricted(item);
+}
+
+/**
+ * `player-death:pvp-item-parts` (PlayerDeathTask, asked for the items a PvP death does not protect). Wiki, Neitiznot
+ * faceguard: "If lost in PvP, it will revert to the normal helm of Neitiznot and basilisk jaw." The two items Dismantle
+ * gives (detach), both tradeable, so both drop for the killer.
+ */
+// Ours (upstream issue #6002): before this a faceguard came back whole to whoever died with it, skulled or not.
+function splitOnPvpDeath(query) {
+  const item = query?.item;
+  // A bot's kit is not loot (DeathLoot.PlayerBots decides what its death gives).
+  if (query?.parts || query?.player?.isPlayerBot?.() === true || !lostToKiller(item)) return;
+  const I = core.ItemIdentifiers;
+  item.setId(I.HELM_OF_NEITIZNOT);
+  query.parts = [item, new core.Item(I.BASILISK_JAW, 1)];
+}
+
+/** `items:lost-to-pvp-killer` { item, wildernessLevel, lost }: the Items Kept on Death screen's PvP preview. */
+function answerLostToPvpKiller(query) {
+  if (lostToKiller(query?.item)) query.lost = true;
+}
+
 module.exports = {
   name: "NeitiznotFaceguard",
   description: "Handles the Basilisk jaw: Olaf the Bard's story, then attaching it to a Helm of Neitiznot to make the faceguard, and dismantling it again.",
@@ -198,6 +224,9 @@ module.exports = {
     api.onNpcDialogueCondition(storyCondition);
     api.onCustomEvent("npc-dialogue:action", showBox);
     api.onCustomEvent("npc-dialogue:action", learnStory);
+    api.onCustomEvent("player-death:pvp-item-parts", splitOnPvpDeath);
+    api.onCustomEvent("items:pvp-death-parts-preview", splitOnPvpDeath);
+    api.onCustomEvent("items:lost-to-pvp-killer", answerLostToPvpKiller);
     api.onItemOnNpc(showJaw, { noted: false });
     api.onPlayerLogin(login);
   },

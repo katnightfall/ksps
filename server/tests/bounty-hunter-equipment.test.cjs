@@ -167,3 +167,107 @@ test("the Corrupted Warrior is told to refuse a charged piece, and to take an in
   assert.equal(ask(new core.Item(I.CORRUPTED_VESTAS_CHAINBODY_BH_, 1), I.VESTAS_CHAINBODY_BH_), true);
   assert.equal(ask(new core.Item(I.VESTAS_CHAINBODY_BH_INACTIVE_, 1), I.CORRUPTED_VESTAS_CHAINBODY_BH_INACTIVE_), true);
 });
+
+// --- The imbue scrolls ---------------------------------------------------------------------------------------------
+// Wiki, Dark bow (bh): "It is created by using a dark bow imbue scroll on a dark bow"; the same on Barrelchest anchor
+// (bh), Dragon mace (bh), Dragon longsword (bh) and Abyssal dagger (bh), whose Creation recipes list the weapon and the
+// scroll and the imbued weapon as what they make. The poisoned (bh) daggers are made by poisoning the imbued dagger.
+
+/** Uses inventory slot `used` on slot `on`, as the client sends it. */
+function useOn(player, used, on) {
+  const items = player.getInventory().getItems();
+  const event = { player, usedItem: items[used], usedItemId: items[used].getId(), usedItemSlot: used,
+    usedWithItem: items[on], usedWithItemId: items[on].getId(), usedWithItemSlot: on, handled: false };
+  PM.emitItemOnItem(event);
+  return event.handled;
+}
+const held = (inventory) => inventory.getValidItems().map((item) => [item.getId(), item.getAmount()]).sort((a, b) => a[0] - b[0]);
+const SCROLLED = () => [
+  [I.DARK_BOW_IMBUE_SCROLL, I.DARK_BOW, I.DARK_BOW_BH_],
+  [I.BARRELCHEST_ANCHOR_IMBUE_SCROLL, I.BARRELCHEST_ANCHOR, I.BARRELCHEST_ANCHOR_BH_],
+  [I.DRAGON_MACE_IMBUE_SCROLL, I.DRAGON_MACE, I.DRAGON_MACE_BH_],
+  [I.DRAGON_LONGSWORD_IMBUE_SCROLL, I.DRAGON_LONGSWORD, I.DRAGON_LONGSWORD_BH_],
+  [I.ABYSSAL_DAGGER_IMBUE_SCROLL, I.ABYSSAL_DAGGER, I.ABYSSAL_DAGGER_BH_],
+];
+
+test("the store sells the five imbue scrolls, and each one's weapon and imbued weapon are the Wiki's", () => {
+  const { ShopDefinition } = require("../dist/game/definition/ShopDefinition");
+  const stock = ShopDefinition.all().find((definition) => definition.getName() === "Bounty Hunter Store").getOriginalStock().map((row) => row.id);
+  for (const [scroll, weapon, imbued] of SCROLLED()) {
+    const name = core.ItemDefinition.forId(weapon).getName();
+    assert.ok(stock.includes(scroll), `the store sells the ${name} imbue scroll`);
+    assert.equal(core.ItemDefinition.forId(scroll).getName(), `${name} imbue scroll`);
+    assert.equal(core.ItemDefinition.forId(imbued).getName(), `${name} (bh)`);
+    assert.equal(Equipment.madeByScroll.get(`${scroll}|${weapon}`), imbued);
+    assert.deepEqual(Equipment.imbuedWeapons.get(imbued), { weapon, scroll });
+  }
+  assert.equal(Equipment.madeByScroll.size, 5, "no scroll makes a poisoned dagger");
+  assert.equal(Equipment.imbuedWeapons.size, 8);
+});
+
+test("an imbue scroll used on its weapon, either way round, is used up and makes the imbued weapon", (t) => {
+  for (const [scroll, weapon, imbued] of SCROLLED()) {
+    for (const [used, on] of [[0, 1], [1, 0]]) {
+      const { player, inventory } = actor(t);
+      inventory.setItem(0, new core.Item(scroll, 1));
+      inventory.setItem(1, new core.Item(weapon, 1));
+      assert.equal(useOn(player, used, on), true, core.ItemDefinition.forId(imbued).getName());
+      assert.deepEqual(held(inventory), [[imbued, 1]], "one imbued weapon, and nothing else");
+      assert.equal(inventory.getItems()[1].getId(), imbued, "in the weapon's slot");
+    }
+  }
+});
+
+test("a scroll makes nothing of another weapon, of a poisoned dagger, or of a preset copy", (t) => {
+  const forged = (id) => { const item = new core.Item(id, 1); for (const key of [core.Item.UNTRADEABLE_META, core.Item.UNBANKABLE_META, core.Item.PRESET_META]) item.setMetaValue(key, true); return item; };
+  for (const [scroll, weapon] of [
+    [new core.Item(I.DARK_BOW_IMBUE_SCROLL, 1), new core.Item(I.DRAGON_MACE, 1)],
+    [new core.Item(I.ABYSSAL_DAGGER_IMBUE_SCROLL, 1), new core.Item(I.ABYSSAL_DAGGER_P_PLUS_PLUS_, 1)],
+    [new core.Item(I.DRAGON_MACE_IMBUE_SCROLL, 1), forged(I.DRAGON_MACE)],
+    [forged(I.DRAGON_MACE_IMBUE_SCROLL), new core.Item(I.DRAGON_MACE, 1)],
+  ]) {
+    const { player, inventory } = actor(t);
+    inventory.setItem(0, scroll);
+    inventory.setItem(1, weapon);
+    const before = held(inventory);
+    useOn(player, 0, 1);
+    assert.deepEqual(held(inventory), before, `${scroll.getDefinition().getName()} on ${weapon.getDefinition().getName()}`);
+  }
+});
+
+// The Wiki names the option ("Wield, Dismantle, Drop") and no more; what comes back is what the weapon was made of.
+test("Dismantle gives back the weapon and its scroll, and using the scroll again makes the same imbued weapon", (t) => {
+  for (const [scroll, weapon, imbued] of SCROLLED()) {
+    const { player, inventory } = actor(t);
+    inventory.setItem(3, new core.Item(imbued, 1));
+    assert.equal(click(player, 3, "Dismantle"), true, core.ItemDefinition.forId(imbued).getName());
+    assert.deepEqual(held(inventory), [[weapon, 1], [scroll, 1]].sort((a, b) => a[0] - b[0]), "the weapon and the scroll, one of each");
+    assert.equal(inventory.getItems()[3].getId(), weapon, "the weapon stays in its slot");
+    const scrollSlot = inventory.getItems().findIndex((item) => item?.getId?.() === scroll);
+    assert.equal(useOn(player, scrollSlot, 3), true);
+    assert.deepEqual(held(inventory), [[imbued, 1]]);
+  }
+  // A poisoned (bh) dagger comes apart as its poisoned dagger, as a death makes of it.
+  const { player, inventory } = actor(t);
+  inventory.setItem(0, new core.Item(I.ABYSSAL_DAGGER_BH_P_PLUS_PLUS_, 1));
+  click(player, 0, "Dismantle");
+  assert.deepEqual(held(inventory), [[I.ABYSSAL_DAGGER_P_PLUS_PLUS_, 1], [I.ABYSSAL_DAGGER_IMBUE_SCROLL, 1]].sort((a, b) => a[0] - b[0]));
+});
+
+test("Dismantle with no room for the scroll is refused, and a preset copy gives no scroll", (t) => {
+  const full = actor(t);
+  for (let slot = 0; slot < full.inventory.capacity(); slot++) full.inventory.setItem(slot, new core.Item(I.BRONZE_DAGGER, 1));
+  full.inventory.setItem(0, new core.Item(I.DARK_BOW_BH_, 1));
+  click(full.player, 0, "Dismantle");
+  assert.equal(full.inventory.getItems()[0].getId(), I.DARK_BOW_BH_);
+  assert.equal(full.inventory.getAmount(I.DARK_BOW_IMBUE_SCROLL), 0);
+  assert.match(full.messages.join("\n"), /inventory space/);
+
+  const { player, inventory } = actor(t);
+  const forged = new core.Item(I.DARK_BOW_BH_, 1);
+  for (const key of [core.Item.UNTRADEABLE_META, core.Item.UNBANKABLE_META, core.Item.PRESET_META]) forged.setMetaValue(key, true);
+  inventory.setItem(0, forged);
+  click(player, 0, "Dismantle");
+  assert.equal(inventory.getItems()[0].getId(), I.DARK_BOW_BH_);
+  assert.equal(inventory.getAmount(I.DARK_BOW_IMBUE_SCROLL), 0);
+});

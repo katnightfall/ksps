@@ -11,6 +11,9 @@
  * - `name`: the weapon in messages ("bow of Faerdhinen"); `chargesKey`: the item meta holding
  *   `{ charges, used }`; `chargedName` / `inactiveName`: the cache names the Check and shard hooks bind.
  * - `pairs`: [[chargedId, inactiveId]]; `usedPerPercent`: charges used per 1% of corruption progress.
+ * - `corrupted`: the cache name of the corrupted ("(c)") weapon; each colour of it is that name or `<name>_<clan>`.
+ *
+ * A PvP death that does not protect the weapon leaves the killer the inactive one (inactiveOnPvpDeath).
  */
 
 const { MAX_CHARGES, CHARGES_PER_SHARD, SHARD_NAME, shardRoom, chargesWith, promptShards } = require("./CrystalShards");
@@ -24,6 +27,17 @@ function defineCrystalWeapon(api, config) {
   const chargedByInactive = new Map(config.pairs.map(([charged, inactive]) => [inactive, charged]));
 
   const isCharged = (id) => inactiveByCharged.has(Number(id));
+  /** Every colour of the corrupted weapon, read from the cache on first use; its `_dummy` copy is not an item a player holds. */
+  let corruptedIds = null;
+  function isCorrupted(id) {
+    if (!corruptedIds) {
+      corruptedIds = new Set();
+      for (const [itemId, name] of config.corrupted ? core.CacheDefinitions.getObjNames() : []) {
+        if (name === config.corrupted || (name.startsWith(`${config.corrupted}_`) && !name.endsWith("_dummy"))) corruptedIds.add(Number(itemId));
+      }
+    }
+    return corruptedIds.has(Number(id));
+  }
   const isWeapon = (id) => isCharged(id) || chargedByInactive.has(Number(id));
   /** Player -> the weapon whose last charge their current shot or swing spent. */
   const spent = new WeakMap();
@@ -127,14 +141,52 @@ function defineCrystalWeapon(api, config) {
     });
   }
 
+  /** The inactive weapon a PvP death makes of this copy, or null: a charged one's own, a corrupted one's the plain. */
+  function inactiveIdOf(item) {
+    // A preset copy (or another restricted one) was never paid for and is deleted by the death as it is.
+    if (!item || item.isPresetItem?.() === true || item.isUntradeable?.() === true) return null;
+    const id = Number(item.getId?.());
+    return inactiveByCharged.get(id) ?? (isCorrupted(id) ? config.pairs[0][1] : null);
+  }
+
+  /**
+   * `player-death:pvp-item-parts` (PlayerDeathTask, asked for the items a PvP death does not protect). Wiki, Blade of
+   * Saeldor and Bow of Faerdhinen: "On unprotected death in PvP, the inactive [weapon] is dropped, and all shards used
+   * to charge it will be lost." The weapon becomes its inactive form, the same Item with its charge count gone, and
+   * that tradeable item then drops for the killer. A corrupted one is lost the same way: its Uncharge makes the
+   * inactive weapon and gives no shards back (Wiki, the (c) pages), which is what Items Kept on Death's "Chargable
+   * items" row drops for the killer ("the tradeable uncharged item, and ... the items that would result from
+   * uncharging the item"). Its colour goes with it.
+   */
+  // Ours (upstream issue #6002): before this the charged and the corrupted weapon came back whole to whoever died
+  // with them, skulled or not.
+  function inactiveOnPvpDeath(query) {
+    const item = query?.item;
+    // A bot's kit is not loot (DeathLoot.PlayerBots decides what its death gives).
+    if (!item || query.parts || query.player?.isPlayerBot?.() === true) return;
+    const inactiveId = inactiveIdOf(item);
+    if (inactiveId == null) return;
+    item.setId(inactiveId);
+    item.setMetaValue(config.chargesKey, undefined);
+    query.parts = [item];
+  }
+
+  /** `items:lost-to-pvp-killer` { item, wildernessLevel, lost }: the Items Kept on Death screen's PvP preview. */
+  function answerLostToPvpKiller(query) {
+    if (inactiveIdOf(query?.item) != null) query.lost = true;
+  }
+
   function attach() {
     api.onCustomEvent("combat:attack-finished", onAttackFinished);
+    api.onCustomEvent("player-death:pvp-item-parts", inactiveOnPvpDeath);
+    api.onCustomEvent("items:pvp-death-parts-preview", inactiveOnPvpDeath);
+    api.onCustomEvent("items:lost-to-pvp-killer", answerLostToPvpKiller);
     api.onItemAction(config.chargedName, { Check: check });
     api.onItemOnItem(SHARD_NAME, config.chargedName, addShards, { noted: false });
     api.onItemOnItem(SHARD_NAME, config.inactiveName, addShards, { noted: false });
   }
 
-  return { attach, useCharge, onAttackFinished, check, addShards, chargesOf, progressOf, isCharged, isWeapon, weaponOf };
+  return { attach, useCharge, onAttackFinished, check, addShards, chargesOf, progressOf, isCharged, isCorrupted, isWeapon, weaponOf, inactiveOnPvpDeath };
 }
 
 module.exports = { defineCrystalWeapon, NEW_CHARGES, MAX_CHARGES, CHARGES_PER_SHARD };

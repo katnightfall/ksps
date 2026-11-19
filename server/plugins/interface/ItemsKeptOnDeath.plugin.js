@@ -112,6 +112,31 @@ function breakCost(item, settings) {
   return query.cost == null ? null : Math.max(0, Number(query.cost) || 0);
 }
 
+/**
+ * What a PvP death would make of an unprotected item, or null where it meets the death as it is: the parts content
+ * names through `items:pvp-death-parts-preview` { player, item, parts, preview: true }, the read-only twin of the
+ * death's own `player-death:pvp-item-parts`. It is asked with a copy of the item, so an answer may change the item it
+ * is handed, and must change nothing else.
+ */
+// Ours (upstream issue #6002): the guide risk value priced an item a PvP death takes apart as the whole item, so an
+// ornament kit, a tome's pages or the coins an Ancient Warriors' piece holds were not counted.
+function pvpParts(player, item, settings) {
+  if (!settings.playerKill) return null;
+  const query = { player, killer: null, item: item.clone(), parts: null, preview: true };
+  pluginApi.emitCustomEvent("items:pvp-death-parts-preview", query);
+  return Array.isArray(query.parts) && query.parts.length > 0 ? query.parts : null;
+}
+
+/**
+ * What one part of an item a PvP death takes apart adds to the guide risk value: its repair cost where the death
+ * breaks it, its price where it trades (it drops for the killer), and nothing where it stays with the player.
+ */
+function partRisk(part, settings) {
+  const broken = breakCost(part, settings);
+  if (broken != null) return broken * part.getAmount();
+  return part.isPlayerTradeable() ? riskValue(part) * part.getAmount() : 0;
+}
+
 function getDeathItems(player, toKeep, settings, cosmetic = []) {
   const kept = new Set(toKeep);
   const protectedItems = new Set(cosmetic);
@@ -146,8 +171,11 @@ function getDeathItems(player, toKeep, settings, cosmetic = []) {
     const state = itemState(player, item, lostOnDeath, makesGrave);
     states.push({ slot: states.length, ...state });
 
+    const parts = protectedItems.has(item) ? null : pvpParts(player, item, settings);
     const broken = breakCost(item, settings);
-    if (broken != null) {
+    if (parts) {
+      for (const part of parts) risk = Math.min(Number.MAX_SAFE_INTEGER, risk + partRisk(part, settings));
+    } else if (broken != null) {
       risk = Math.min(Number.MAX_SAFE_INTEGER, risk + broken * item.getAmount());
     } else if (state.itemId !== KEPT_ITEM_STATE) {
       risk = Math.min(Number.MAX_SAFE_INTEGER, risk + riskValue(item) * item.getAmount());

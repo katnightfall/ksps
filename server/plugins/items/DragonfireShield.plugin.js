@@ -466,6 +466,36 @@ function gameframeReady({ player }) {
   if (rechargeSteps(player) > 0 && !rechargeShield(player).rechargeVarbit) sendRecharge(player, rechargeSteps(player));
 }
 
+/** A charged shield a PvP death empties, or null: a preset copy (or another restricted one) is deleted by the death as it is. */
+function chargedShield(item) {
+  if (!item || item.isPresetItem?.() === true || item.isUntradeable?.() === true) return null;
+  const shield = shieldOf(item);
+  return shield && item.getId() === shield.charged ? shield : null;
+}
+
+/**
+ * `player-death:pvp-item-parts` (PlayerDeathTask, asked for the items a PvP death does not protect). Wiki, Items Kept
+ * on Death: "The dragonfire shield, dragonfire ward and ancient wyvern shield will lose their charges if not
+ * protected"; Dragonfire ward and Ancient wyvern shield: "if dropped on death in an unsafe environment, when
+ * recovered, the [shield] will be completely uncharged." The shield becomes the uncharged one, the same Item emptied as
+ * Empty does (setCharges), and that tradeable item then drops for the killer. Its charges are gone: Empty gives
+ * nothing back.
+ */
+// Ours (upstream issue #6002): before this a charged shield, an untradeable, came back whole to whoever died with it,
+// skulled or not. A death to a monster is left as it was (the shield goes to the grave charged).
+function emptyOnPvpDeath(query) {
+  const item = query?.item;
+  // A bot's kit is not loot (DeathLoot.PlayerBots decides what its death gives).
+  if (!item || query.parts || query.player?.isPlayerBot?.() === true || !chargedShield(item)) return;
+  setCharges(item, 0);
+  query.parts = [item];
+}
+
+/** `items:lost-to-pvp-killer` { item, wildernessLevel, lost }: the Items Kept on Death screen's PvP preview. */
+function answerLostToPvpKiller(query) {
+  if (chargedShield(query?.item)) query.lost = true;
+}
+
 function attach(api) {
   core = api.core;
   createShields(core.ItemIdentifiers);
@@ -491,6 +521,9 @@ module.exports = {
     api.registerCombatMethodResolver({ resolve: resolveBlast, overridesWeapon: true });
     api.onCustomEvent(DRAGONFIRE_BREATH_EVENT, absorbDragonfire);
     api.onCustomEvent("gameframe:ready", gameframeReady);
+    api.onCustomEvent("player-death:pvp-item-parts", emptyOnPvpDeath);
+    api.onCustomEvent("items:pvp-death-parts-preview", emptyOnPvpDeath);
+    api.onCustomEvent("items:lost-to-pvp-killer", answerLostToPvpKiller);
   },
   _test: { login, setRechargeSteps, shieldOf, blastMaxHit, charges, chargeWyvernShield, recharge, chargeDefence, fossilCharges, setCharges, inspect, activate, empty, chargeWithDragonbreath, resolveBlast, absorbDragonfire, MAX_CHARGES },
 };

@@ -14,6 +14,7 @@ Untradeable combat items (fire capes, defenders, Void, Fighter torso and others)
   - Items Perdu can't lock break, as they do below level 20.
 - **Dizana's max cape's stored ammo** follows the quiver's rule (Wiki: Dizana's quiver, locking applies to "its max cape variant"). On a Wilderness death up to level 20, or above it unlocked, the ammo drops where the player died; a locked cape above 20 loses it. `Death.BrokenItems.js` emits `broken-items:pvp-death` { player, killer, item, location } before an item breaks, so `DizanasQuiver.plugin.js` sees the cape before it changes; a Wilderness death to an NPC reaches the quiver's own death hook.
 - **Locks from before the Trouver rework:** a fire cape (l) and other `(l)` items Perdu no longer locks break into the plain `(broken)` form.
+- **Ornamented breakable items** lose the kit first and then break as the item under it. A kit that trades drops for the killer: OrnamentKits takes it off an unlocked item (Void `(or)`, Rune and Dragon defender `(t)`), `brokenitems/Ornamented.BrokenItems.js` off a locked one (Void `(l)(or)`: "The victim keeps it in their inventory in broken form and keeps its (l) status. The PKer receives the tradeable ornament kit and item's repair cost", mangled and 500,000 above level 20) and off a lock from before the rework (Rune defender `(l)(t)`). The Bounty hunter ornament kit on a Fighter torso `(or)` or `(l)(or)` does not trade and stays the victim's, and the torso breaks, is lost or is mangled as a plain or locked torso is (Wiki: Fighter torso (or)). The pairs are read from the two tables: a kit Dismantle gives back (`ornament-kits.json`) on an item that breaks, and the cache's items of the same names with "(l)" in them ([items kept on death](items-kept-on-death.md)).
 
 Before this, every kept item with a broken form came back broken after **any** death, PvM included, and the killer got nothing.
 
@@ -69,7 +70,7 @@ The lock captures predate the Trouver rework of 17 June 2026, so the lockable it
 
 ## Not covered
 
-- **Ornamented items with an untradeable kit:** Fighter torso `(or)` and `(l)(or)` (the Bounty hunter ornament kit) are left whole. An item with a tradeable kit (Void `(or)`, Rune and Dragon defender `(t)`) loses the kit to the killer and then breaks as the plain item ([items kept on death](items-kept-on-death.md)).
+- **Making a locked item with a kit:** nothing puts a kit on a locked item or locks an ornamented one yet (Perdu's "Lock all available items" for ornamented items), so a Void `(l)(or)` piece exists only where one was spawned. What a PvP death does to one is covered, above.
 - **Decorative armour:** the Castle Wars gold pieces share one name across many ids, so they can't be paired by name.
 - **The 30-second rule:** a player hit by another player who leaves the Wilderness and dies within 30 seconds still has a PvP death.
 - **Chris and the PvP world armour stands**, which also repair.

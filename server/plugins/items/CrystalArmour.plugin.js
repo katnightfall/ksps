@@ -247,6 +247,33 @@ function dismantle(event) {
   player.sendMessage(`You revert the ${piece.label} to ${piece.seeds === 1 ? "a crystal armour seed" : `${piece.seeds} crystal armour seeds`}.`);
 }
 
+/** The piece a PvP death reverts, or null: a preset copy (or another restricted one) is deleted by the death as it is. */
+function pieceLostToKiller(item) {
+  if (!item || item.isPresetItem?.() === true || item.isUntradeable?.() === true) return null;
+  return pieceByItemId.get(item.getId?.()) ?? null;
+}
+
+/**
+ * `player-death:pvp-item-parts` (PlayerDeathTask, asked for the items a PvP death does not protect). Wiki, Crystal
+ * helm, Crystal body, Crystal legs: "If lost to another player in a dangerous PvP death, the crystal [piece] will
+ * revert to [1, 3, 2] crystal armour seed[s], which will then be dropped for the killer. All crystal shards will be
+ * lost should this happen." The seeds are the ones Revert gives back (PIECES), the charges and any colour go as they
+ * do there, and an inactive piece reverts the same way.
+ */
+// Ours (upstream issue #6002): before this a crystal armour piece came back whole to whoever died with it, skulled or not.
+function revertOnPvpDeath(query) {
+  // A bot's kit is not loot (DeathLoot.PlayerBots decides what its death gives).
+  if (!core || !query?.item || query.parts || query.player?.isPlayerBot?.() === true) return;
+  const piece = pieceLostToKiller(query.item);
+  if (!piece) return;
+  query.parts = Array.from({ length: piece.seeds }, () => new core.Item(core.ItemIdentifiers.CRYSTAL_ARMOUR_SEED, 1));
+}
+
+/** `items:lost-to-pvp-killer` { item, wildernessLevel, lost }: the Items Kept on Death screen's PvP preview. */
+function answerLostToPvpKiller(query) {
+  if (core && pieceLostToKiller(query?.item)) query.lost = true;
+}
+
 /** Every colour's active and inactive id of the piece: [active, inactive] pairs. */
 function idPairs(piece) {
   const obj = (name) => core.CacheDefinitions.getObjId(name);
@@ -298,6 +325,9 @@ module.exports = {
     api.registerBonusProvider({ apply: blessingBonuses });
     api.onCustomEvent("equipment:effects", addSetText);
     api.registerIncomingDamageModifier((entity, hitDamage) => onIncomingDamage(entity, hitDamage));
+    api.onCustomEvent("player-death:pvp-item-parts", revertOnPvpDeath);
+    api.onCustomEvent("items:pvp-death-parts-preview", revertOnPvpDeath);
+    api.onCustomEvent("items:lost-to-pvp-killer", answerLostToPvpKiller);
     for (const piece of PIECES) {
       api.onItemAction(piece.itemName, { Check: checkCharges, Revert: dismantle });
       api.onItemAction(`${piece.itemName} (inactive)`, { Revert: dismantle });

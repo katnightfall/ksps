@@ -17,6 +17,7 @@ function attach(api) {
     chargedName: "Blade of Saeldor",
     inactiveName: "Blade of Saeldor (inactive)",
     pairs: [[ids.BLADE_OF_SAELDOR, ids.BLADE_OF_SAELDOR_INACTIVE_]],
+    corrupted: "blade_of_saeldor_infinite",
     usedPerPercent: CHARGES_USED_PER_PERCENT,
   });
   blade.attach();
