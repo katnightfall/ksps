@@ -210,7 +210,8 @@ async function answerWorldList(request, response, pathname) {
     const reachable = secureVisitor(request) ? worlds.filter((world) => world.secure || (site && throughMaster(world))) : worlds;
     // The default world is listed at the bare address, which is also where the game client looks
     // before a world is picked: one entry for it, not two.
-    send(serverList(reachable, site).map((entry, index) => (standard && reachable[index].id === standard.id ? { ...entry, address: site.host, secure: site.secure } : entry)));
+    // A world keeps its number (its place on the whole list) on a page that cannot list them all.
+    send(serverList(reachable, site, (world) => worlds.indexOf(world) + 1).map((entry, index) => (standard && reachable[index].id === standard.id ? { ...entry, address: site.host, secure: site.secure } : entry)));
     return true;
 }
 

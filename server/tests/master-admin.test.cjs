@@ -366,13 +366,15 @@ test("a world made here that starts answering on https at its node's name is lis
   let world = (await m.call("GET", "state")).body.worlds.find((entry) => entry.id === "chicago");
   assert.equal(world.secure, false, "plain http until the node shows it the certificate");
   let [entry] = listedFrom(m.registry.all());
-  assert.deepEqual(serverList([entry], { host: "rs.kat-net.us", secure: true })[0], { name: "Chicago", address: "rs.kat-net.us/w/chicago", secure: true, maxPlayers: 2047 });
+  assert.deepEqual(serverList([entry], { host: "rs.kat-net.us", secure: true })[0], { name: "Chicago", address: "rs.kat-net.us/w/chicago", secure: true, maxPlayers: 2047,
+    // For the game's World Switcher: which world it is, and its node's name for its flag.
+    id: "chicago", number: 1, location: "Dallas 8" });
 
   m.https.add("dal8.example.com:5001");
   world = (await m.call("GET", "state")).body.worlds.find((item) => item.id === "chicago");
   assert.equal(world.secure, true);
   [entry] = listedFrom(m.registry.all());
-  assert.deepEqual(serverList([entry], { host: "rs.kat-net.us", secure: true })[0], { name: "Chicago", address: "dal8.example.com:5001", secure: true, maxPlayers: 2047 }, "the world picker connects straight to it");
+  assert.deepEqual(serverList([entry], { host: "rs.kat-net.us", secure: true })[0], { name: "Chicago", address: "dal8.example.com:5001", secure: true, maxPlayers: 2047, id: "chicago", number: 1, location: "Dallas 8" }, "the world picker connects straight to it");
   // It has no website of its own, so its link stays on the master's site.
   assert.equal(worldUrls(entry, "").play, "/play?world=chicago");
 });
