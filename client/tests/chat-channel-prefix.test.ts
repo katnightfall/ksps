@@ -272,14 +272,16 @@ let buffer = "";
 let closed = 0;
 const inputVm = { inputDialogType: 3, inputDialogWidgetId: 458 << 16, inputDialogString: "old", deferIfClose: () => closed++ };
 const keyboardDeps = {
-    getVarManager: () => ({ getVarcString: () => buffer, setVarcString: (_id: number, text: string) => buffer = text }),
+    getVarManager: () => ({ getVarcString: () => buffer, setVarcString: (_id: number, text: string) => buffer = text, getVarcInt: () => 0 }),
     getCs2Vm: () => inputVm,
+    getPendingInputDialogAction: () => null,
+    getPendingTradeQuantityAction: () => null,
     setPendingInputDialogAction: (action: unknown) => assert.equal(action, null),
     setPendingTradeQuantityAction: (action: unknown) => assert.equal(action, null),
     getCustomInterfaces: () => assert.fail("construction must not reach search input"),
     executeScriptListener: (_widget: unknown, listener: number[]) => assert.deepEqual(listener, [223], "only the chat redraw script may run"),
 } as any;
-const widgetManager = { rootInterface: 161, interfaceParents: new Map([[1, { group: 458, type: 0 }]]), findWidget: () => ({ hidden: true }) } as any;
+const widgetManager = { rootInterface: 161, interfaceParents: new Map([[1, { group: 458, type: 0 }]]), findWidget: () => ({ hidden: true }), isEffectivelyHidden: () => false } as any;
 const dispatch = () => {
     processWidgetKeyboardInput(keyboardDeps, { input } as any, widgetManager);
     input.keyEvents.length = 0;
@@ -329,7 +331,7 @@ let nativeKeys = 0;
 const closeDeps: any = {
     ...keyboardDeps,
     getWidgetManager: () => widgetManager,
-    getVarManager: () => ({ getVarbit: () => 0, setVarcInt: (id: number, value: number) => { assert.equal(id, 11); chatLocked = value; } }),
+    getVarManager: () => ({ getVarbit: () => 0, getVarcInt: () => 0, setVarcInt: (id: number, value: number) => { assert.equal(id, 11); chatLocked = value; } }),
     getPendingInputDialogAction: () => null,
     getPendingTradeQuantityAction: () => null,
     getCustomInterfaces: () => ({ handleSearchKeyEvents: () => false }),
