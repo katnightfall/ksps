@@ -12,6 +12,14 @@ An NPC makes three sounds in a fight. Live sends each as a **private synth** (a 
 
 The NPC attack and death sounds used to go out as area sounds of range 0, which the client drops, so they were silent; they now reach the player.
 
+## Ids the recordings never met
+
+The table is keyed by NPC id, and the recordings met only some ids of most monsters (4 of the 12 Cyclops ids), which left the rest silent (upstream issue #4745). An NPC with no sound of its own for an event takes the one recorded for an NPC of the **same name playing the same animation**: the attack animation for an attack, the death animation for a death, the block and death animations for a hit. Where recorded NPCs of one name and animation differ, nothing is shared. This gives about 530 more ids a hit sound, 230 an attack sound and 320 a death sound, with no new sound ids.
+
+An NPC has no attack sound outside this table: `NPC.getAttackSound()` is null. It used to answer one fixed sound (394, `defiler_hit` in the cache) that every NPC melee swing sent as a range-0 area sound, which the client drops.
+
+The cache names every sound effect (gameval group 16: `giant_hit`, `gem_stone_crab_hit_01`, ...). `tests/spell-sounds.test.cjs` reads them that way. A name is not a recording of when or to whom live sends the sound, so the table is still built from recordings only.
+
 ## Where the data comes from
 
 The packet names no NPC, so `server/scripts/mine-npc-combat-sounds.mjs` ties a sound to an NPC id by how reliably it shows up in that NPC's ticks in the rsprox captures. The header of the script has the exact rules and the command to rebuild the file. It reads the text RSProx's own decoder (`net.rsprox.proxy.cli.BinaryToStringCommandKt`) writes for a `.bin` recording, **not** the `rsprox_transcripts/` format, and with `--out` it refuses to overwrite the table (exit 1) when the input is in another format. In short:

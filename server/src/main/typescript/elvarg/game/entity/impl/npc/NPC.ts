@@ -720,8 +720,14 @@ export class NPC extends Mobile {
         return this.getCurrentDefinition().getAttackAnim();
     }
 
-    public getAttackSound(): Sound {
-        return Sound.NPC_ATTACKING;
+    /**
+     * Ours (upstream issue #4745): none here. An NPC's attack sound is NpcCombatSounds' (a private synth
+     * to the player it attacks). This used to answer one fixed sound (394, which the cache names
+     * defiler_hit) that every melee swing of every NPC sent as an area sound of range 0: the client
+     * drops those, so nothing was heard, and each swing walked the whole player list to send it.
+     */
+    public getAttackSound(): Sound | null {
+        return null;
     }
 
     public getBlockAnim(): number {
