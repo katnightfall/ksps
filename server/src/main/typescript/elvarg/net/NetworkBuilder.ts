@@ -1584,7 +1584,9 @@ export class ClientConnection {
         return;
       }
       // A name a live player (a bot) shows for another account is taken too, though never saved.
-      if ((owner !== undefined && owner !== DisplayNames.key(typedName)) || DisplayNames.shownByAnother(typedName, typedName)) {
+      // Ours: and nobody may pass as a moderator (the display name changer's rule), but the world's own developers.
+      if ((owner !== undefined && owner !== DisplayNames.key(typedName)) || DisplayNames.shownByAnother(typedName, typedName) ||
+          (DisplayNames.passesAsModerator(typedName) && !isConfiguredDeveloperUsername(typedName))) {
         this.releasePendingName();
         this.failLogin(3, "That name is not available. Please choose another.");
         return;

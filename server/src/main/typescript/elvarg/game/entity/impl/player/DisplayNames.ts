@@ -36,6 +36,14 @@ export class DisplayNames {
         return String(name ?? "").replace(/_/g, " ").trim().replace(/\s+/g, " ").toLowerCase();
     }
 
+    /**
+     * Ours: whether a name passes for a moderator's: it has "mod" in it, spaces and underscores aside. The display
+     * name changer's rule (plugins/commands/DisplayName), for the names a new account and a new character take.
+     */
+    public static passesAsModerator(name: string): boolean {
+        return String(name ?? "").replace(/[ _]/g, "").toLowerCase().includes("mod");
+    }
+
     private static file(): string {
         return process.env[DisplayNames.FILE_ENV] || path.join(process.cwd(), "data", "saves", "display-names.json");
     }
