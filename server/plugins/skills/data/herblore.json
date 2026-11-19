@@ -221,6 +221,7 @@
   "grinding": [
     {"item": "anchovies", "product": "ii_anchovy_paste", "message": "You grind the anchovies into a fishy, sticky paste."},
     {"item": "unicorn_horn", "product": "unicorn_horn_dust", "message": "You grind the unicorn horn to dust."},
+    {"item": "charcoal", "product": "ground_charcoal", "message": "You grind the charcoal to a powder."},
     {"item": "chocolate_bar", "product": "chocolate_dust", "alternateTool": "knife", "message": "You grind the chocolate to dust."},
     {"item": "bird_nest_empty", "product": "crushed_bird_nest", "message": "You grind the bird's nest down."},
     {"item": "blue_dragon_scale", "product": "dragon_scale_dust", "message": "You grind down the blue dragon scale."},

@@ -7,8 +7,22 @@
  * (all indexed), the start hook, the prose-condition answers and the exam /
  * discovery stage progression.
  *
- * Stages (varp 131): 1 started, 2-4 passed the three exams, 7 carrying the
- * chemical compound, 8 carrying the ancient talisman, 9 complete.
+ * Stages (varp 131): 1 started, 2-4 passed the three exams, 5 Terry Balando has seen the ancient talisman and
+ * written the invitation letter, 6 a workman has the letter (the winches and shafts are open), 7 the compound is on
+ * the bricks, 8 the wall is blown, 9 complete. From 6 on these are the live game's values, which the Quest Helper
+ * reads (see ../digsite/Discovery.DigSite.js); the first half's are one lower than the live game's, which counts the
+ * delivered letter as a stage of its own (here an attribute). The ropes, the barrel and the searched bricks are kept
+ * beside the stage.
+ *
+ * Saves from before the discovery was built (it was one conversation with Terry per step): stage 7 was "Terry has
+ * handed over a chemical compound" and stage 8 "the compound has become an ancient talisman", with the next talk
+ * ending the quest. Both become stage 6 the first time the player is seen (a stage 7 or 8 that the discovery did not
+ * set: Discovery's isLegacyStage): nobody goes back past a step they had been let through, the compound a stage 7
+ * player carries is the one the bricks want, and a stage 8 player (whose compound that conversation took, and who
+ * keeps the talisman it gave) makes theirs the real way, which stage 6 opens in full. Stage 4 is unchanged (the
+ * talisman is now dug up, not handed over) and a completed quest stays complete: it counts as both ropes tied and the
+ * wall blown, so the dungeon is open to it as it is after the real quest. The certificates the stand-in took from a
+ * stage 7, 8 or 9 player are not given back (nothing in the quest needs them).
  *
  * The letter (stage 1): the examiner hands over an unstamped letter, the curator stamps it
  * (the sealed letter) and the examiner takes it back before the first exam. Whether the
@@ -26,11 +40,21 @@
  * back; for the second all three simply tell; for the third the student in purple wants an opal first (Wiki: "an
  * uncut opal or opal"). A student used to sign each certificate instead, whatever the examiner had just said.
  *
- * Gaps (not built): the "Making a discovery" half of the quest. Digging up the talisman, the invitation letter,
- * the winches and shafts, Doug Deeping, the chest and barrel, mixing the compound, the bricks and the stone
- * tablet are not simulated. In their place Terry Balando hands over the chemical compound, then the ancient
- * talisman, then ends the quest, one step per conversation; the journal says which step is next.
+ * The discovery (after the third exam) is ../digsite/Discovery.DigSite.js, and the digging it starts with, which
+ * goes on outside the quest, ../digsite/Digging.DigSite.js. This file chooses the speakers' conversations and
+ * passes the dialogue's conditions, actions and item uses on to them.
+ *
+ * Gaps of that half, for want of a recording of the live game (each is plain here, nothing invented to look the
+ * part): no animation for trowel digging, tying a rope, the winch, the chest, the barrel, mixing or lighting; no
+ * graphic, sound or camera for the explosion, and no run (the player is put at the foot of the rope); a dig takes
+ * the four ticks panning does; a descent lands on the free tile north of the shaft's rope. Words of ours where the
+ * transcript has none: a dig's finds and "nothing", a dig refused for want of its exam or of the jar and brush,
+ * the locked chest, the first two mixtures, too low a Herblore level, and emptying the vial. Not sourced: where the
+ * arcenia roots lie before the blast (Discovery's ROOTS_BEFORE_BLAST). Not built: Terry's word on an ancient staff,
+ * and the curator's cake or fruit blast for the level 3 certificate.
  */
+const createDigSiteDigging = require("../digsite/Digging.DigSite");
+const createDigSiteDiscovery = require("../digsite/Discovery.DigSite");
 module.exports = function registerDigSiteQuest(api) {
   const { Animation, DialogueChainBuilder, GameObject, Item, ItemIdentifiers, ItemStatementDialogue, MapObjects,
     NpcDialogue, NpcIdentifiers, ObjectIdentifiers, ObjectManager, PlayerDialogue, Skill, Task, TaskManager } = api.core;
@@ -117,15 +141,19 @@ module.exports = function registerDigSiteQuest(api) {
   const VARP_DIG_SITE = 131;
   const STAGE_STARTED = 1;
   const STAGE_EXAMS_DONE = 4;
-  const STAGE_HAS_COMPOUND = 7;
-  const STAGE_HAS_TALISMAN = 8;
+  /** Terry has the talisman and has written the invitation letter. */
+  const STAGE_INVITED = 5;
+  /** A workman has the letter: the winches may be used. */
+  const STAGE_SHAFTS = 6;
+  /** The compound is on the bricks. In a save from before the discovery was built: carrying Terry's compound. */
+  const STAGE_POURED = 7;
+  /** The wall is blown. In a save from before the discovery was built: carrying Terry's talisman. */
+  const STAGE_BLOWN = 8;
   const STAGE_COMPLETE = 9;
 
   const LEVEL_1_CERTIFICATE_ITEM_ID = ItemIdentifiers.LEVEL_1_CERTIFICATE;
   const LEVEL_2_CERTIFICATE_ITEM_ID = ItemIdentifiers.LEVEL_2_CERTIFICATE;
   const LEVEL_3_CERTIFICATE_ITEM_ID = ItemIdentifiers.LEVEL_3_CERTIFICATE;
-  const CHEMICAL_COMPOUND_ITEM_ID = ItemIdentifiers.CHEMICAL_COMPOUND;
-  const ANCIENT_TALISMAN_ITEM_ID = ItemIdentifiers.ANCIENT_TALISMAN;
   const TROWEL_ITEM_ID = ItemIdentifiers.TROWEL;
   const UNSTAMPED_LETTER_ITEM_ID = ItemIdentifiers.UNSTAMPED_LETTER; // 682
   const STAMPED_LETTER_ITEM_ID = ItemIdentifiers.SEALED_LETTER; // 683, the stamped letter
@@ -149,8 +177,6 @@ module.exports = function registerDigSiteQuest(api) {
   const PAGE = "The Dig Site";
 
   const START_HOOK = "quest:the-dig-site:start";
-  /** Terry's "turning in the stone tablet" action ends the quest. */
-  const COMPLETE_ACTION_ID = "NwSdYK";
 
   // ---- The three exams (stage 1, 2 and 3 are the first, second and third exam still to pass) ----
   const EXAM_VARIANTS = ["the-first-exam-taking-the-exam", "the-second-exam", "the-third-exam"];
@@ -202,6 +228,13 @@ module.exports = function registerDigSiteQuest(api) {
   const holdsLetter = (player) => held(player, UNSTAMPED_LETTER_ITEM_ID) || held(player, STAMPED_LETTER_ITEM_ID);
   /** Still waiting on the letter: started, and the examiner hasn't taken a stamped one. */
   const awaitingLetter = (player) => quest.getStage(player) === STAGE_STARTED && !delivered(player);
+  /** The stage, with a save from before the discovery was built brought to its place in it (see the header). */
+  function stageNow(player) {
+    const stage = quest.getStage(player);
+    if (!discovery.isLegacyStage(player, stage)) return stage;
+    discovery.setStage(player, STAGE_SHAFTS);
+    return STAGE_SHAFTS;
+  }
   /** The exam the player has still to pass (0-2), or null: before the letter is in, and once all three are passed. */
   function pendingExam(player) {
     const stage = quest.getStage(player);
@@ -435,36 +468,18 @@ module.exports = function registerDigSiteQuest(api) {
   }
 
   function buildJournal(player, questHandle) {
-    const stage = questHandle.getStage(player);
+    // A save's old stand-in stage reads as the stage it becomes (stageNow moves it when the player next acts).
+    const saved = questHandle.getStage(player);
+    const stage = discovery.isLegacyStage(player, saved) ? STAGE_SHAFTS : saved;
     if (stage >= STAGE_COMPLETE) {
       return [
-        "<str>I passed the Dig Site examinations.</str>",
-        "<str>I uncovered an ancient altar beneath the Dig Site.</str>",
+        "<str>I passed the three examinations.</str>",
+        ...discovery.journal(player, stage),
         "",
         "<col=ff0000>QUEST COMPLETE!</col>",
       ];
     }
-    if (stage >= STAGE_HAS_TALISMAN) {
-      return [
-        "<str>I passed the three examinations.</str>",
-        "<str>Terry Balando gave me a chemical compound.</str>",
-        "I have found an <col=800000>ancient talisman</col>. I should show it to",
-        "<col=800000>Terry Balando</col> at the Exam Centre.",
-      ];
-    }
-    if (stage >= STAGE_HAS_COMPOUND) {
-      return [
-        "<str>I passed the three examinations.</str>",
-        "Terry Balando gave me a <col=800000>chemical compound</col>. I should speak to",
-        "<col=800000>Terry Balando</col> again about what it uncovers.",
-      ];
-    }
-    if (stage >= STAGE_EXAMS_DONE) {
-      return [
-        "I passed the three examinations.",
-        "I should speak to <col=800000>Terry Balando</col> at the Exam Centre.",
-      ];
-    }
+    if (stage >= STAGE_EXAMS_DONE) return ["<str>I passed the three examinations.</str>", ...discovery.journal(player, stage)];
     if (awaitingLetter(player)) {
       return stamped(player)
         ? ["The curator stamped my letter of recommendation.", "I should take it back to the <col=800000>Examiner</col>."]
@@ -503,7 +518,7 @@ module.exports = function registerDigSiteQuest(api) {
 
   /** Which transcript variant each speaker plays, by quest stage. */
   function selectVariant({ npcId, player }) {
-    const stage = quest.getStage(player);
+    const stage = stageNow(player);
     if (EXAMINER_NPC_IDS.has(npcId)) {
       if (stage === 0) return "starting-the-quest";
       if (awaitingLetter(player)) {
@@ -559,44 +574,16 @@ module.exports = function registerDigSiteQuest(api) {
       return student.ask;
     }
     if (npcId === RESEARCHER_NPC_ID) {
-      if (stage < STAGE_EXAMS_DONE) {
-        return "the-first-exam-talking-to-the-researcher-before-completing-the-first-exam";
-      }
-      if (stage < STAGE_HAS_COMPOUND) return "the-second-exam-talking-to-the-researcher";
-      if (stage < STAGE_HAS_TALISMAN) return "the-third-exam-talking-to-the-researcher";
-      return "making-a-discovery-talking-to-the-researcher";
+      // Each of his conversations opens on the exam just passed ("I passed my second Earth Sciences exam.", "I did
+      // it! Level 3 Earth Sciences!"), and the last on the shafts Terry has opened.
+      if (stage >= STAGE_COMPLETE) return { page: "Researcher", variant: "standard-dialogue-after-the-dig-site" };
+      if (stage >= STAGE_INVITED) return "making-a-discovery-talking-to-the-researcher";
+      if (stage >= STAGE_EXAMS_DONE) return "the-third-exam-talking-to-the-researcher";
+      if (stage === STAGE_STARTED + 2) return "the-second-exam-talking-to-the-researcher";
+      if (stage === STAGE_STARTED + 1) return "the-first-exam-talking-to-the-researcher-after-completing-the-first-exam";
+      return "the-first-exam-talking-to-the-researcher-before-completing-the-first-exam";
     }
-    if (npcId === TERRY_BALANDO_NPC_ID) {
-      if (stage === STAGE_EXAMS_DONE) {
-        // The Wiki has no certificate check here, so a lost one can't stop him. Any held still go.
-        const certificates = [
-          LEVEL_1_CERTIFICATE_ITEM_ID,
-          LEVEL_2_CERTIFICATE_ITEM_ID,
-          LEVEL_3_CERTIFICATE_ITEM_ID,
-        ].filter((itemId) => held(player, itemId));
-        if (player.getInventory().getFreeSlots() + certificates.length < 1) {
-          // No capture of this: the wording is ours.
-          player.sendMessage("You don't have enough inventory space for the compound.");
-        } else {
-          for (const itemId of certificates) player.getInventory().deleteNumber(itemId, 1);
-          player.getInventory().adds(CHEMICAL_COMPOUND_ITEM_ID, 1);
-          player.sendMessage("Terry Balando hands you a chemical compound.");
-          quest.setStage(player, STAGE_HAS_COMPOUND);
-        }
-        return "making-a-discovery-talking-to-terry-again";
-      }
-      if (stage === STAGE_HAS_COMPOUND) {
-        if (held(player, CHEMICAL_COMPOUND_ITEM_ID)) {
-          player.getInventory().deleteNumber(CHEMICAL_COMPOUND_ITEM_ID, 1);
-          player.getInventory().adds(ANCIENT_TALISMAN_ITEM_ID, 1);
-          player.sendMessage("You uncover a strange talisman.");
-          quest.setStage(player, STAGE_HAS_TALISMAN);
-        }
-        return "making-a-discovery-talking-to-terry-again";
-      }
-      if (stage >= STAGE_HAS_TALISMAN) return "making-a-discovery-turning-in-the-stone-table";
-      return "making-a-discovery-talking-to-terry-balando";
-    }
+    if (npcId === TERRY_BALANDO_NPC_ID) return discovery.terryVariant(player);
     if (npcId === CURATOR_NPC_ID) {
       // The Golem reuses the museum curator only while its museum step is active.
       if (isQuestStarted(player, "the_golem") && !isQuestComplete(player, "the_golem")) return null;
@@ -611,10 +598,10 @@ module.exports = function registerDigSiteQuest(api) {
     if (npcId === PANNING_GUIDE_NPC_ID) {
       return PANNING_GUIDE_VARIANT;
     }
-    if (WORKMAN_NPC_IDS.has(npcId)) {
-      return "making-a-discovery-talking-to-terry-again-giving-a-workman-the-invitation";
-    }
-    if (npcId === DOUG_DEEPING_NPC_ID) return "making-a-discovery-talking-to-doug-deeping";
+    // A workman takes the invitation when it is used on him (handleItemOnNpc); talked to, he has his own page's
+    // conversation. It used to be the hand-over's words on every Talk-to, letter or none.
+    if (WORKMAN_NPC_IDS.has(npcId)) return discovery.workmanVariant(player);
+    if (npcId === DOUG_DEEPING_NPC_ID) return discovery.dougVariant(player);
     return null;
   }
 
@@ -635,8 +622,12 @@ module.exports = function registerDigSiteQuest(api) {
     }
     if (value.includes("does not have a trowel")) return !has(TROWEL_ITEM_ID);
     if (value.includes("has a trowel")) return has(TROWEL_ITEM_ID);
-    if (value.includes("doesn't have the key")) return true;
-    if (value.includes("already has the key")) return false;
+    // The discovery's own conditions (the lost invitation, Doug's key, the winch's rope and Agility), by step.
+    const discovered = stepId ? discovery.answerCondition(player, stepId) : null;
+    if (discovered !== null) return discovered;
+    if (npcId === TERRY_BALANDO_NPC_ID && value.includes("desert treasure i has been completed")) {
+      return isQuestComplete(player, "desert_treasure_i");
+    }
     if (npcId === PANNING_GUIDE_NPC_ID) {
       const tea = !canPan(player) && held(player, TEA_ITEM_ID);
       const nettleTea = !canPan(player) && NETTLE_TEA_IDS.some((id) => held(player, id));
@@ -685,6 +676,7 @@ module.exports = function registerDigSiteQuest(api) {
 
   /** The branch the examiner takes: three right answers pass the exam; "Here you go..." hands over a new trowel. */
   function handleCondition({ player, npcId, stepId, text }) {
+    if (player && DIALOGUE_NPC_IDS.has(npcId)) discovery.handleCondition({ player, stepId });
     if (!player || !EXAMINER_NPC_IDS.has(npcId)) return;
     if (String(text).toLowerCase().includes("does not have a trowel")) {
       // Carried, as the condition itself is judged: the examiner has just said "Here you go...".
@@ -791,6 +783,7 @@ module.exports = function registerDigSiteQuest(api) {
       player.getDialogueManager().startDialogues(new DialogueChainBuilder().add(new NpcDialogue(0, targetId, text)));
       return;
     }
+    if (player && !event.handled && discovery.handleItemOnNpc(event)) return;
     if (!player || (itemId !== UNSTAMPED_LETTER_ITEM_ID && itemId !== STAMPED_LETTER_ITEM_ID)) return;
     if (EXAMINER_NPC_IDS.has(targetId)) {
       event.handled = true;
@@ -826,15 +819,42 @@ module.exports = function registerDigSiteQuest(api) {
     };
   }
 
-  /** Terry's discovery turn-in completes the quest. */
-  function handleAction({ player, npcId, stepId }) {
-    if (npcId !== TERRY_BALANDO_NPC_ID || stepId !== COMPLETE_ACTION_ID) return;
-    if (!quest.isComplete(player)) quest.complete(player);
+  /** The discovery's message and action steps: its item boxes and hand-overs, the descent, the blast, the quest's end. */
+  function handleAction(event) {
+    if (!event.player || !DIALOGUE_NPC_IDS.has(event.npcId)) return;
+    discovery.handleAction(event);
   }
 
   function handleLogin({ player }) {
+    stageNow(player);
     refreshQuestList(player);
     player.getPacketSender().sendVarbit(PANNING_PERMISSION_VARBIT, Number(canPan(player)));
+    discovery.syncVarbits(player);
+  }
+
+  /** Wiki, Signpost (Digsite): what each dig's signpost reads. */
+  const SIGNPOSTS = new Map([
+    [ObjectIdentifiers.SIGNPOST_13, "This site is for training purposes only."], // digsigntrain
+    [ObjectIdentifiers.SIGNPOST_14, "Level 1 digs only."], // digsign1
+    [ObjectIdentifiers.SIGNPOST_15, "Level 2 digs only."], // digsign2
+    [ObjectIdentifiers.SIGNPOST_16, "Level 3 digs only."], // digsign3
+    [ObjectIdentifiers.SIGNPOST_17, "Private dig."], // digsignprivate
+  ]);
+
+  function readSignpost({ player, objectId }) {
+    const text = SIGNPOSTS.get(objectId);
+    if (text === undefined) return false;
+    player.sendMessage(text);
+    return true;
+  }
+
+  const digging = createDigSiteDigging(api, { held, owned, stageNow, STAGE_STARTED, STAGE_EXAMS_DONE });
+  const discovery = createDigSiteDiscovery(api, {
+    PAGE, STAGE_EXAMS_DONE, STAGE_INVITED, STAGE_SHAFTS, STAGE_POURED, STAGE_BLOWN, held, owned, stageNow, swapObject,
+    nearestWorkman: digging.nearestWorkman, quest: () => quest,
+  });
+  if (api.core.WorldDefinition.isMembersWorld()) {
+    api.registerDefinitionSource("ground_items", { name: "the-dig-site-arcenia-roots", load: discovery.groundItems });
   }
 
   api.persistAttribute(STAMPED_ATTRIBUTE, false);
@@ -843,6 +863,7 @@ module.exports = function registerDigSiteQuest(api) {
   for (const student of STUDENT_LOST_ITEM.values()) api.persistAttribute(student.attribute, 0);
   api.persistAttribute(LEARNED_ATTRIBUTE, 0);
   api.persistAttribute(OPAL_ATTRIBUTE, 0);
+  api.persistAttribute(discovery.DISCOVERY_ATTRIBUTE, 0);
   quest = registerQuest(api, {
     key: "the_dig_site",
     name: "The Dig Site",
@@ -874,6 +895,25 @@ module.exports = function registerDigSiteQuest(api) {
   api.onCustomEvent("npc-dialogue:hook", handleStartHook);
   api.onCustomEvent("npc-dialogue:action", handleAction);
   api.onCustomEvent("npc-dialogue:line", handleGuideLine);
+  api.onCustomEvent("npc-dialogue:line", discovery.handleLine);
   api.onItemOnNpc(handleItemOnNpc);
+  // The digs (during the quest and outside it) and the discovery.
+  api.onObjectInteraction("Signpost", { Read: readSignpost });
+  api.onObjectInteraction("Specimen tray", { Search: digging.searchTray });
+  api.onObjectInteraction("Sacks", { Search: digging.searchSacks });
+  api.onItemOnObject(digging.handleItemOnObject, { noted: false });
+  api.onItemOnObject(discovery.handleItemOnObject, { noted: false });
+  api.onItemOnItem(discovery.handleItemOnItem);
+  api.onItemDropPolicy(discovery.handleItemDropPolicy);
+  api.onObjectInteraction("Winch", { Operate: discovery.operateWinch });
+  api.onObjectInteraction("Rope", { "Climb-up": discovery.climbRope });
+  api.onObjectInteraction("Chest", { Open: discovery.openChest, Search: discovery.searchChest, Close: discovery.closeChest });
+  api.onObjectInteraction("Barrel", { Open: discovery.openBarrel, Search: discovery.searchBarrel });
+  api.onObjectInteraction("Brick", { Search: discovery.searchBricks });
+  api.onObjectInteraction("Stone Tablet", { Take: discovery.takeTablet });
+  api.onItemAction("Invitation letter", { Read: discovery.readLetter });
+  api.onItemAction("Stone tablet", { Read: discovery.readTablet });
+  api.onItemAction("Unidentified liquid", { Empty: discovery.emptyLiquid });
+  api.onNpcInteraction("Doug Deeping", { "Steal-from": discovery.stealFromDoug });
   api.onPlayerLogin(handleLogin);
 };
