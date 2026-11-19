@@ -804,7 +804,13 @@ export class Misc {
   private static readonly protocolNames = new Map<string, string>();
   private static readonly PROTOCOL_NAMES_KEPT = 8192;
 
+  // A name is 12 characters at most; what a client types where a name goes can be 64 KB (a login's
+  // username is formatted before its length is checked). Kept, 8,192 of those and their formatted
+  // copies are about a gigabyte, so anything longer than a name is formatted and not remembered.
+  private static readonly PROTOCOL_NAME_LENGTH_KEPT = 32;
+
   public static formatNameForProtocol(name: string): string {
+    if (name.length > Misc.PROTOCOL_NAME_LENGTH_KEPT) return name.toLowerCase().replace(/ /g, "_");
     let formatted = Misc.protocolNames.get(name);
     if (formatted === undefined) {
       formatted = name.toLowerCase().replace(/ /g, "_");
