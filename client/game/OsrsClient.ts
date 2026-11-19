@@ -398,7 +398,7 @@ import {
 } from "../network/serverConnection/contentApi";
 import { resolveWidgetIdentifiers, inferWidgetOpId } from "./widgets/widgetActionPayload";
 import { isPauseButtonWidget, setMenuObjTypeLookup } from "../widgets/menu/utils";
-import { INVENTORY } from "../runelite/api/gameval/InterfaceID";
+import { INVENTORY, SHOPMAIN, SHOPSIDE } from "../runelite/api/gameval/InterfaceID";
 import { RenderDataWorkerPool } from "./worker/RenderDataWorkerPool";
 import { WorldMapController, type WorldMapRenderedIcon } from "./worldMap/WorldMapController";
 import type { PluginWorldMapPointEntry, RenderedWorldMapPoint } from "@runelite/client/ui/overlay/worldmap/worldMapLayout";
@@ -1469,10 +1469,15 @@ export class OsrsClient {
         setMenuObjTypeLookup((itemId) => this.objTypeLoader?.load(itemId));
         // An inventory item's top entry follows Shift (shift-click drop), and the mouseover text
         // reads it from the drawn inventory, so redraw it when Shift changes under a still mouse.
+        // The same goes for an open shop's stock and the inventory beside it (Menu Entry Swapper's
+        // Shift-click Buy and Sell amounts, upstream issue #6256).
         this.inputManager.onShiftChanged = () => {
             const widgetManager = this.widgetManager;
-            if (!widgetManager?.isGroupLoaded(INVENTORY)) return;
-            widgetManager.invalidateWidgetRender(widgetManager.getGroupRoot(INVENTORY), "shift");
+            if (!widgetManager) return;
+            for (const group of [INVENTORY, SHOPMAIN, SHOPSIDE]) {
+                if (!widgetManager.isGroupLoaded(group)) continue;
+                widgetManager.invalidateWidgetRender(widgetManager.getGroupRoot(group), "shift");
+            }
         };
         if (editMode) {
             document.title = `Edit Mode - ${BRAND_NAME}`;
