@@ -74,6 +74,27 @@ test('cape eligibility fails closed for a missing quest and asks whether every d
   answers.diaries = true;
 });
 
+test('registered miniquests neither block the cape nor have to be done for it', () => {
+  // The live plugin set registers 13 miniquests beside the main quests the cache lists.
+  const complete = answers.quests;
+  registered.push({ key: 'bear_your_soul', name: 'Bear Your Soul' });
+  const emit = api.emitCustomEvent;
+  api.emitCustomEvent = (name, request) => {
+    if (name === 'quest:is-complete') request.complete = request.key !== 'bear_your_soul';
+    else emit(name, request);
+  };
+  try {
+    assert.equal(allQuestsComplete({}), true);
+    const player = playerWithInventory();
+    buyCape(player);
+    assert.deepEqual(player.items, [[api.core.ItemIdentifiers.QUEST_POINT_CAPE, 1], [api.core.ItemIdentifiers.QUEST_POINT_HOOD, 1]]);
+  } finally {
+    api.emitCustomEvent = emit;
+    registered.pop();
+    answers.quests = complete;
+  }
+});
+
 test('cape purchase requires the complete cache catalogue and accepts the freed coin slot', () => {
   const player = playerWithInventory();
   buyCape(player);

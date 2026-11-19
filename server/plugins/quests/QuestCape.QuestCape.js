@@ -57,7 +57,10 @@ function allQuestsComplete(player) {
     if (!name || byCanonicalName.has(name)) return false;
     byCanonicalName.set(name, quest);
   }
-  if (byCanonicalName.size !== required.length) return false;
+  // Ours: this refused when the number of registered quests differed from the number of cache
+  // quests the cape needs. Miniquests register as quests too (13 of them), so the two numbers never
+  // matched and nobody could earn the cape. Each needed quest is still looked up below, and one
+  // the server lacks still refuses.
   for (const name of required) {
     const quest = byCanonicalName.get(canonicalQuestName(name));
     if (!quest) return false;
