@@ -622,6 +622,7 @@ function customShopHarness(t, steelStock = 50) {
       for (const id of Array.isArray(ids) ? ids : [ids]) buttons.set(id, handler);
     },
     onCustomEvent: (_name, handler) => { delivery = handler; },
+    onCanShop() {}, // Ours: CustomShops:players' refusal on other roads; this harness has no getPluginConfig, so the default (on)
   });
   t.mock.method(PluginManager, "emitCustomEvent", (name, request) => {
     if (name === "shop:delivery") delivery(request);

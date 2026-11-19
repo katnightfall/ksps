@@ -10,6 +10,8 @@ const path = require('node:path');
 const { before, test } = require('node:test');
 process.env.DISABLE_PLAYER_BOTS = '1';
 require('../dist/Server').Server.installProductionPathResolver();
+// Ours: PvP mode's opening after a death is for every player here, as the original project has it (PvpMode:players).
+require('./helpers/pvp-mode-on.cjs');
 const { CachePipeline } = require('../dist/game/cache/CachePipeline');
 const { PluginManager: PM } = require('../dist/plugins/PluginManager');
 const { Player } = require('../dist/game/entity/impl/player/Player');

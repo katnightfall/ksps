@@ -3,6 +3,8 @@ const { test, before } = require("node:test");
 
 const { Server } = require("../dist/Server");
 Server.installProductionPathResolver();
+// Ours: presets for every player, as the original project has them (PvpMode:players).
+require("./helpers/pvp-mode-on.cjs");
 
 const { CachePipeline } = require("../dist/game/cache/CachePipeline");
 before(() => CachePipeline.initialize());
