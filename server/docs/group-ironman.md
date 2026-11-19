@@ -155,7 +155,9 @@ combat achievement task of a tier (the cache has four tiers, Easy to Elite).
   Group Storage shows the unlocks; Leave Group / Cancel Leave (by `gim_pending_leave`) leave or
   stay. Hiscores, Options and Raffle say they aren't on this world *(ours)*.
 - **Group chat** (Chat; Wiki, Chat Interface: "//// or /g"): the client sends it as clan chat on
-  clan type 1; every member online who doesn't ignore the speaker gets it as clan chat (type 41)
+  clan type 1, the bar already in front of the text (the cache's chat_send, script 5517, puts it
+  there and capitalises the line; that one bar is taken off before the server adds its own); every
+  member online who doesn't ignore the speaker gets it as clan chat (type 41)
   whose text starts with a bar, on a channel named after the group. The cache's pane and chat
   filters (script 5501, on the text) put such lines in the Group tab, and rebuildchatbox draws them
   without the bar (script632) as "[group] name: text"; RuneLite reads them the same way

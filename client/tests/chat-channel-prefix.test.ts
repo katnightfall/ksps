@@ -207,9 +207,18 @@ for (const [type, clan, text, expected] of [
     assert.ok(sentPacket);
     assert.deepEqual(decodeClientPacket(Buffer.from(sentPacket)), expected);
 }
+// Group Ironman's group chat (upstream issue #5203): chat type 3 on clan type 1. chat_send itself
+// capitalises the line and puts the "|" that marks a group line in front; it goes to the server as
+// that clan type's chat, never as public or the player's own clan's. (This client used to drop it:
+// nothing typed to a group went anywhere.)
 sentPacket = undefined;
-nativeChatVm.execute(chatSend, [3, 1, 0, -1], ["unsupported group chat"]);
-assert.equal(sentPacket, undefined, "unavailable Group Ironman must not fall back to public or clan chat");
+nativeChatVm.execute(chatSend, [3, 1, 0, -1], ["hello group"]);
+assert.ok(sentPacket, "a group line is sent");
+assert.deepEqual(decodeClientPacket(Buffer.from(sentPacket!)), { type: "clan_chat", text: "|Hello group", clanType: 1 });
+// Clan types this server has nothing for (2 is a PvP Arena group) still go nowhere.
+sentPacket = undefined;
+nativeChatVm.execute(chatSend, [3, 2, 0, -1], ["hello arena"]);
+assert.equal(sentPacket, undefined, "an unknown clan type must not fall back to public or clan chat");
 
 let commandBuffer = "";
 const commandVm = new Cs2Vm({

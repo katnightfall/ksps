@@ -962,6 +962,17 @@ test("group chat: a line on clan type 1 reaches the group's members online, as c
   assert.ok(!line.includes("|Iron Pals"));
   assert.equal(Chat.channelName({ name: "" }), "Group");
   assert.equal(say(0, "clan").handled, false, "clan type 0 is the clan's own");
+  // Ours (upstream issue #5203): a real client's chat_send (script 5517) has already put the bar
+  // in front of the line (and a capital on it); the line still goes out with one bar, not two.
+  heard.clear();
+  assert.equal(say(1, "|Hello group").handled, true);
+  assert.deepEqual(heard.get("bob")[0], core.encodeChatMessage("clan", "|Hello group", "alice", "Iron Pals", alice.getIndex(), 41),
+    "the client's own bar is the mark, not part of what was said");
+  assert.equal(Chat.saidText("|Hello"), "Hello");
+  assert.equal(Chat.saidText("Hello | there"), "Hello | there", "a bar inside the line is the player's");
+  heard.clear();
+  say(1, "|");
+  assert.equal(heard.get("bob"), undefined, "a bar and nothing else says nothing");
 });
 
 test("Teleport to House's Group options: Choose lists the group's members online, Previous goes back to the last one", () => {

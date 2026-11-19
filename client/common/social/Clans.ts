@@ -1,8 +1,12 @@
 import type { ClanChannel, ClanSettings } from "../../rs/cs2/handlers/HandlerTypes";
 
-/** The packets' clan types: 0 the player's own clan, -1 the clan they are listening to as a guest. */
+/**
+ * The packets' clan types: 0 the player's own clan, -1 the clan they are listening to as a guest,
+ * 1 a Group Ironman's group (its chat is clan chat on that type).
+ */
 export const OWN_CLAN_TYPE = 0;
 export const LISTENED_CLAN_TYPE = -1;
+export const GROUP_CLAN_TYPE = 1;
 
 export interface KeyedClanChannel extends ClanChannel {
     key: number;
