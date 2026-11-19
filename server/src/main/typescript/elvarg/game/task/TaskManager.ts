@@ -47,6 +47,13 @@ export class TaskManager {
                 let keepRunning: boolean;
                 try {
                     keepRunning = t.tick();
+                } catch (e) {
+                    // Ours: one task's failure stays that task's. Escaping this loop, it left every
+                    // task queued after it unrun, on this cycle and each one after (the task was
+                    // still in the list and threw again), and left the list half compacted, so a
+                    // task before it ran twice a cycle. The task itself is kept, as before.
+                    TaskManager.reportTaskFailure(t, taskName, e);
+                    keepRunning = t.isRunning();
                 } finally {
                     PluginContext.exit(previousPlugin);
                 }
@@ -198,6 +205,22 @@ export class TaskManager {
     public static wasTaskActiveThisCycle(key: any, taskName?: string): boolean {
         return TaskManager.tasksProcessedThisCycle.some(task => task.key === key &&
             (taskName == null || task.constructor.name === taskName));
+    }
+
+    /** How many times each failing task has thrown: it is reported the first time, then every 1,000th. */
+    private static taskFailures = new WeakMap<Task, number>();
+    private static readonly TASK_FAILURE_REPORT_EVERY = 1000;
+
+    private static reportTaskFailure(task: Task, taskName: string, error: unknown): void {
+        const failures = (TaskManager.taskFailures.get(task) ?? 0) + 1;
+        TaskManager.taskFailures.set(task, failures);
+        if (failures !== 1 && failures % TaskManager.TASK_FAILURE_REPORT_EVERY !== 0) return;
+        console.error(
+            `[task] ${taskName || "anonymous task"} failed` +
+            (task.pluginName ? ` (${task.pluginName})` : "") +
+            (failures > 1 ? `, ${failures} times now` : ""),
+            error
+        );
     }
 
     private static logSlowTaskTick(taskName: string, durationMs: number): void {
