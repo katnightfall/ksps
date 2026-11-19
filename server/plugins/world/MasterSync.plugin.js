@@ -44,8 +44,13 @@ const HEARTBEAT_MS = 30_000;
 const PUSH_MS = 15_000;
 const MIRROR_MS = 60_000;
 const CALL_MS = 6_000;
-// A login that asked for its saves and never entered the world (wrong password) is forgotten after this.
-const PENDING_MS = 2 * 60_000;
+// A login that asked for its saves and never entered the world (a wrong password, a closed tab) is
+// forgotten after this. It must outlast the engine's wait for an accepted login to enter (five
+// minutes, NetworkBuilder's PENDING_LOGIN_TIMEOUT_MS, which a player spends on the character
+// picker). At two minutes, a player who took longer on the picker entered a world that had
+// forgotten the login: nothing they saved was handed in, the master's older copy replaced it all
+// at their next login, and no other world was kept from letting the account in meanwhile.
+const PENDING_MS = 6 * 60_000;
 // The logout save follows the logout at once; if none comes, the character is let go anyway after this.
 const RELEASE_WAIT_MS = 3_000;
 const MIRROR_PAGES = 10;
@@ -521,5 +526,5 @@ module.exports = {
       sync.left(player.getUsername());
     });
   },
-  _test: { createMasterSync, settings, signRequest, worldResetId, SYNC_HEADER, PROFILES },
+  _test: { createMasterSync, settings, signRequest, worldResetId, SYNC_HEADER, PROFILES, PENDING_MS },
 };
