@@ -222,6 +222,7 @@ module.exports = {
     api.onCombatHitResolved(onHitResolved);
     api.onItemAction("Abyssal tentacle (or)", { Check: check });
     api.onCustomEvent("player-death:pvp-item-parts", degradeOnPvpDeath);
+    api.onCustomEvent("items:pvp-death-parts-preview", degradeOnPvpDeath);
   },
   _test: { onAttackStarted, onAttackFinished, onHitDamage, onHitResolved, charges, check, POISON_CHANCE, POISON_SEVERITY, MAX_CHARGES },
 };

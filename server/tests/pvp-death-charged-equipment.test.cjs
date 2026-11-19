@@ -573,3 +573,66 @@ test("kept: a locked piece with its kit and a Fighter torso (or) come through wh
   keptCases(t, () => plain(I.FIGHTER_TORSO_OR_));
   keptCases(t, () => plain(I.FIGHTER_TORSO_L_OR_));
 });
+
+// --- The Items Kept on Death screen's guide risk value ---------------------------------------------------------------
+// Wiki, Items Kept on Death (Interface): the value "of your items lost on death": "Grand Exchange guide prices for items
+// that can be traded through the Grand Exchange", "Repair costs if the item becomes broken".
+
+/** Opens the screen for a skulled player carrying `items` and returns { risk(), toggle(action) }: 2 is PvP, 3 Wilderness. */
+function riskScreen(t, items) {
+  const player = actor(t);
+  player.setLocation(LUMBRIDGE());
+  core.CombatFactory.skull(player, core.SkullType.WHITE_SKULL, core.CombatFactory.PVP_SKULL_SECONDS);
+  items.forEach((item, slot) => player.getInventory().setItem(slot, item));
+  let risk = null;
+  const sender = player.getPacketSender();
+  const sendString = sender.sendString;
+  t.mock.method(sender, "sendString", function (text, ...rest) {
+    const match = /Guide risk value:.*>([\d,]+)</.exec(String(text));
+    if (match) risk = Number(match[1].replace(/,/g, ""));
+    return sendString.call(this, text, ...rest);
+  });
+  const click = (buttonId, action) => PM.emitInterfaceActionClick({ player, buttonId, action, slot: action, handled: false });
+  click((387 << 16) | 5, 0);
+  assert.notEqual(risk, null, "the screen opened");
+  return { risk: () => risk, toggle: (action) => click((4 << 16) | 12, action), player };
+}
+const price = (id, amount = 1) => PlayerDeathTask.keepValue(new core.Item(id, 1)) * amount;
+
+test("the guide risk value counts what a PvP death takes out of an item: the plain item and its kit, a tome's pages", (t) => {
+  const screen = riskScreen(t, [plain(I.ARMADYL_GODSWORD_OR_), tome(I.TOME_OF_FIRE, 1234, I.BURNT_PAGE), bladeCharges(), plain(I.NEITIZNOT_FACEGUARD), armour(I.CRYSTAL_BODY)]);
+  screen.toggle(2);
+  assert.equal(screen.risk(),
+    price(I.ARMADYL_GODSWORD) + price(I.ARMADYL_GODSWORD_ORNAMENT_KIT)
+    + price(I.TOME_OF_FIRE_EMPTY_) + price(I.BURNT_PAGE, 61)
+    + price(I.BLADE_OF_SAELDOR_INACTIVE_)
+    + price(I.HELM_OF_NEITIZNOT) + price(I.BASILISK_JAW)
+    + price(I.CRYSTAL_ARMOUR_SEED, 3));
+  // The preview changed nothing the player holds.
+  assert.deepEqual(exact(screen.player.getInventory().getValidItems()),
+    exact([plain(I.ARMADYL_GODSWORD_OR_), tome(I.TOME_OF_FIRE, 1234, I.BURNT_PAGE), bladeCharges(), plain(I.NEITIZNOT_FACEGUARD), armour(I.CRYSTAL_BODY)]));
+});
+
+test("the guide risk value counts the coins an Ancient Warriors' piece holds, and a kit whose item stays", (t) => {
+  const Equipment = require("../plugins/items/BountyHunterEquipment.plugin")._test;
+  const sword = () => withMeta(I.VESTAS_LONGSWORD_BH_, Equipment.FEE_META, 50_000_000);
+  const screen = riskScreen(t, [sword(), plain(I.RUNE_DEFENDER_T_), plain(named("Void knight top (l)(or)"))]);
+  screen.toggle(2);
+  // Outside the Wilderness nothing is priced as broken (as before): the coins and the two kits.
+  assert.equal(screen.risk(), 50_000_000 + price(I.RUNE_DEFENDER_ORNAMENT_KIT) + price(named("Shattered relics void ornament kit")));
+  screen.toggle(3);
+  assert.equal(screen.risk(), 50_000_000 + price(I.RUNE_DEFENDER_ORNAMENT_KIT) + 35_000 + price(named("Shattered relics void ornament kit")) + 500_000,
+    "beyond level 20: the defender's repair and the mangled void top's fee as well");
+  assert.deepEqual(exact(screen.player.getInventory().getValidItems()), exact([sword(), plain(I.RUNE_DEFENDER_T_), plain(named("Void knight top (l)(or)"))]));
+});
+
+test("the guide risk value's preview of an imbued ring refunds nothing, and a PvM preview prices items whole", (t) => {
+  const screen = riskScreen(t, [plain(I.BERSERKER_RING_I_), tome(I.TOME_OF_WATER, 400, I.SOAKED_PAGE)]);
+  const whole = screen.risk();
+  screen.toggle(2);
+  assert.equal(screen.risk(), price(I.BERSERKER_RING) + price(I.TOME_OF_WATER_EMPTY_) + price(I.SOAKED_PAGE, 20));
+  assert.equal(nmzPoints(screen.player), 0);
+  screen.toggle(2);
+  assert.equal(screen.risk(), whole, "a death to a monster takes nothing apart");
+  assert.deepEqual(exact(screen.player.getInventory().getValidItems()), exact([plain(I.BERSERKER_RING_I_), tome(I.TOME_OF_WATER, 400, I.SOAKED_PAGE)]));
+});

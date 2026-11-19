@@ -277,7 +277,9 @@ module.exports = {
     }
     for (const name of new Set([...imbuedWeapons.keys()].map(nameOf))) api.onItemAction(name, { Dismantle: dismantleWeapon });
     api.onCustomEvent("player-death:pvp-item-parts", deactivateOnPvpDeath);
+    api.onCustomEvent("items:pvp-death-parts-preview", deactivateOnPvpDeath);
     api.onCustomEvent("player-death:pvp-item-parts", loseImbuedWeaponOnPvpDeath);
+    api.onCustomEvent("items:pvp-death-parts-preview", loseImbuedWeaponOnPvpDeath);
     api.onCustomEvent("items:lost-to-pvp-killer", answerLostToPvpKiller);
     api.onCustomEvent("bounty-hunter:can-convert", canConvert);
   },
