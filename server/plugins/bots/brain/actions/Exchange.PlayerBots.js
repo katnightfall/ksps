@@ -158,8 +158,9 @@ function createExchangeAction(spec, world, exchange = botExchange(), goods = nul
     for (const player of world.core.World.getPlayers()) {
       if (!player || player.isPlayerBot?.() === true) continue;
       for (const [slot, offer] of Object.entries(player.getAttribute?.(PLAYER_OFFERS_ATTRIBUTE) ?? {})) {
-        // A bot selling meets players buying, and the other way round.
-        if (!offer || offer.finished || offer.aborted || Boolean(offer.sell) === selling || unNote(offer.itemId) !== itemId) continue;
+        // A bot selling meets players buying, and the other way round. An offer the bots have met already has
+        // traded (it is only waiting out its few seconds): another bot's goods are not sold to it a second time.
+        if (!offer || offer.finished || offer.aborted || offer.met === true || Boolean(offer.sell) === selling || unNote(offer.itemId) !== itemId) continue;
         const price = Number(offer.price) || 0;
         const there = selling ? exchange.onSale(itemId, price) : exchange.wanted(itemId, price);
         if (there < offer.quantity) continue;

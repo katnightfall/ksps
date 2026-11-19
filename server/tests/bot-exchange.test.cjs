@@ -187,6 +187,33 @@ test("at the exchange a bot puts up what it gathered, keeps food for itself, and
   assert.ok(OwnItems.carried(p, Items.COINS) >= 120 * price, `paid for all of it (${OwnItems.carried(p, Items.COINS)} coins)`);
 });
 
+test("a bot's goods meet a player's waiting offer once: one already met is not sold to again", (t) => {
+  const price = Exchange.guide.buy(Items.LOGS);
+  const waiting = (met) => {
+    const buyer = new Player(null);
+    buyer.getSession = () => ({ sendClientPacket: () => true, write: () => true });
+    buyer.setUsername(`LogBuyer${++names}`);
+    buyer.sendMessage = () => {};
+    // As the exchange saves it: a buy of ten logs at the going price, still waiting.
+    buyer.setAttribute("grand-exchange-offers", { 0: { slot: 0, itemId: Items.LOGS, sell: false, quantity: 10, price, total: 10 * price,
+      finished: false, placedAt: Date.now(), completesAt: Date.now() + 1000, ...(met ? { met: true } : {}) } });
+    t.after(() => core.TaskManager.cancelTasks(buyer));
+    return buyer;
+  };
+  for (const met of [false, true]) {
+    const { exchange } = book();
+    const buyer = waiting(met);
+    const seller = bot(t);
+    seller.getBank(0).adds(Items.LOGS, 120);
+    atExchange(seller);
+    const world = { core: { ...core, World: { ...core.World, getPlayers: () => [buyer] } }, log: () => {} };
+    const action = Exchange.createExchangeAction({ type: "exchange" }, world, exchange, [Items.LOGS]);
+    action.update({ player: seller, world, state: {}, frame: {}, nowMs: 1000, activity: { id: "grand_exchange" }, brain: { registry: { blockActivity() {} } } });
+    assert.equal(exchange.onSale(Items.LOGS, price), met ? 120 : 110, met ? "already traded: the logs stay up" : "ten go to the waiting offer");
+    assert.equal(buyer.getAttribute("grand-exchange-offers")[0].met, true, "final either way");
+  }
+});
+
 test("it bids for what it is saving for, coins down, and takes the item home from its next visit", (t) => {
   const { exchange, clock } = book();
   const p = bot(t);
