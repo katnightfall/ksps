@@ -5,6 +5,7 @@ import { World } from "../../../World";
 import { HitDamage } from "./HitDamage";
 import { HitMask } from "./HitMask";
 import { PendingHit } from "./PendingHit";
+import { FailureReports } from "../../../../util/FailureReports";
 
 type ScheduledHit = { hit: PendingHit; revealCycle: number };
 
@@ -26,7 +27,14 @@ export class HitQueue {
      * drained at the top of it and is filtered out by the cycle guard.
      */
     static processAll(currentCycle: number): void {
-        for (const queue of this.active) queue.process(currentCycle);
+        for (const queue of this.active) {
+            // Ours: one queue's failing hit must not leave the other queues unswept (and the cycle unfinished).
+            try {
+                queue.process(currentCycle);
+            } catch (error) {
+                FailureReports.report("hit queue sweep", error);
+            }
+        }
     }
 
     /**

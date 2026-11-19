@@ -16,6 +16,7 @@ import { Misc } from '../util/Misc';
 import { TreeMap } from 'treemap'
 import { PluginManager } from '../plugins/PluginManager';
 import { ServerPerf } from '../util/ServerPerf';
+import { FailureReports } from '../util/FailureReports';
 import { CrossFloor } from "./CrossFloor";
 import { ActiveRegionIndex, ActiveRegionSnapshot } from './ActiveRegionIndex';
 import { ShopManager } from './model/container/shop/ShopManager';
@@ -1272,9 +1273,19 @@ export class World {
         World.processCycle = (World.processCycle + 1) & 0x7fffffff;
         const timed = <T>(phase: string, fn: () => T): T =>
             ServerPerf.measurePhase(`world.${phase}`, fn);
+        // Ours: a phase that throws is reported and the cycle goes on to the next. An error used to
+        // leave process() at once, so whatever came after (in the end the players' sync and flush)
+        // did not run for anybody that cycle, and GameEngine saved every player for it.
+        const phase = (name: string, fn: () => void): void => {
+            try {
+                timed(name, fn);
+            } catch (error) {
+                FailureReports.report(`world.${name}`, error);
+            }
+        };
 
         // Process all active {@link Task}s..
-        timed("task_manager", () => {
+        phase("task_manager", () => {
             try {
                 TaskManager.process();
             } catch (e) {
@@ -1283,7 +1294,7 @@ export class World {
         });
 
         // Process all ground items..
-        timed("ground_items", () => {
+        phase("ground_items", () => {
             try {
                 ItemOnGroundManager.process();
             } catch (e) {
@@ -1292,7 +1303,7 @@ export class World {
         });
 
         // Add pending players..
-        timed("queue_add_players", () => {
+        phase("queue_add_players", () => {
             let activeRegionsChanged = false;
             for (let i = 0; i < GameConstants.QUEUED_LOOP_THRESHOLD; i++) {
                 let player = World.addPlayerQueue.shift();
@@ -1322,14 +1333,23 @@ export class World {
         });
 
         // Logout button presses are answered on the tick, as in live OSRS.
-        timed("logout_requests", () => {
-            for (const player of World.logoutRequests) World.answerLogoutRequest(player);
+        phase("logout_requests", () => {
+            // Ours: taken off the list before they are answered, each on its own: one that threw left
+            // the list uncleared, so the same request failed again on every cycle after.
+            const requests = [...World.logoutRequests];
             World.logoutRequests.clear();
+            for (const player of requests) {
+                try {
+                    World.answerLogoutRequest(player);
+                } catch (error) {
+                    FailureReports.report("world.logout_requests", error);
+                }
+            }
         });
 
         // Deregister queued players. A player hit in combat stays in the world after
         // their connection is gone until combat ends or the hold runs out.
-        timed("queue_remove_players", () => {
+        phase("queue_remove_players", () => {
             let amount = 0;
             let activeRegionsChanged = false;
             for (let index = World.removePlayerQueue.length - 1; index >= 0; index--) {
@@ -1369,7 +1389,7 @@ export class World {
             }
         });
         // Add pending Npcs..
-        timed("queue_add_npcs", () => {
+        phase("queue_add_npcs", () => {
             // Adds that failed only because every free index is still held this cycle: they go back on
             // the queue after this pass and get an index once reset_npcs releases them.
             const waiting: NPC[] = [];
@@ -1410,7 +1430,7 @@ export class World {
         });
 
         // Removing pending npcs..
-        timed("queue_remove_npcs", () => {
+        phase("queue_remove_npcs", () => {
             for (let i = 0; i < GameConstants.QUEUED_LOOP_THRESHOLD; i++) {
                 let npc = World.removeNPCQueue.shift();
                 if (!npc)
@@ -1450,7 +1470,7 @@ export class World {
 
         for (const player of World.players) NpcSpawnDefinitionLoader.activateNear(BoatManager.rootLocation(player), player.getNpcViewDistance());
         World.rebuildRealPlayerObserverBuckets();
-        timed("process_npcs", () => {
+        phase("process_npcs", () => {
             // One pass per cycle: the collection scans every occupied bucket,
             // allocates a Set and sorts. Newly registered actors join sync below,
             // but their first mechanics turn waits until the next cycle.
@@ -1459,7 +1479,7 @@ export class World {
             World.processNpcMechanics(World.activeNpcsForUpdate);
         });
 
-        timed("process_players", () => {
+        phase("process_players", () => {
             const cycle = World.processCycle;
             for (const player of World.orderedPlayersForCycle(cycle)) {
                 try {
@@ -1477,27 +1497,27 @@ export class World {
         });
 
         // Boats move after their passengers, before sync sees anyone's position.
-        timed("move_boats", () => {
+        phase("move_boats", () => {
             BoatManager.tick();
             World.refreshRegionsUnderBoats();
         });
 
         // Owners that did not take a turn this cycle (bot stride) still need their
         // walk-to interactions ticked, or the interaction hangs until they do.
-        timed("walk_to_sweep", () => TaskManager.processRemainingWalkTo());
+        phase("walk_to_sweep", () => TaskManager.processRemainingWalkTo());
 
         // Sweep for anyone who did not take a turn this cycle: inactive NPCs and
         // bots skipped by the process stride. Entities that did take a turn drained
         // at the top of it and are no-ops here.
-        timed("combat_hits", () => {
+        phase("combat_hits", () => {
             HitQueue.processAll(World.processCycle);
         });
 
-        timed("rebuild_update_buckets", () => {
+        phase("rebuild_update_buckets", () => {
             World.rebuildUpdateBuckets();
         });
 
-        timed("update_players_npcs", () => {
+        phase("update_players_npcs", () => {
             World.forEachVisibilityPlayer((player) => {
                 try {
                     const nearbyNpcs = timed("collect_nearby_npcs", () =>
@@ -1512,7 +1532,7 @@ export class World {
             });
         });
 
-        timed("flush_network_players", () => {
+        phase("flush_network_players", () => {
             World.players.forEach((player) => {
                 try {
                     if (World.shouldRunNetworkUpdates(player)) {
@@ -1524,7 +1544,7 @@ export class World {
                 }
             });
         });
-        timed("reset_player_updates", () => {
+        phase("reset_player_updates", () => {
             // A bot can appear before its human observer in the player list. Keep
             // its flags until every observer has built this tick's sync frame.
             World.players.forEach((player) => {
@@ -1537,7 +1557,7 @@ export class World {
             });
         });
 
-        timed("reset_npcs", () => {
+        phase("reset_npcs", () => {
             for (const npc of World.activeNpcsForUpdate) {
                 try {
                     npc.resetUpdating();
