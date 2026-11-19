@@ -124,3 +124,35 @@ test("a player who takes minutes on the character picker is still this world's w
   await dallas.sync.tick();
   assert.deepEqual(dallas.sync.state().tracked, []);
 });
+
+test("two hand-ins of one save never cross: the logout save is the character, not the autosave before it", async (t) => {
+  const hub = await master(t);
+  // The autosave's hand-in is slow on its way (a new connection, a busy master); the logout's is not.
+  let arrive;
+  const slow = new Promise((resolve) => { arrive = resolve; });
+  const sent = [];
+  const dallas = world(t, "1 - Dallas", hub, {
+    wrapCall: (call) => async (method, target, body) => {
+      if (target === "/sync/save") {
+        sent.push(JSON.parse(body.json).at);
+        if (JSON.parse(body.json).at === "autosave") await slow;
+      }
+      return call(method, target, body);
+    },
+  });
+  const miami = world(t, "2 - Miami", hub);
+  await dallas.login("Kat");
+  await dallas.gameSaves("kat", { at: "autosave", coins: 1 });
+  const handingIn = dallas.sync.tick();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  // She logs out while it is on its way.
+  const leaving = dallas.logout("Kat", "kat", { at: "logout", coins: 2 });
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  arrive();
+  await Promise.all([handingIn, leaving]);
+  assert.deepEqual(sent, ["autosave", "logout"], "one after the other");
+  assert.deepEqual(dallas.sync.state().dirty, []);
+  assert.deepEqual(hub.saved("kat"), { at: "logout", coins: 2 }, "the master has the logout save");
+  assert.equal(await miami.login("Kat"), null, "and the logout let the character go");
+  assert.deepEqual(JSON.parse(miami.rows.get("kat")), { at: "logout", coins: 2 });
+});

@@ -107,6 +107,8 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
   const dirty = new Map();
   /** save key -> the master's version of the save this world has. */
   const versions = new Map();
+  /** save key -> the hand-in of it that is on its way. */
+  const pushing = new Map();
   let cursor = 0;
   let applying = false;
   let marks = 0;
@@ -166,8 +168,23 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
     for (const name of session.names) if (sessions.get(name) === session) sessions.delete(name);
   }
 
-  /** Hands one save in. Returns "done", "retry" (the master was not reached) or "dropped". */
-  async function push(key) {
+  /**
+   * Hands one save in: "done", "retry" (the master was not reached) or "dropped". One hand-in of
+   * a save at a time: a second waits for the first to be answered, then sends what is newest.
+   * Two on their way at once (an autosave being handed in as its player logs out) could reach
+   * the master in the other order, and the older one, arriving last, became the character.
+   */
+  function push(key) {
+    const before = pushing.get(key);
+    // Whatever became of the one before, this one goes after it.
+    const mine = (before ? before.then(() => handIn(key), () => handIn(key)) : handIn(key)).finally(() => {
+      if (pushing.get(key) === mine) pushing.delete(key);
+    });
+    pushing.set(key, mine);
+    return mine;
+  }
+
+  async function handIn(key) {
     const entry = dirty.get(key);
     if (!entry) return "done";
     const json = persistence.currentJson(key);
