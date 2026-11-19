@@ -428,53 +428,9 @@ module.exports = function registerDemonSlayerQuest(api) {
     return stage >= TOTE_TOWER_STAGE && stage < TOTE_COMPLETE_STAGE;
   }
 
-  // --------------------------------------------------------------------------
-  // Aris's antique lamps. Ours (upstream issue #5610): the 3 November 2026 update's reward for
-  // this quest (Wiki, Demon Slayer rewards and Antique lamp (Demon Slayer)): two lamps of 1,000
-  // XP in a combat skill or Prayer, not on the scroll but from Aris afterwards; they cannot be
-  // banked, and one destroyed unused is had from her again. Her lines are the Wiki transcript's
-  // "Claiming the lamps after completion of Demon Slayer" (the dialogue dump predates it).
-  // --------------------------------------------------------------------------
-  const LAMP_ITEM_ID = require("../../items/QuestRewardLamps.plugin").LAMP_IDS.DEMON_SLAYER;
-  const LAMP_COUNT = 2;
-  const LAMPS_RUBBED_ATTRIBUTE = "demon-slayer:lamps-rubbed";
-
-  /** Lamps Aris still has for the player: the two, less those used and those carried. */
-  function lampsOwed(player) {
-    if (quest.getStage(player) < STAGE_COMPLETE || quest.experienceWithheld(player)) return 0;
-    const rubbed = Math.max(0, Number(player.getAttribute(LAMPS_RUBBED_ATTRIBUTE)) || 0);
-    return Math.max(0, LAMP_COUNT - rubbed - player.getInventory().getAmount(LAMP_ITEM_ID));
-  }
-
-  /** Into free inventory slots only: a lamp left on the floor would be owed again. */
-  function handOverLamps(player) {
-    const count = Math.min(lampsOwed(player), player.getInventory().getFreeSlots());
-    if (count < 1) {
-      player.sendMessage("You need a free inventory slot to take the lamp.");
-      return;
-    }
-    api.emitCustomEvent("quest-lamps:give", { player, lamp: "DEMON_SLAYER", count });
-  }
-
-  function claimLampsFromAris(event) {
-    const { player, npcId } = event;
-    if (npcId !== ARIS_NPC_ID && npcId !== ARIS_LEGACY_NPC_ID) return false;
-    const option = String(event.definition?.getActions?.()?.[event.clickType - 1] ?? "").toLowerCase();
-    if (option !== "talk-to" || lampsOwed(player) < 1) return false;
-    event.handled = true;
-    startDialogue(api, player, { npcId }, [
-      { npc: ["I have a little something here for you, young one. Consider it a gift for slaying that demon."] },
-      { exec: handOverLamps },
-      { player: ["How do you know I killed it?"] },
-      { npc: ["You forget. I'm good at knowing things."] },
-    ]);
-    return true;
-  }
-
-  function countRubbedLamp({ player, lamp }) {
-    if (lamp !== "DEMON_SLAYER" || !player) return;
-    player.setAttribute(LAMPS_RUBBED_ATTRIBUTE, (Number(player.getAttribute(LAMPS_RUBBED_ATTRIBUTE)) || 0) + 1);
-  }
+  // Aris's antique lamps, this quest's reward from the 3 November 2026 update (two, of 1,000 XP in a
+  // combat skill or Prayer, had from her after the quest and not on the scroll), are handed over
+  // and counted with the other quests' lamps: plugins/items/QuestRewardLamps.plugin.js.
 
   // Which transcript each quest NPC plays, by quest stage / keys carried.
   function selectDialogueVariant({ npcId, player }) {
@@ -1375,9 +1331,6 @@ module.exports = function registerDemonSlayerQuest(api) {
   pluginApi = api;
   api.persistAttribute(DRAIN_ATTRIBUTE, 0);
   api.persistAttribute(INCANTATION_ATTRIBUTE);
-  api.persistAttribute(LAMPS_RUBBED_ATTRIBUTE, 0);
-  api.onBeforeNpcInteraction(claimLampsFromAris);
-  api.onCustomEvent("quest-lamps:rubbed", countRubbedLamp);
 
   api.onNpcDialogueVariant(selectDialogueVariant);
   api.onNpcDialogueCondition(answerDialogueCondition);
