@@ -55,6 +55,10 @@ export class PlayerSave {
         CREATION_MENU_LAST_ITEM_ATTRIBUTE,
         LOGIN_TOKENS_ATTRIBUTE,
         Player.STAT_RESTORE_LEFT_ATTRIBUTE,
+        // Ours: saved from the start, not from the first save any player gets (fromPlayer made it
+        // a saved attribute): a login before that did not read it, and that player's next save
+        // wrote the save without their remembered attack styles.
+        COMBAT_STYLE_BY_CATEGORY_ATTRIBUTE,
     ]);
 
     /** JSON of each attribute's default: a value equal to it isn't saved, and a save without the key loads it. */
@@ -62,6 +66,13 @@ export class PlayerSave {
         ["ring-of-recoil:damage", "0"],
         [LOGIN_TOKENS_ATTRIBUTE, "[]"],
         [Player.STAT_RESTORE_LEFT_ATTRIBUTE, String(Player.STAT_RESTORE_TICKS)],
+        // Ours: with the defaults fromPlayer used to give them at the first save (see above).
+        [Player.BANK_NOTE_WITHDRAWAL_ATTRIBUTE, "false"],
+        [Player.BANK_INSERT_MODE_ATTRIBUTE, "false"],
+        [Player.BANK_QUANTITY_MODE_ATTRIBUTE, "0"],
+        [Player.BANK_CUSTOM_QUANTITY_ATTRIBUTE, "0"],
+        [Player.BANK_PLACEHOLDERS_ATTRIBUTE, "false"],
+        [COMBAT_STYLE_BY_CATEGORY_ATTRIBUTE, "{}"],
     ]);
 
     public static persistAttribute(key: string, defaultValue?: unknown): void {
@@ -792,12 +803,6 @@ export class PlayerSave {
             inventory.add(item.clone(), false);
         }
 
-        PlayerSave.persistAttribute(Player.BANK_NOTE_WITHDRAWAL_ATTRIBUTE, false);
-        PlayerSave.persistAttribute(Player.BANK_INSERT_MODE_ATTRIBUTE, false);
-        PlayerSave.persistAttribute(Player.BANK_QUANTITY_MODE_ATTRIBUTE, 0);
-        PlayerSave.persistAttribute(Player.BANK_CUSTOM_QUANTITY_ATTRIBUTE, 0);
-        PlayerSave.persistAttribute(Player.BANK_PLACEHOLDERS_ATTRIBUTE, false);
-        PlayerSave.persistAttribute(COMBAT_STYLE_BY_CATEGORY_ATTRIBUTE, {});
         playerSave.inventory = inventory.getCopiedItems();
         playerSave.equipment = player.getEquipment().getCopiedItems();
         playerSave.appearance = PlayerSave.sanitizeAppearance(player.getAppearance().getLook());
