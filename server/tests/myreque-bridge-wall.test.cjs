@@ -96,12 +96,22 @@ test('the north tree needs ALL three rungs (void gates on the top rung only beca
   }
 });
 
-test('the north tree with all three rungs repaired climbs up to the bridge top and down to the north bank', (t) => {
+// Upstream issue #6264: with all three rungs in the trees' option is Cross-bridge (loc 5003 shows 50788), which takes
+// the player over to the far bank; it used to climb up onto the bridge top, where nothing led on.
+test('the north tree with all three rungs repaired crosses to the south bank; from the bridge top it is the way down', (t) => {
   const p = actor(t, REACHED_HOLLOWS, 3503, 3431, 0b111);
   tree(p, 3431, 1);
-  assert.deepEqual(at(p), [3502, 3430, 0], 'up from the north bank: the bridge top');
-  tree(p, 3431, 1);
-  assert.deepEqual(at(p), [3503, 3431, 0], 'down from the bridge: the north bank');
+  assert.deepEqual(at(p), [3502, 3425, 0], 'from the north bank: over to the south bank');
+  assert.deepEqual(p.messages, [], 'no climb line for a crossing');
+  const onBridge = actor(t, REACHED_HOLLOWS, 3502, 3430, 0b111);
+  tree(onBridge, 3431, 1);
+  assert.deepEqual(at(onBridge), [3503, 3431, 0], 'down from the bridge: the north bank');
+});
+
+test('the south tree with all three rungs repaired crosses to the north bank', (t) => {
+  const p = actor(t, REACHED_HOLLOWS, 3502, 3425, 0b111);
+  tree(p, 3426, 3);
+  assert.deepEqual(at(p), [3503, 3431, 0]);
 });
 
 test('the trees have no reason to be climbed before the Hollows', (t) => {

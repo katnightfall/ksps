@@ -340,6 +340,23 @@ test('all eight amulets string in either order on the next tick with real identi
   }
 });
 
+// Upstream issue #6075: a ball of wool on a salve shard makes the Salve amulet (Wiki, Salve amulet, Stringing: Crafting
+// level 1, 0 experience). It had no stringing row, so nothing happened.
+test('a salve shard strings into the Salve amulet in either order, for no Crafting experience', () => {
+  const SHARD = core.ItemIdentifiers.SALVE_SHARD, AMULET = core.ItemIdentifiers.SALVE_AMULET, WOOL = core.ItemIdentifiers.BALL_OF_WOOL;
+  for (const reverse of [false, true]) {
+    const player = playerWith([[WOOL,1],[SHARD,1]]);
+    player.level = 1;
+    crafting.stringAmulet({player,usedItemId:reverse ? SHARD : WOOL,usedWithItemId:reverse ? WOOL : SHARD});
+    assert.equal(player.amounts.get(AMULET),undefined, 'nothing on the click tick');
+    tick(tasks.at(-1),1);
+    assert.equal(player.amounts.get(AMULET),1);
+    assert.ok(!player.amounts.get(SHARD), 'the shard is used up');
+    assert.ok(!player.amounts.get(WOOL), 'the wool is used up');
+    assert.equal(player.log.some(row => row[0] === 'xp'), false, 'no experience');
+  }
+});
+
 // --- Spells that make Crafting materials (plugins/skills/craftingspells)
 
 /** A player whose inventory holds real Item objects, so spells can convert them in place. */

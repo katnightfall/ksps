@@ -209,6 +209,30 @@ test("the Tchiki nut cave keeps the greegree on through the course hole and exit
   }
 });
 
+// Upstream issue #6263: the crack under the temple (2808,9200 side) puts the player by the hot rock at 3055,5484, in
+// the Recipe for Disaster map square; the zombie form has to hold there or the snake cannot be cooked.
+test("the hot rock cave keeps the zombie greegree on through the crack and back", () => {
+  const player = createPlayer([2808, 9200, 0]);
+  login(player);
+  assert.equal(wield(player, LARGE_ZOMBIE), true);
+
+  for (const tile of [[3055, 5484, 0], [3068, 5485, 0], [2808, 9200, 0]]) {
+    const location = new Location(...tile);
+    assert.ok(area.getBoundaries().some(boundary => boundary.inside(location)), tile.join(","));
+    player.moveTo(location);
+    area.postLeave(player, false);
+    assert.equal(player.worn[core.Equipment.WEAPON_SLOT].getId(), LARGE_ZOMBIE, tile.join(","));
+    assert.equal(form(player), "large-zombie-monkey", tile.join(","));
+  }
+
+  // The snake pit of the same map square, another plane and the rock beyond the room stay outside.
+  for (const tile of [[3023, 5488, 0], [3055, 5484, 1], [3069, 5485, 0], [3052, 5484, 0]]) {
+    const location = new Location(...tile);
+    assert.equal(Greegrees._test.canTransformAt(location), false, tile.join(","));
+    assert.equal(area.getBoundaries().some(boundary => boundary.inside(location)), false, tile.join(","));
+  }
+});
+
 test("the island, its dungeons and the zoo pen are the places it works", () => {
   const { canTransformAt } = Greegrees._test;
   for (const tile of [MARIM, [2798, 2798, 1], [2808, 9200, 0], ZOO]) {

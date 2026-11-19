@@ -241,9 +241,7 @@ test('fresh stage 0 reaches cache completion 105 through the placed route', () =
   p.setAttribute('quest.in_search_of_the_myreque.bridge', 0b111);
   p.setLocation(3502, 3426, 0);
   h.interact(p, 5003, { x: 3502, y: 3426, z: 0 });
-  assert.deepEqual(p.moves.at(-1), [3502, 3427, 0], 'the raw tree multi-loc climbs up onto the bridge (Wiki/void-based)');
-  h.interact(p, 5002, { x: 3502, y: 3427, z: 0 });
-  assert.deepEqual(p.moves.at(-1), [3503, 3431, 0], 'Cross over the repaired bridge reaches the north bank');
+  assert.deepEqual(p.moves.at(-1), [3503, 3431, 0], 'with every rung in, the tree (Cross-bridge) reaches the north bank (upstream issue #6264)');
 
   h.choice(p, "I've come to help the Myreque. I've brought weapons.", N.CURPILE_FYOD);
   assert.equal(stage(h, p), 52, 'Curpile accepts the weapons');

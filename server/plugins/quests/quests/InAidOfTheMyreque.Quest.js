@@ -171,7 +171,6 @@ module.exports = function registerInAidOfTheMyrequeQuest(api) {
   const JUVI_FIGHT_ID_2 = NpcIdentifiers.VAMPYRE_JUVINATE_16; // 4487
 
   // Canonical tiles (Quest Helper's step coordinates).
-  const VELIAF_HIDEOUT_TILE = { x: 3506, y: 9837, z: 0 };
   const VELIAF_STORE_TILE = { x: 3515, y: 3242, z: 0 };
   const VELIAF_BASEMENT_TILE = { x: 3494, y: 9628, z: 0 };
   const RAZVAN_TILE = { x: 3493, y: 3235, z: 0 };
@@ -623,12 +622,11 @@ module.exports = function registerInAidOfTheMyrequeQuest(api) {
   function applyStageSpawns(player) {
     if (!player || player.isPlayerBot?.() === true) return;
     const stage = quest.getStage(player);
-    // Veliaf is met in the Hollows hideout at the start and again before the escort.
-    if (stage < STAGE_STARTED || (stage >= STAGE_VELIAF_STORE && stage < STAGE_DREZEL)) {
-      spawnKey(player, "veliaf_old", NpcIdentifiers.VELIAF_HURTZ_2, VELIAF_HIDEOUT_TILE);
-    } else {
-      despawnKey(player, "veliaf_old");
-    }
+    // Ours (upstream issue #5488, the second Veliaf): Veliaf in the Hollows hideout is the world spawn (npc-spawns.json
+    // 9620 at 3506,9838, shown as Veliaf Hurtz 5048 while varbit 10367 is 0, which nothing sets), and a click on it
+    // reaches this plugin as 5048 (NPC.getContentId). An owner-only copy used to be put one tile south of it for
+    // every player who had not started this quest, so the hideout showed two Veliafs all through In Search of the
+    // Myreque.
     // The citizen who points at the inn, once the town opens up.
     if (stage >= STAGE_FOOD_PLACED && stage < STAGE_STORE_AGREED) {
       spawnKey(player, "razvan", RAZVAN_NPC_ID, RAZVAN_TILE);
@@ -705,7 +703,6 @@ module.exports = function registerInAidOfTheMyrequeQuest(api) {
     if (stage >= STAGE_COMPLETE) {
       // Completed: make sure the Hollows hideout and store copies are gone
       // immediately; the Burgh cellar Veliaf stays for the post-quest talk.
-      despawnKey(player, "veliaf_old");
       despawnKey(player, "veliaf_store");
       spawnKey(player, "veliaf_base", NpcIdentifiers.VELIAF_HURTZ_2, VELIAF_BASEMENT_TILE);
     } else if (stage >= STAGE_HIDEOUT_TALK) {

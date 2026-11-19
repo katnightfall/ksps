@@ -20,9 +20,22 @@ const FEEDBACK = [
   [Infinity, "It's freezing", 1199],
 ];
 const LAST_DISTANCE = new WeakMap();
+/**
+ * Ours (upstream issues #5656 and #4289): the quest list has a row of its own for this miniquest (quest table row
+ * "The Enchanted Key", type miniquest, end state 2, read from varbit 13717 enchantedkey), and with no quest registered
+ * under that name a click on the row opened nothing. It is registered here so the row opens a journal. Its stages
+ * follow the route's own state and are never set by hand: 0 until Making History is complete, 1 while treasures remain,
+ * 2 once all eleven are dug up. The journal's wording is ours: the Wiki has no journal transcript for this miniquest
+ * and no capture of the row was found.
+ */
+const MINIQUEST_KEY = "the_enchanted_key";
+const STAGE_HUNTING = 1;
+const STAGE_COMPLETE = 2;
+const REPLACEMENT_PRICE = 500; // the silver merchant's price, MakingHistory.Quest.js KEY_PRICE (Wiki, The Enchanted Key)
 let api;
 let core;
 let quest;
+let miniquest;
 
 function found(player) {
   const value = player.getAttribute(FOUND_ATTRIBUTE) ?? 0;
@@ -37,7 +50,14 @@ function validOrder(order) {
   return Array.isArray(order) && order.length === sites.length && order[0] === sites[0].key
     && new Set(order).size === sites.length && order.every(key => sites.some(site => site.key === key));
 }
+/** The miniquest's stage as the route has it; a corrupt found count leaves the saved stage alone. */
+function syncStage(player) {
+  if (found(player) == null) return;
+  const stage = !quest.isComplete(player) ? 0 : complete(player) ? STAGE_COMPLETE : STAGE_HUNTING;
+  if (miniquest.getStage(player) !== stage) miniquest.setStage(player, stage);
+}
 function sync({ player }) {
+  syncStage(player);
   if (!quest.isComplete(player)) return;
   const count = found(player), order = player.getAttribute(ORDER_ATTRIBUTE);
   if (count == null) return;
@@ -142,16 +162,69 @@ function dig({ player }) {
 }
 function resetComparison({ player }) { LAST_DISTANCE.delete(player); }
 
+function buildJournal(player) {
+  const count = found(player) ?? 0;
+  if (!quest.isComplete(player)) {
+    return [
+      "I can start this miniquest by completing <col=800000>Making History</col>,",
+      "after which the <col=800000>enchanted key</col> will lead me to buried treasure.",
+    ];
+  }
+  if (complete(player)) {
+    return [
+      "<str>The enchanted key led me to buried treasure all over the land.</str>",
+      `<str>I dug up all ${sites.length} treasures, and the key dissolved in my hand.</str>`,
+      "",
+      "<col=ff0000>MINIQUEST COMPLETE!</col>",
+    ];
+  }
+  const lines = [
+    "The <col=800000>enchanted key</col> grows hotter the closer I carry it to buried",
+    "treasure. I should <col=800000>Feel</col> it as I travel, and dig with a <col=800000>spade</col>",
+    "where it is steaming.",
+    "",
+    `I have dug up <col=800000>${count}</col> of the <col=800000>${sites.length}</col> treasures.`,
+  ];
+  if (!physicalKey(player)) {
+    lines.push("", "I am not carrying the key. If I have lost it, the <col=800000>silver merchant</col>",
+      `in <col=800000>East Ardougne</col> will sell me another for ${REPLACEMENT_PRICE} coins.`);
+  }
+  return lines;
+}
+
+/**
+ * Only an administrative completion comes this way (::quest all): the route itself ends by its last dig, with the
+ * key's own box and no scroll. Marking every treasure found keeps the stage and the route telling the same story.
+ */
+function markAllFound(player) {
+  player.setAttribute(FOUND_ATTRIBUTE, sites.length);
+}
+/** After the other login hooks (Making History's included), so a save from before the miniquest had a stage gets one. */
+function syncOnLogin({ player }) { syncStage(player); }
+
 module.exports = function attach(pluginApi, makingHistory) {
   api = pluginApi;
   core = api.core;
   quest = makingHistory;
+  miniquest = require("../QuestRuntime").registerQuest(api, {
+    key: MINIQUEST_KEY,
+    name: "The Enchanted Key",
+    varbitId: STATUS_VARBIT,
+    startedValue: STAGE_HUNTING,
+    completionValue: STAGE_COMPLETE,
+    questPoints: 0,
+    scrollItemId: () => core.ItemIdentifiers.ENCHANTED_KEY,
+    otherRewards: ["Treasure from eleven sites"],
+    buildJournal,
+    onReward: markAllFound,
+  });
   api.persistAttribute(ORDER_ATTRIBUTE, []);
   api.persistAttribute(FOUND_ATTRIBUTE, 0);
   api.onItemAction("Enchanted key", { Feel: feel });
   api.onItemAction("Spade", { Dig: dig });
   api.onCustomEvent("enchanted-key:is-complete", queryComplete);
   api.onCustomEvent("enchanted-key:sync", sync);
+  api.onCustomEvent("player:bootstrap-complete", syncOnLogin);
   api.onPlayerLogin(resetComparison);
   api.onPlayerLogout(resetComparison);
 };

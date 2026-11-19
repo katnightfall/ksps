@@ -8,6 +8,10 @@ the monkey whose bones went into it, by an NPC transmogrification in the player'
 - **Ape Atoll** (its four map squares on every plane, and the dungeons under them, y 9088-9215)
   and **the Ardougne Zoo** pen (Wiki: "Zooknock's magic doesn't work over long distances, except
   at the Ardougne Zoo"). These are one `Area`, `GreegreeArea`.
+- **The two Recipe for Disaster rooms** reached from the island (Freeing King Awowogei): the
+  Tchiki nut cave under the Agility course and the hot rock cave behind the crack under the
+  Temple of Marimbo, where the stuffed snake is cooked as a zombie monkey (upstream issue #6263:
+  without this zone the greegree came off on arrival).
 - **Leaving** by any means (walking, a boat, a teleport) takes the greegree off: into the
   inventory, or onto the ground when it is full (Wiki, Ninja monkey greegree (small): teleporting
   off with a full inventory drops it "where they teleport"). Logging out keeps it on; logging back
