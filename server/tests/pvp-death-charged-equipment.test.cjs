@@ -322,3 +322,37 @@ test("kept: the crystal tools come through with their charges", (t) => {
   keptCases(t, () => withMeta(I.CRYSTAL_HARPOON, "crystal-harpoon", { charges: 5000 }));
   keptCases(t, () => plain(I.CRYSTAL_FELLING_AXE));
 });
+
+// --- Tomes ---------------------------------------------------------------------------------------------------------
+// Wiki, Tome of Fire: "If lost to another player in a dangerous PVP death, all charges inside will be converted into
+// pages and dropped for the killer alongside the empty tome." Items Kept on Death, "Chargable items": "Dropped to the
+// PKer as the tradeable uncharged item, and drops the items that would result from uncharging the item to the PKer too."
+
+const tome = (id, charges, pageId) => withMeta(id, "elemental-tomes", { charges, pageId });
+
+test("lost: a charged tome drops for the killer empty, with the whole pages that were in it and no more", (t) => {
+  // 1,234 charges are 61 pages and 14 charges of a 62nd, which is gone, as Remove all pages loses it.
+  lost(t, () => [tome(I.TOME_OF_FIRE, 1234, I.BURNT_PAGE)], [plain(I.TOME_OF_FIRE_EMPTY_), plain(I.BURNT_PAGE, 61)]);
+  lost(t, () => [tome(I.TOME_OF_WATER, 20000, I.SOAKED_PAGE)], [plain(I.TOME_OF_WATER_EMPTY_), plain(I.SOAKED_PAGE, 1000)], [], CRATER());
+  lost(t, () => [tome(I.TOME_OF_EARTH, 40, I.SOILED_PAGE)], [plain(I.TOME_OF_EARTH_EMPTY_), plain(I.SOILED_PAGE, 2)]);
+  // Searing pages come back as searing pages.
+  lost(t, () => [tome(I.TOME_OF_FIRE, 200, I.SEARING_PAGE)], [plain(I.TOME_OF_FIRE_EMPTY_), plain(I.SEARING_PAGE, 10)]);
+  for (const id of [I.TOME_OF_FIRE_EMPTY_, I.TOME_OF_WATER_EMPTY_, I.TOME_OF_EARTH_EMPTY_, I.BURNT_PAGE, I.SOAKED_PAGE, I.SOILED_PAGE, I.SEARING_PAGE]) {
+    assert.equal(new core.Item(id, 1).isPlayerTradeable(), true, `${id} trades`);
+  }
+  assert.equal(lostOnPreview(tome(I.TOME_OF_FIRE, 1234, I.BURNT_PAGE)), true);
+});
+
+test("lost: a tome with less than a page left, or with no count at all, gives the empty tome and no pages", (t) => {
+  lost(t, () => [tome(I.TOME_OF_EARTH, 19, I.SOILED_PAGE)], [plain(I.TOME_OF_EARTH_EMPTY_)]);
+  lost(t, () => [plain(I.TOME_OF_FIRE)], [plain(I.TOME_OF_FIRE_EMPTY_)]);
+  // An empty tome is a tradeable item and is lost as it is.
+  lost(t, () => [plain(I.TOME_OF_WATER_EMPTY_)], [plain(I.TOME_OF_WATER_EMPTY_)]);
+  assert.equal(partsOf(plain(I.TOME_OF_WATER_EMPTY_)), null);
+});
+
+test("kept: a charged tome comes through with its pages", (t) => {
+  keptCases(t, () => tome(I.TOME_OF_FIRE, 1234, I.BURNT_PAGE));
+  keptCases(t, () => tome(I.TOME_OF_WATER, 20000, I.SOAKED_PAGE));
+  keptCases(t, () => tome(I.TOME_OF_EARTH, 19, I.SOILED_PAGE));
+});
