@@ -488,7 +488,7 @@ test('the Volatile and Eldritch specials show their cache graphics', () => {
 test('kept items retain their per-item charges and infusion after death',()=>{
  const {PluginManager}=require('../dist/plugins/PluginManager'),{ItemOnGroundManager}=require('../dist/game/entity/impl/grounditem/ItemOnGroundManager');
  const sword=new Item(I.ARCLIGHT_INACTIVE_,1).setMetaValue('arclight',{charges:0,infusion:7200}),kept=[];
- let carried=[sword];const inventory={getItems:()=>carried,getValidItems:()=>carried,resetItems(){carried=[];return this;},refreshItems(){return this;},addItem:i=>{kept.push(i);return inventory;},adds:(id,n)=>{kept.push(new Item(id,n));return inventory;}};
+ let carried=[sword];const inventory={getItems:()=>carried,getValidItems:()=>carried,resetItems(){carried=[];return this;},refreshItems(){return this;},getAddableAmount:i=>i.getAmount(),addItem:i=>{kept.push(i);return inventory;},adds:(id,n)=>{kept.push(new Item(id,n));return inventory;}};
  const equipment={getItems:()=>[],getValidItems:()=>[],resetItems(){return this;},refreshItems(){return this;}};
  const player={...fakePlayer({items:carried}),getInventory:()=>inventory,getEquipment:()=>equipment,getCombat:()=>({getRecentDamagerEntries:()=>[],getKiller:()=>null}),resetAttributes(){},isPlayerBot:()=>false,
   getAttribute:()=>undefined,setAttribute(){},sendMessage(){},getPacketSender:()=>({sendJingle(){return this;}})};

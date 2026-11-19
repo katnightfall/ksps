@@ -6,6 +6,7 @@ import { Player } from "../../entity/impl/player/Player";
 import { PlayerRights } from "../../model/rights/PlayerRights";
 import { Task } from "../Task";
 import { Item } from "../../model/Item";
+import { Bank } from "../../model/container/impl/Bank";
 import { SkullType } from "../../model/SkullType";
 import { PrayerData, PrayerHandler } from "../../content/PrayerHandler";
 import { Skill } from "../../model/Skill";
@@ -319,9 +320,37 @@ export class PlayerDeathTask extends Task {
 
     /** The items a death let the player keep, back in the inventory. */
     public static returnKeptItems(player: Player, items: Item[]): void {
+        // Ours: a death can keep more than a backpack holds (every untradeable is kept when no grave takes them:
+        // a death to another player, a world without graves), and what did not fit was gone with no more than
+        // "You couldn't hold all those items.". The rest goes to the bank, or lies where the player died.
+        const inventory = player.getInventory();
+        let banked = false;
+        let dropped = false;
         for (const it of items) {
-            player.getInventory().addItem(it.clone());
+            const kept = it.clone();
+            const fits = Math.min(kept.getAmount(), inventory.getAddableAmount(kept));
+            if (fits >= kept.getAmount()) {
+                inventory.addItem(kept);
+                continue;
+            }
+            if (fits > 0) inventory.addItem(kept.clone().setAmount(fits));
+            let rest = kept.getAmount() - fits;
+            // A note is banked as its item, as a deposit does.
+            const spare = kept.clone().setId(kept.getDefinition().unNote()).setAmount(rest);
+            const bank = player.getBank(Bank.getTabForItem(player, spare.getId()));
+            const room = spare.isUnbankable() ? 0 : Math.min(rest, bank.getAddableAmount(spare));
+            if (room > 0) {
+                bank.add(spare.clone().setAmount(room), false);
+                rest -= room;
+                banked = true;
+            }
+            if (rest > 0) {
+                ItemOnGroundManager.registers(player, kept.clone().setAmount(rest));
+                dropped = true;
+            }
         }
+        if (banked) player.sendMessage("You kept more than you can carry: the rest has been sent to your bank.");
+        if (dropped) player.sendMessage("You kept more than you can carry: the rest lies where you died.");
     }
 
     /**
