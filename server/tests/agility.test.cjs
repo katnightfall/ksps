@@ -396,6 +396,28 @@ test("every shortcut plays out from either side without leaving the player locke
   }
 });
 
+// Upstream issue #5158: going down Mount Karuulm's rocks the climber faced the drop. The climb keeps facing the
+// rock face, as the captured Cairn Isle rock slide does in both directions (capture 352).
+test("Mount Karuulm's rocks are climbed facing the mountain, up and down", () => {
+  const NORTH = 0;
+  // [rocks id, the rocks' tile (where the climb starts), where it ends]
+  for (const [id, from, to] of [
+    [34397, [1324, 3778, 0], [1324, 3785, 0]],
+    [34397, [1324, 3784, 0], [1324, 3777, 0]],
+    [34396, [1324, 3788, 0], [1324, 3795, 0]],
+    [34396, [1324, 3794, 0], [1324, 3787, 0]],
+  ]) {
+    const player = createPlayer(...from, 99);
+    const facings = [];
+    const setForceMovement = player.setForceMovement;
+    player.setForceMovement = (value) => { if (value) facings.push(value.getDirection()); return setForceMovement(value); };
+    assert.notEqual(operate(player, id, from, 1), false);
+    assert.deepEqual(tileOf(player), to, `rocks ${id} from ${from}`);
+    assert.ok(facings.length >= 1, "the climb is a forced move");
+    assert.ok(facings.every((facing) => facing === NORTH), `rocks ${id} from ${from}: every climbing move faces north (${facings})`);
+  }
+});
+
 test("Karuulm Slayer Dungeon stepover rocks (34544) are shortcuts that cross two tiles in either direction", () => {
   const rocks = SHORTCUTS.filter((shortcut) => shortcut.object === 34544);
   assert.deepEqual(rocks.map((shortcut) => shortcut.at).sort(), [[1302, 10205, 0], [1311, 10215, 0], [1321, 10205, 0]]);

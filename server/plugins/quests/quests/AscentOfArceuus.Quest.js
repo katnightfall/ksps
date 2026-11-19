@@ -497,6 +497,12 @@ module.exports = function registerAscentOfArceuusQuest(api) {
   function handleDialogueLine(event) {
     const { player, npcId, text } = event;
     if (!player || typeof text !== "string") return;
+    // Ours (upstream issue #5158): the entranced Lord Trobin (8504, the form he has until the device is
+    // smashed) has no chathead model in the cache, so whatever he said was drawn with no head. His own
+    // head is on his other form (8505).
+    if (npcId === NpcIdentifiers.LORD_TROBIN_ARCEUUS && event.speakerId === undefined && typeof event.step?.player !== "string") {
+      event.speakerId = TROBIN_NPC_ID;
+    }
     const stage = quest.getStage(player);
     if (MORI_NPC_IDS.has(npcId) && stage === STAGE_ANDREWS &&
         text === "He'll be in the Tower of Magic, north west of here.") {
