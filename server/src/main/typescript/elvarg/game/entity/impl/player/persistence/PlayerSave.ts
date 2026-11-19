@@ -55,6 +55,10 @@ export class PlayerSave {
         CREATION_MENU_LAST_ITEM_ATTRIBUTE,
         LOGIN_TOKENS_ATTRIBUTE,
         Player.STAT_RESTORE_LEFT_ATTRIBUTE,
+        // Ours: saved from the start, not from the first save any player gets (fromPlayer made it
+        // a saved attribute): a login before that did not read it, and that player's next save
+        // wrote the save without their remembered attack styles.
+        COMBAT_STYLE_BY_CATEGORY_ATTRIBUTE,
     ]);
 
     /** JSON of each attribute's default: a value equal to it isn't saved, and a save without the key loads it. */
@@ -62,7 +66,23 @@ export class PlayerSave {
         ["ring-of-recoil:damage", "0"],
         [LOGIN_TOKENS_ATTRIBUTE, "[]"],
         [Player.STAT_RESTORE_LEFT_ATTRIBUTE, String(Player.STAT_RESTORE_TICKS)],
+        // Ours: with the defaults fromPlayer used to give them at the first save (see above).
+        [Player.BANK_NOTE_WITHDRAWAL_ATTRIBUTE, "false"],
+        [Player.BANK_INSERT_MODE_ATTRIBUTE, "false"],
+        [Player.BANK_QUANTITY_MODE_ATTRIBUTE, "0"],
+        [Player.BANK_CUSTOM_QUANTITY_ATTRIBUTE, "0"],
+        [Player.BANK_PLACEHOLDERS_ATTRIBUTE, "false"],
+        [COMBAT_STYLE_BY_CATEGORY_ATTRIBUTE, "{}"],
     ]);
+
+    /**
+     * Ours: where a player keeps what their save holds under attribute keys this server does not
+     * save (a plugin that is off on this world, or one newer than this server: our worlds share
+     * characters and restart one by one after an update). The next save writes those back as
+     * they were read. They used to be left out of it, so one visit to such a world wiped that
+     * plugin's progress from the character on every world. Not itself a saved attribute.
+     */
+    public static readonly CARRIED_ATTRIBUTES = "save:carried-attributes";
 
     public static persistAttribute(key: string, defaultValue?: unknown): void {
         if (typeof key !== "string" || !key.trim() || key !== key.trim()) {
@@ -696,6 +716,8 @@ export class PlayerSave {
                 player.setAttribute(key, PlayerSave.cloneAttribute(key, this.attributes[key]));
             }
         }
+        const carried = Object.entries(this.attributes ?? {}).filter(([key]) => !PlayerSave.persistentAttributeKeys.has(key));
+        if (carried.length > 0) player.setAttribute(PlayerSave.CARRIED_ATTRIBUTES, Object.fromEntries(carried));
         PlayerSave.applyAttributeDefaults(player);
 
         const friendList = player.getRelations().getFriendList();
@@ -792,12 +814,6 @@ export class PlayerSave {
             inventory.add(item.clone(), false);
         }
 
-        PlayerSave.persistAttribute(Player.BANK_NOTE_WITHDRAWAL_ATTRIBUTE, false);
-        PlayerSave.persistAttribute(Player.BANK_INSERT_MODE_ATTRIBUTE, false);
-        PlayerSave.persistAttribute(Player.BANK_QUANTITY_MODE_ATTRIBUTE, 0);
-        PlayerSave.persistAttribute(Player.BANK_CUSTOM_QUANTITY_ATTRIBUTE, 0);
-        PlayerSave.persistAttribute(Player.BANK_PLACEHOLDERS_ATTRIBUTE, false);
-        PlayerSave.persistAttribute(COMBAT_STYLE_BY_CATEGORY_ATTRIBUTE, {});
         playerSave.inventory = inventory.getCopiedItems();
         playerSave.equipment = player.getEquipment().getCopiedItems();
         playerSave.appearance = PlayerSave.sanitizeAppearance(player.getAppearance().getLook());
@@ -816,6 +832,12 @@ export class PlayerSave {
                 .map((key) => [key, PlayerSave.cloneAttribute(key, player.getAttribute(key))])
                 .filter(([key, value]) => JSON.stringify(value) !== PlayerSave.attributeDefaults.get(key as string))
         );
+        // What the save held that this server does not save, as it was read (CARRIED_ATTRIBUTES).
+        // A key that has become a saved one since the login is the player's own value from then on.
+        const carried = player.getAttribute(PlayerSave.CARRIED_ATTRIBUTES) as Record<string, unknown> | undefined;
+        for (const [key, value] of Object.entries(carried ?? {})) {
+            if (!PlayerSave.persistentAttributeKeys.has(key)) playerSave.attributes[key] = value;
+        }
 
         playerSave.friends = PlayerSave.normalizeRelationListToStrings(
             player.getRelations().getFriendList(),

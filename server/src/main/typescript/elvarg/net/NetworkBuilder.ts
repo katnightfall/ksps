@@ -1427,6 +1427,10 @@ export class ClientConnection {
       protocolName.length < 1 ||
       protocolName.length > 12 ||
       !Misc.isValidName(protocolName) ||
+      // Ours: a name of underscores and spaces only is no name. It was let in as its own account
+      // (its key is empty), while every save database files it under "player": the save of the
+      // account named Player. One save then had two logins that could be in the world together.
+      DisplayNames.key(typedName).length < 1 ||
       password.length < 1 ||
       password.length > 64
     ) {
@@ -2042,7 +2046,11 @@ export class ClientConnection {
       console.error("[network] disconnect trade cleanup failed", error);
     }
     try {
-      GameConstants.PLAYER_PERSISTENCE.requestSave(this.player, "disconnect");
+      // Ours: only for a player still in the world. A logout closes the socket, and the close is
+      // heard after the player has left and the logout save is written (up to half a minute after,
+      // from a client gone quiet): saving again from that player's memory wrote over whatever a
+      // new login of the account had saved meanwhile, and on a world of a master was handed in too.
+      if (this.player.isRegistered()) GameConstants.PLAYER_PERSISTENCE.requestSave(this.player, "disconnect");
     } catch (error) {
       console.error("[network] disconnect save request failed", error);
     }
