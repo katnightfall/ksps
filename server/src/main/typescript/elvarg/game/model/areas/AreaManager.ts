@@ -202,17 +202,17 @@ export class AreaManager {
     }
 
     private static ensureAreaSearchIndex(): AreaSearchIndexState {
+        // Ours: the index is kept while the area list is the same list with the same length. It
+        // used to count every area's boundaries again on every lookup (every player and NPC that
+        // moves, every tick): 2 s of a five minute profile of a full world, 128 ms in one tick. An
+        // area's boundaries are fixed when it is made (Area's constructor); the list is what changes.
+        const current = AreaManager.areaSearchIndex;
+        if (current != null && current.areas === AreaManager.areas && current.areaCount === AreaManager.areas.length) {
+            return current;
+        }
         let boundaryCount = 0;
         for (const area of AreaManager.areas) {
             boundaryCount += area.getBoundaries()?.length ?? 0;
-        }
-
-        if (
-            AreaManager.areaSearchIndex != null
-            && AreaManager.areaSearchIndex.areaCount === AreaManager.areas.length
-            && AreaManager.areaSearchIndex.boundaryCount === boundaryCount
-        ) {
-            return AreaManager.areaSearchIndex;
         }
 
         const bucketed = new Map<string, IndexedBoundaryRef[]>();
@@ -272,6 +272,7 @@ export class AreaManager {
         }
 
         AreaManager.areaSearchIndex = {
+            areas: AreaManager.areas,
             areaCount: AreaManager.areas.length,
             boundaryCount,
             bucketed,
@@ -338,6 +339,7 @@ type IndexedBoundaryRef = {
 };
 
 type AreaSearchIndexState = {
+    areas: Area[];
     areaCount: number;
     boundaryCount: number;
     bucketed: Map<string, IndexedBoundaryRef[]>;
