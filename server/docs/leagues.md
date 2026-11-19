@@ -1802,10 +1802,20 @@ is `select_button` 512:84 and the unlock `confirm_button` 512:62 (rev 227's echo
   names is open to everyone: instances, Death's Office, the POH, random events, the essence mine,
   Tutorial Island (the Wiki's accommodations). The surface-offset fallback remains an
   approximation of entrance ownership, not an authoritative dungeon map. Known approximations
-  of the remaining grid: Catherby's beach east of x 2816 falls with Asgarnia, the River Salve's east bank at Paterdomus with Misthalin, the Citharede Abbey and the
+  of the remaining grid: Catherby east of x 2816 is cut from White Wolf Mountain by a hand-drawn outline, not the game's border; the Citharede Abbey and the
   Giants' Plateau east of Al Kharid (the map square holding the abbey's own cabbage field) with the
   desert while the Abandoned Mine in the square below stays Morytania, Tutorial Island's eastern
   tip with the desert. `league:area-at { x, y }` answers for any tile.
+  The squares were checked against the Wiki's location data (the Locline bucket: each NPC, scenery
+  and item-spawn location with its league region, read 2026-11-18): where every tagged point of a
+  square named another area than the map did, the square was moved (the `_wikiPoints` notes in
+  `league-areas.json`: the Yanille Agility Dungeon, the Stronghold Slayer Cave, the Smoke Devil
+  Dungeon, the Underground Pass's lowest level, the Asgarnian Ice Dungeon, the Ice Path, Mort
+  Myre's north-west, Varlamore's north and others), and the River Salve's two squares now follow
+  the Wiki's Misthalin outline. `tests/league-area-wiki-points.test.cjs` keeps the points. Squares
+  the Wiki's points split between two areas are still whole (Mudskipper Point with Musa Point's
+  dock, the Waterbirth Island Dungeon's squares under Kandarin's coast, the God Wars Dungeon's
+  Wilderness corner), and a square no area names stays open even where the Wiki tags its content.
 - **Enforcement** (a main character is never asked): a map-square change into a locked square
   (`onPlayerMapSquareChange`, once per square crossed, by a step or by a teleport, ladder, boat or
   dialogue) goes back to where it started when that is open (the Wiki's magical barriers, at
