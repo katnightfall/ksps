@@ -68,8 +68,9 @@ function charges(item) {
 }
 
 function refresh(player) {
-  player.getInventory()?.refreshItems?.();
-  player.getEquipment()?.refreshItems?.();
+  // No player: a preview of a death empties a copy of the scythe (ChargedItemDeath).
+  player?.getInventory()?.refreshItems?.();
+  player?.getEquipment()?.refreshItems?.();
 }
 
 function swapToUncharged(player, item) {
@@ -620,6 +621,7 @@ module.exports = {
     api.onItemOnItem(chargeScythe, { noted: false });
     api.onCustomEvent("item:fill-charges", fillCharges);
     api.onCustomEvent("player-death:pvp-item-parts", unchargeOnPvpDeath);
+    api.onCustomEvent("items:pvp-death-parts-preview", unchargeOnPvpDeath);
     api.onCustomEvent("items:lost-to-pvp-killer", lostToPvpKiller);
     api.onItemOnObject(scytheOnWell);
     api.onObjectInteraction(WELL_OBJECT, {

@@ -46,6 +46,7 @@ module.exports = {
   register(api) {
     core = api.core;
     api.onCustomEvent("player-death:pvp-item-parts", degradeOnPvpDeath);
+    api.onCustomEvent("items:pvp-death-parts-preview", degradeOnPvpDeath);
     api.onCustomEvent("items:lost-to-pvp-killer", answerLostToPvpKiller);
   },
 };

@@ -498,6 +498,7 @@ module.exports = {
     pluginApi.onCustomEvent("powered-staff:spell", answerSpell);
     pluginApi.onCustomEvent("item:fill-charges", fillCharges);
     pluginApi.onCustomEvent("player-death:pvp-item-parts", unchargeOnPvpDeath);
+    pluginApi.onCustomEvent("items:pvp-death-parts-preview", unchargeOnPvpDeath);
     pluginApi.onCustomEvent("items:lost-to-pvp-killer", lostToPvpKiller);
   },
 };

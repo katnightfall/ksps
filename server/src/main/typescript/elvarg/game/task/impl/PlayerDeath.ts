@@ -435,12 +435,55 @@ export class PlayerDeathTask extends Task {
      * cannot be alchemised (a fire cape, a dragon defender) still ranks by the alchemy value its
      * store value gives (60%), as it did before item-alch.json cleared those: the Wiki names no
      * other value for it.
+     *
+     * Asked with the player who carries it, as the ranking asks, an item with no Grand Exchange price
+     * of its own that a PvP death takes apart (a charged weapon; an ornamented, imbued or upgraded
+     * item) is worth what that death would leave the killer (pvpLossValue): the Wiki ranks "first by
+     * effective Grand Exchange value, and then by alchemy value if the item lacks an effective Grand
+     * Exchange value".
      */
-    public static keepValue(item: Item): number {
+    // Ours (upstream issue #6002): a charged item has no price of its own and ranked by its alchemy value, so a charged
+    // Scythe of Vitur (2.4m; uncharged 1,150m) ranked below a charged Sanguinesti staff (3m), and a skulled player with
+    // Protect Item kept the staff and lost the scythe to the killer.
+    public static keepValue(item: Item, player?: Player | null): number {
         const definition = item.getDefinition();
         if (definition.hasGrandExchangeValue()) return definition.getGrandExchangeValue();
+        const lost = player ? PlayerDeathTask.pvpLossValue(player, item) : 0;
+        if (lost > 0) return lost;
         const alch = definition.getHighAlchValue();
         return alch > 0 ? alch : Math.floor(Math.max(0, definition.getValue()) * 0.6);
+    }
+
+    /** Priced at face value, as the Items Kept on Death screen's guide risk value prices them. */
+    private static readonly CURRENCY = new Set(["Coins", "Platinum token"]);
+
+    /**
+     * What a PvP death that does not protect `item` would leave the killer, for one of its stack: the parts it is taken
+     * apart into that trade, each at its own price (coins and platinum tokens at face value); 0 where it is not taken
+     * apart or none of its parts trade. The parts are the death's own (splitIntoComponents): `deathComponents`, else the
+     * answers to `items:pvp-death-parts-preview` { player, killer, item, parts, preview: true }, the read-only twin of
+     * `player-death:pvp-item-parts`, asked with a copy of the item so that nothing the player holds changes. A preset
+     * copy and a bot's gear are not loot, and are not asked about.
+     */
+    private static pvpLossValue(player: Player, item: Item): number {
+        if (item.getAmount() <= 0 || item.isLostOnDeath() || item.isPresetItem() || player.isPlayerBot?.() === true) return 0;
+        const components: number[] = item.getDefinition().getDeathComponents();
+        let parts: Item[] | null = components.length > 0 ? components.map((id) => new Item(id, item.getAmount())) : null;
+        if (!parts) {
+            const query = { player, killer: null, item: item.clone(), parts: null as Item[] | null, preview: true };
+            PluginManager.emitCustomEvent("items:pvp-death-parts-preview", query);
+            parts = Array.isArray(query.parts) ? query.parts : null;
+        }
+        let total = 0;
+        for (const part of parts ?? []) {
+            if (!part || part.getId() <= 0 || part.getAmount() <= 0 || !part.isPlayerTradeable()) continue;
+            const definition = part.getDefinition();
+            const each = PlayerDeathTask.CURRENCY.has(definition.getName())
+                ? Math.max(0, definition.getValue())
+                : PlayerDeathTask.keepValue(part);
+            total += each * part.getAmount();
+        }
+        return total / item.getAmount();
     }
 
     /**
@@ -503,7 +546,10 @@ export class PlayerDeathTask extends Task {
             items.push(item);
         }
 
-        items.sort((a: Item, b: Item) => PlayerDeathTask.keepValue(b) - PlayerDeathTask.keepValue(a));
+        // Each item is valued once: keepValue asks content what a PvP death makes of an item with no price of its own.
+        const values = new Map<Item, number>();
+        for (const item of items) values.set(item, PlayerDeathTask.keepValue(item, player));
+        items.sort((a: Item, b: Item) => (values.get(b) ?? 0) - (values.get(a) ?? 0));
         const ranked = items.slice(0, amountToKeep);
         const cosmetic = cosmetics ? items.slice(amountToKeep).filter((item) => PlayerDeathTask.isCosmetic(player, item)) : [];
         return { ranked, always: alwaysKept, cosmetic };

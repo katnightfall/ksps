@@ -371,6 +371,7 @@ module.exports = {
     pluginApi.registerCombatMethodResolver(staff.resolver);
     pluginApi.onCustomEvent("item:fill-charges", fillCharges);
     pluginApi.onCustomEvent("player-death:pvp-item-parts", unchargeOnPvpDeath);
+    pluginApi.onCustomEvent("items:pvp-death-parts-preview", unchargeOnPvpDeath);
     pluginApi.onCustomEvent("items:lost-to-pvp-killer", lostToPvpKiller);
     pluginApi.onCustomEvent("powered-staff:spell", staff.answerSpell);
     pluginApi.onItemAction("Eye of Ayak", { Check: checkCharges, Uncharge: uncharge });
