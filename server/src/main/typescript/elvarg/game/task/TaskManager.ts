@@ -47,6 +47,14 @@ export class TaskManager {
                 let keepRunning: boolean;
                 try {
                     keepRunning = t.tick();
+                } catch (e) {
+                    // Ours: one task that throws must not end the pass. Left to the catch around
+                    // the whole loop, every task after it in the list got no turn (this cycle and
+                    // every later one, while it kept throwing), and the tasks before it that had
+                    // already been moved down the list were left in it twice, so they ran twice a
+                    // cycle from then on. The task itself is kept, as before: it tries again.
+                    console.error(`[task] ${taskName} threw` + (t.pluginName ? ` (plugin ${t.pluginName})` : ""), e);
+                    keepRunning = t.isRunning();
                 } finally {
                     PluginContext.exit(previousPlugin);
                 }
