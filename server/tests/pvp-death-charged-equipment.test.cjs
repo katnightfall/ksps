@@ -523,3 +523,53 @@ test("kept: an imbued Salve amulet stays with the victim on a PvP death, imbued,
   assert.equal(new core.Item(I.SALVE_AMULET, 1).isPlayerTradeable(), false);
   assert.equal(new core.Item(I.SALVE_AMULET_E_, 1).isPlayerTradeable(), false);
 });
+
+// --- Locked and ornamented breakable items ---------------------------------------------------------------------------
+// Wiki, Items Kept on Death, "Locked items with tradeable ornament kit" (Elite void top (l)(or)): "The victim keeps it
+// in their inventory in broken form and keeps its (l) status. The PKer receives the tradeable ornament kit and item's
+// repair cost"; above level 20 Wilderness "in mangled form ... The PKer receives the tradeable ornament kit and Trouver
+// cost (500,000)". Fighter torso (or): "it will remain in the player's inventory; however, the item will be in a
+// broken, unusable state ... The ornament kit will be placed in their gravestone"; above level 20, unlocked, "it will be
+// converted to coins", locked, "in a mangled, unusable state".
+
+const DEEP_WILDERNESS = () => new core.Location(3100, 3760, 0);
+const named = (name) => {
+  const id = require("../plugins/items/brokenitems/Common.BrokenItems").idOf(name);
+  assert.ok(Number.isInteger(id), `the cache has ${name}`);
+  return id;
+};
+const coins = (amount) => plain(I.COINS, amount);
+
+test("lost: a locked void piece with its kit loses the kit to the killer and stays, locked, broken or mangled", (t) => {
+  const kit = named("Shattered relics void ornament kit");
+  assert.equal(new core.Item(kit, 1).isPlayerTradeable(), true);
+  lost(t, () => [plain(named("Void knight top (l)(or)"))], [plain(kit), coins(180_000)], [plain(named("Void knight top (l) (broken)"))]);
+  lost(t, () => [plain(named("Elite void robe (l)(or)"))], [plain(kit), coins(250_000)], [plain(named("Elite void robe (l) (broken)"))], CRATER());
+  lost(t, () => [plain(named("Void mage helm (l)(or)"))], [plain(kit), coins(500_000)], [plain(named("Void mage helm (l) (mangled)"))], DEEP_WILDERNESS());
+  // Every locked void piece with a kit is known.
+  const Ornamented = require("../plugins/items/brokenitems/Ornamented.BrokenItems");
+  for (const piece of ["Void knight top", "Void knight robe", "Void knight gloves", "Elite void top", "Elite void robe", "Void mage helm", "Void ranger helm", "Void melee helm"]) {
+    assert.deepEqual(Ornamented.underKit(plain(named(`${piece} (l)(or)`))), { base: named(`${piece} (l)`), kit }, piece);
+  }
+});
+
+test("lost: a Fighter torso (or) breaks, is lost or is mangled as the torso is, and its Bounty Hunter kit stays the victim's", (t) => {
+  const kit = I.BOUNTY_HUNTER_ORNAMENT_KIT;
+  assert.equal(new core.Item(kit, 1).isPlayerTradeable(), false);
+  lost(t, () => [plain(I.FIGHTER_TORSO_OR_)], [coins(150_000)], [plain(named("Fighter torso (broken)")), plain(kit)]);
+  // Above level 20 Wilderness an unlocked torso is gone, its repair cost paid to the killer.
+  lost(t, () => [plain(I.FIGHTER_TORSO_OR_)], [coins(150_000)], [plain(kit)], DEEP_WILDERNESS());
+  lost(t, () => [plain(I.FIGHTER_TORSO_L_OR_)], [coins(150_000)], [plain(named("Fighter torso (l) (broken)")), plain(kit)]);
+  lost(t, () => [plain(I.FIGHTER_TORSO_L_OR_)], [coins(500_000)], [plain(named("Fighter torso (l) (mangled)")), plain(kit)], DEEP_WILDERNESS());
+});
+
+// Wiki, (l): items locked before the Trouver rework "will behave like their regular counterparts".
+test("lost: a Rune defender (l)(t) loses its kit and breaks as a Rune defender (t) does", (t) => {
+  lost(t, () => [plain(named("Rune defender (l)(t)"))], [plain(I.RUNE_DEFENDER_ORNAMENT_KIT), coins(35_000)], [plain(named("Rune defender (broken)"))]);
+});
+
+test("kept: a locked piece with its kit and a Fighter torso (or) come through whole", (t) => {
+  keptCases(t, () => plain(named("Elite void top (l)(or)")));
+  keptCases(t, () => plain(I.FIGHTER_TORSO_OR_));
+  keptCases(t, () => plain(I.FIGHTER_TORSO_L_OR_));
+});

@@ -13,6 +13,7 @@ module.exports = {
   register(api) {
     Common.init(api);
     require("./brokenitems/Death.BrokenItems")(api);
+    require("./brokenitems/Ornamented.BrokenItems")(api);
     require("./brokenitems/Perdu.BrokenItems")(api);
   },
 };
