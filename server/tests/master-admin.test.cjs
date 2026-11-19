@@ -530,3 +530,12 @@ test("a request that names where it came from in a way that is no address is tur
     assert.match(refused.body.error, /another site/);
   }
 });
+
+test("the master's own folder, with its keys in it, is never part of a commit", () => {
+  const { spawnSync } = require("node:child_process");
+  const project = path.join(__dirname, "../..");
+  for (const file of ["master-secret", "proxy-key", "master-worlds.json", "characters.sqlite", "characters-20261117-120000.sqlite"]) {
+    const ignored = spawnSync("git", ["check-ignore", "-q", `server/data/saves/master/${file}`], { cwd: project });
+    assert.equal(ignored.status, 0, `server/data/saves/master/${file} is not ignored by git`);
+  }
+});
