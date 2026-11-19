@@ -3,6 +3,7 @@ import { MapObjects } from "../../../game/entity/impl/object/MapObjects";
 import { World } from "../../../game/World";
 import { Location } from "../../../game/model/Location";
 import { PluginManager } from "../../../plugins/PluginManager";
+import { ObjectActionPacketListener } from "./ObjectActionPacketListener";
 
 export class UseItemPacketListener {
   /** Plugins can veto any item-on-X use (e.g. members items on a free-to-play world). */
@@ -64,6 +65,8 @@ export class UseItemPacketListener {
       return;
     }
 
+    // Ours: as a click on a loc, only a tile the client can have shown (MAX_CLICK_DISTANCE_TILES).
+    if (!ObjectActionPacketListener.inClickRange(player, objectX, objectY)) return;
     const objectLocation = new Location(objectX, objectY, player.getLocation().getZ());
     const object = MapObjects.getPrivateArea(player, objectId, objectLocation);
     if (!object) {
@@ -218,6 +221,7 @@ export class UseItemPacketListener {
     spellItemId: number,
     spellId: number,
   ): void {
+    if (!ObjectActionPacketListener.inClickRange(player, x, y)) return;
     const location = new Location(x, y, player.getLocation().getZ());
     const object = MapObjects.getPrivateArea(player, objectId, location);
     if (!object) {

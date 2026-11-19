@@ -181,6 +181,12 @@ class LoginSession {
         this.send(encodeCharacterResult(false, 2, "Names are 1 to 12 letters, numbers and spaces."));
         return;
       }
+      // Ours: nobody may pass as a moderator (the display name changer's rule), but the world's own developers.
+      const { isConfiguredDeveloperUsername } = require("../../../src/main/typescript/elvarg/net/NetworkBuilder");
+      if (DisplayNames.passesAsModerator(name) && !isConfiguredDeveloperUsername(name)) {
+        this.send(encodeCharacterResult(false, 1, "That name is not available."));
+        return;
+      }
       // Taken: another account's character, save, online or pending login, a name another account
       // deleted (kept reserved), another account's current or held display name (the shared
       // namespace), or a name a live player (a bot) shows for another account, though never saved.

@@ -7,6 +7,7 @@ import { BoatDeckArea } from "./BoatDeckArea";
 import { tickBoat } from "./BoatMovement";
 import type { BoatDeckLoc, BoatPlacement, BoatSpec } from "./BoatSpec";
 import { packedHeadingToAngle } from "./HeadingUtils";
+import { FailureReports } from "../../../util/FailureReports";
 
 const FIRST_ENTITY_INDEX = 3000;
 const LAST_ENTITY_INDEX = 3999;
@@ -308,7 +309,15 @@ export class BoatManager {
             boat.prevFineY = boat.fineY;
             boat.lastStep = tickBoat(boat, BoatManager.isSailable);
         }
-        for (const listener of BoatManager.afterTickListeners) listener();
+        // Ours: these are plugins' listeners, run inside the world cycle. One that threw stopped the
+        // listeners after it and the rest of the cycle (nobody was synced or flushed), every cycle.
+        for (let index = 0; index < BoatManager.afterTickListeners.length; index++) {
+            try {
+                BoatManager.afterTickListeners[index]();
+            } catch (error) {
+                FailureReports.report(`boat after-tick listener ${index}`, error);
+            }
+        }
     }
 
     private static applyHelmHeading(player: Mobile, boat: Boat, heading: number): void {

@@ -129,6 +129,25 @@ export class PlayerPunishment {
         return this.AccountsMuted.includes(player);
     }
 
+    /**
+     * Ours: whether this player may not chat. A mute of the account's main character (its primary) holds on every
+     * character of the account, as a ban of the primary does at login. Looked up under the speaking character's name
+     * alone, a player muted on their main chatted on with another character of the account, or a new one.
+     */
+    public static chatMuted(player: { getUsername(): string; getHostAddress(): string }): boolean {
+        const name = String(player.getUsername() ?? "");
+        if (this.muted(name) || this.IPMuted(String(player.getHostAddress() ?? ""))) return true;
+        try {
+            const { Accounts } = require("../game/entity/impl/player/Accounts") as typeof import("../game/entity/impl/player/Accounts");
+            const account = Accounts.accountOf(name);
+            const primary = account ? Accounts.primaryOf(account) : undefined;
+            return primary !== undefined && this.muted(primary);
+        } catch (error) {
+            // The accounts file could not be read: the character's own mute (above) still holds.
+            return false;
+        }
+    }
+
     /** Returns whether the player is muted after the change. */
     public static toggleMute(player: string): boolean {
         if (this.muted(player)) {

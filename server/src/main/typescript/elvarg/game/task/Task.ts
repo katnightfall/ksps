@@ -69,8 +69,13 @@ export abstract class Task {
 
     tick(): boolean {
         if (this.running && (this.countdown == 0 || --this.countdown == 0)) {
-            this.execute();
-            this.countdown = this.delay;
+            // Ours: a task that throws still waits its delay before the next attempt. The countdown
+            // stayed at 0 after a throw, so a failing task ran again every cycle whatever its delay.
+            try {
+                this.execute();
+            } finally {
+                this.countdown = this.delay;
+            }
         }
         this.onTick();
         return this.running;

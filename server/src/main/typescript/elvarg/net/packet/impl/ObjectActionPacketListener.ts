@@ -26,6 +26,22 @@ const OTHER_DECK_SEARCH_TILES = 32;
 const pendingOtherDeck = new WeakMap<Player, object>();
 
 export class ObjectActionPacketListener {
+  /**
+   * Ours: the furthest tile a click on a loc may name, from the player or, on a boat, from the sea
+   * tile under them. The client draws at most 160 tiles out (its MAX_RENDER_DISTANCE), so nothing
+   * it shows is further. The lookup behind a click loads the tile's map square and the eight around
+   * it, and with no limit a client could name tiles all over the world: one turn's 240 packets
+   * took 2.2 s of the turn, loaded 702 map squares and kept 250 MB.
+   */
+  public static readonly MAX_CLICK_DISTANCE_TILES = 256;
+
+  /** Whether a loc on tile (x, y) is near enough for this player's client to have shown it. */
+  public static inClickRange(player: Player, x: number, y: number): boolean {
+    const near = (from: Location) =>
+      Math.max(Math.abs(from.getX() - x), Math.abs(from.getY() - y)) <= ObjectActionPacketListener.MAX_CLICK_DISTANCE_TILES;
+    return near(player.getLocation()) || near(BoatManager.rootLocation(player));
+  }
+
   public executeAction(
     player: Player,
     id: number,
@@ -45,6 +61,8 @@ export class ObjectActionPacketListener {
     // A loc on another boat's deck (a Barracuda Trial's rum boat, seen from the player's own).
     pendingOtherDeck.delete(player);
     const remote = ObjectActionPacketListener.onOtherDeck(player, id, x, y);
+    // A loc on another deck is found by its ship, whatever tile the click names; any other by its tile.
+    if (!remote && !ObjectActionPacketListener.inClickRange(player, x, y)) return;
     const object = remote?.object ?? MapObjects.getPrivateArea(player, id, objectLocation);
     if (!object) {
       return;

@@ -1017,3 +1017,32 @@ test('a delete beyond the tombstone limit is refused before anything is deleted'
   await remove(c, 'Alt');
   assert.equal(lastResult(c.channel).code, 0);
 });
+
+// Ours. Nobody may pass as a moderator: the display name changer refuses names with "mod" in them to anyone but staff
+// (plugins/commands/DisplayName). A new account's login name, and a new character's, are what other players see until
+// they take a display name, and neither was checked: a first login as "Mod Kat2" made that account, and chatted as it.
+test('a new account or character cannot take a name that passes for a moderator', async (t) => {
+  for (const name of ['Mod Kat2', 'Modkat', 'Jmod Ash', 'Mod_Ash']) {
+    const response = await login(name, 'pw');
+    assert.deepEqual([response.success, response.code, response.error], [false, 3, 'That name is not available. Please choose another.'], name);
+  }
+  assert.equal(Accounts.entryOf('mod kat2'), undefined);
+
+  seedSave('Zezima', { passwordHash: hashOf('pw') });
+  Accounts.ensure('Zezima', 1);
+  const c = await connect('Zezima', 'pw', LOGIN_FLAG_CHARACTER_SELECT);
+  await create(c, 'Mod Zezima');
+  assert.deepEqual(lastResult(c.channel), { ok: false, code: 1, message: 'That name is not available.' });
+  assert.deepEqual(Accounts.charactersOf('zezima').map((e) => e.name), ['Zezima']);
+});
+
+test('names already made, and the world\'s configured developers, are not refused', async (t) => {
+  // An account from before keeps logging in, whatever its name.
+  seedSave('Modern', { passwordHash: hashOf('pw') });
+  assert.equal((await login('Modern', 'pw')).success, true);
+  // DEV_USERNAME names its staff's accounts ("mod kat" on ours): a world that has not seen one yet lets it be made.
+  const previous = process.env.DEV_USERNAME;
+  process.env.DEV_USERNAME = 'kat,mod kat';
+  t.after(() => { if (previous === undefined) delete process.env.DEV_USERNAME; else process.env.DEV_USERNAME = previous; });
+  assert.equal((await login('Mod Kat', 'pw')).success, true);
+});

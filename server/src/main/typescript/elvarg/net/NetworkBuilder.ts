@@ -544,6 +544,8 @@ export class ClientConnection {
     player.getPacketSender().replayVarps();
   }
 
+  /** Whether this connection's one "forget this login" request has been answered. */
+  private forgetAnswered = false;
   private pluginMessageWindow = 0;
   private pluginMessageCount = 0;
   private warnedUnresolvedInventoryAction = false;
@@ -1388,6 +1390,12 @@ export class ClientConnection {
           await this.login(packet.username, packet.password, packet.revision, packet.flags);
           continue;
         case "login_forget":
+          // Ours: the client sends one, on a socket of its own (client login.ts forgetRememberedLogin).
+          // Each one reads the named account's whole save, before any login, and a 64 KB message
+          // holds about 4,000: that held the server for over a second per message. A connection's
+          // first is answered; the rest are not.
+          if (this.forgetAnswered) continue;
+          this.forgetAnswered = true;
           await forgetLoginToken(packet.username, packet.token);
           continue;
         case "handshake":
@@ -1410,7 +1418,48 @@ export class ClientConnection {
     }
   }
 
+  /** Ours: ends this connection's turn in `authenticating`, while it has one. */
+  private endAuthenticationTurn?: () => void;
+  /** Ours: the logins of each account being checked right now, by the account's pendingNames key; see login(). */
+  private static readonly authenticating = new Map<string, Promise<void>>();
+
+  /**
+   * Ours: one login of an account is checked at a time, and the next waits for it. A login holds
+   * its account's name from its first check until its password has been checked (so two logins of
+   * one account can't both get in), and any other login of the account in that time was refused
+   * as "already logged in". Guessing passwords one after another, with nothing but the name, so
+   * kept the account's owner out for as long as it went on. Waiting instead, the owner is checked
+   * once the guess before them has failed, and the right password gets in.
+   */
   private async login(rawUsername: string, password: string, revision: number, flags = 0): Promise<void> {
+    let account: string | undefined;
+    try {
+      account = Accounts.accountOf(Misc.formatDisplayName(rawUsername));
+    } catch {
+      // authenticate() reads it again and answers "the login server is busy".
+    }
+    const key = pendingKey(account || Misc.formatDisplayName(rawUsername));
+    const earlier = ClientConnection.authenticating.get(key);
+    let finished!: () => void;
+    const mine = new Promise<void>((resolve) => { finished = resolve; });
+    const queue = earlier ? earlier.then(() => mine) : mine;
+    ClientConnection.authenticating.set(key, queue);
+    // A closed connection gives its turn up at once (cleanup), as it gives up the name it holds:
+    // a check that never returned must not keep the account's next login waiting.
+    this.endAuthenticationTurn = finished;
+    try {
+      if (earlier) await earlier;
+      // The socket can close while this login waits its turn.
+      if (this.closed) return;
+      await this.authenticate(rawUsername, password, revision, flags);
+    } finally {
+      finished();
+      this.endAuthenticationTurn = undefined;
+      if (ClientConnection.authenticating.get(key) === queue) ClientConnection.authenticating.delete(key);
+    }
+  }
+
+  private async authenticate(rawUsername: string, password: string, revision: number, flags = 0): Promise<void> {
     const tokenLogin = (flags & LOGIN_FLAG_TOKEN) !== 0;
     // A league world logs the account's league character in: a separate save under the same name.
     const profile = GameConstants.WORLD_PROFILE;
@@ -1539,7 +1588,9 @@ export class ClientConnection {
         return;
       }
       // A name a live player (a bot) shows for another account is taken too, though never saved.
-      if ((owner !== undefined && owner !== DisplayNames.key(typedName)) || DisplayNames.shownByAnother(typedName, typedName)) {
+      // Ours: and nobody may pass as a moderator (the display name changer's rule), but the world's own developers.
+      if ((owner !== undefined && owner !== DisplayNames.key(typedName)) || DisplayNames.shownByAnother(typedName, typedName) ||
+          (DisplayNames.passesAsModerator(typedName) && !isConfiguredDeveloperUsername(typedName))) {
         this.releasePendingName();
         this.failLogin(3, "That name is not available. Please choose another.");
         return;
@@ -2033,6 +2084,7 @@ export class ClientConnection {
     if (this.idleCheck) clearInterval(this.idleCheck);
     this.clearPendingLoginTimeout();
     this.releasePendingName();
+    this.endAuthenticationTurn?.();
     if (!this.player) return;
     // The disconnect hooks fire when the player leaves the world, which a player in
     // combat does only when it ends (World's removal queue).
