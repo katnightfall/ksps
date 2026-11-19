@@ -422,6 +422,8 @@ export class WebGLMapSquare {
     drawCallNpc?: DrawCallRange;
 
     objSurfaceHeights?: Int16Array[][];
+    /** Ours (upstream issue #6240): what the drawn loc group holds (SdMapData.locSignature). */
+    locSignature?: string;
 
     npcEntityIds: number[] = [];
     npcIdleFrames: AnimationFrames[] = [];
@@ -1057,6 +1059,7 @@ export class WebGLMapSquare {
             mapData.tilePresenceByLevel,
         );
         mapSquare.objSurfaceHeights = mapData.objSurfaceHeights;
+        mapSquare.locSignature = mapData.locSignature;
         mapSquare.tileOverlays = mapData.tileOverlays;
         // Initialize occupancy counters to match initial flags
         for (const c of occInit) {
@@ -1924,6 +1927,7 @@ export class WebGLMapSquare {
 
         this.refreshLocSceneMetadata(mapData);
         this.objSurfaceHeights = mapData.objSurfaceHeights;
+        this.locSignature = mapData.locSignature;
         this.clearLocGeometry();
 
         const loadTime = time ?? this.timeLoaded;

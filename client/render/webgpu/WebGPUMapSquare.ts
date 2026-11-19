@@ -417,6 +417,8 @@ export class WebGPUMapSquare implements MapSquare {
     /** CPU-side height/flag data other systems sample (bridge camera, route finding). */
     tileRenderFlags!: Uint8Array[][];
     objSurfaceHeights?: Int16Array[][];
+    /** Ours (upstream issue #6240): what the drawn loc group holds (SdMapData.locSignature). */
+    locSignature?: string;
     tileOverlays?: Int16Array[][];
     /** HD ground recipe grid copied from SdMapData, [level][x][y], full heightmap grid incl. border. */
     tileGroundMaterials?: Uint8Array[][];
@@ -542,6 +544,7 @@ export class WebGPUMapSquare implements MapSquare {
         square.tilePresenceByLevel = mapData.tilePresenceByLevel;
         square.tileRenderFlags = mapData.tileRenderFlags;
         square.objSurfaceHeights = mapData.objSurfaceHeights;
+        square.locSignature = mapData.locSignature;
         square.tileOverlays = mapData.tileOverlays;
         square.tileGroundMaterials = mapData.groundMaterials;
         square.tileGroundColors = mapData.groundColors;
@@ -740,8 +743,12 @@ export class WebGPUMapSquare implements MapSquare {
      * Applies a door-only or loc-only build (SdMapData.doorOnly/locOnly) to this square: port of
      * WebGLMapSquare.refreshDoorGeometry/refreshLocGeometry. Terrain and the other group stay.
      * Callers must do this before the frame's visible list is built (see WebGPURenderer.render).
+     *
+     * Ours (upstream issue #6240): a loc-only build carries the door group too. Returns whether
+     * a door-only build was made from a scene whose loc group is not the one drawn here (a change
+     * taken for one of the door group's alone): the caller then asks for a loc-only build.
      */
-    refreshPartial(mapData: SdMapData, seqTypeLoader: SeqTypeLoader, cycle: number): void {
+    refreshPartial(mapData: SdMapData, seqTypeLoader: SeqTypeLoader, cycle: number): boolean {
         if (mapData.collisionDatas) this.collisionMaps = mapData.collisionDatas.map(CollisionMap.fromData);
         this.tilePresenceByLevel = mapData.tilePresenceByLevel;
         this.tileLocOffsetsByLevel = mapData.tileLocOffsetsByLevel;
@@ -750,11 +757,14 @@ export class WebGPUMapSquare implements MapSquare {
         for (const listener of this.locDataChangedListeners) listener();
         if (mapData.doorOnly) {
             this.setGroup("door", mapData);
-        } else {
-            this.setGroup("loc", mapData);
-            this.objSurfaceHeights = mapData.objSurfaceHeights;
-            this.initAnimatedLocs(mapData, seqTypeLoader, cycle);
+            return mapData.locSignature !== undefined && mapData.locSignature !== this.locSignature;
         }
+        this.setGroup("loc", mapData);
+        this.setGroup("door", mapData);
+        this.locSignature = mapData.locSignature;
+        this.objSurfaceHeights = mapData.objSurfaceHeights;
+        this.initAnimatedLocs(mapData, seqTypeLoader, cycle);
+        return false;
     }
 
     /**

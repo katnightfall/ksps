@@ -13,8 +13,11 @@ import { BaseTypeLoader } from "../../rs/config/TypeLoader";
  * 7: rev 242 multilocs (loc opcodes 97/98) are built. Until #4007/#4135 the browser decoded them
  *    with a stale ByteBuffer.js and drew none, and the squares stored then kept serving that
  *    (Edgeville's poll booth and loot chest, issue #4240).
+ * 8: ours (upstream issue #6240): trees, rocks and stalls are in the door group, and a square
+ *    carries what its loc group holds (locSignature). A format 7 square has them in its loc
+ *    group, where a door-only build would draw the stump beside the tree still standing.
  */
-export const CACHE_FORMAT = 7;
+export const CACHE_FORMAT = 8;
 // Desktop HD scenes can cover 64 squares before walking into the next scene.
 // Retain several scene windows rather than evicting the previous login's squares.
 export const MAX_SQUARES = isLowEndDevice ? 64 : 256;

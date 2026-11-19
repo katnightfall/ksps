@@ -239,6 +239,18 @@ export function getSceneLocs(
 ): SceneLocs {
     const locs: SceneModel[] = [];
     const locEntities: SceneLocEntity[] = [];
+    // Ours (upstream issue #6240): each loc's place in this walk, which is the same whether the
+    // scene holds it as a model or as an entity. The door group is packed in this order, so a
+    // door-only build gives the very bytes a build of the whole square gives.
+    let order = 0;
+    const addModel = (model: SceneModel) => {
+        model.order = order++;
+        locs.push(model);
+    };
+    const addEntity = (entity: SceneLocEntity) => {
+        entity.order = order++;
+        locEntities.push(entity);
+    };
 
     const startX = borderSize;
     const startY = borderSize;
@@ -310,7 +322,7 @@ export function getSceneLocs(
 
             if (sourceTile.floorDecoration && !floorlessUpperPlane) {
                 if (sourceTile.floorDecoration.entity instanceof Model) {
-                    locs.push(
+                    addModel(
                         createSceneModel(
                             locTypeLoader,
                             scene,
@@ -326,7 +338,7 @@ export function getSceneLocs(
                         ),
                     );
                 } else if (sourceTile.floorDecoration.entity instanceof LocEntity) {
-                    locEntities.push(
+                    addEntity(
                         createSceneLocEntity(
                             locTypeLoader,
                             sourceTile.floorDecoration.entity,
@@ -343,7 +355,7 @@ export function getSceneLocs(
 
             if (sourceTile.wall) {
                 if (sourceTile.wall.entity0 instanceof Model) {
-                    locs.push(
+                    addModel(
                         createSceneModel(
                             locTypeLoader,
                             scene,
@@ -359,7 +371,7 @@ export function getSceneLocs(
                         ),
                     );
                 } else if (sourceTile.wall.entity0 instanceof LocEntity) {
-                    locEntities.push(
+                    addEntity(
                         createSceneLocEntity(
                             locTypeLoader,
                             sourceTile.wall.entity0,
@@ -374,7 +386,7 @@ export function getSceneLocs(
                 }
 
                 if (sourceTile.wall.entity1 instanceof Model) {
-                    locs.push(
+                    addModel(
                         createSceneModel(
                             locTypeLoader,
                             scene,
@@ -390,7 +402,7 @@ export function getSceneLocs(
                         ),
                     );
                 } else if (sourceTile.wall.entity1 instanceof LocEntity) {
-                    locEntities.push(
+                    addEntity(
                         createSceneLocEntity(
                             locTypeLoader,
                             sourceTile.wall.entity1,
@@ -439,7 +451,7 @@ export function getSceneLocs(
                 const offsetY =
                     sourceTile.wallDecoration.offsetY + embeddedShift.y + nudge.y;
                 if (sourceTile.wallDecoration.entity0 instanceof Model) {
-                    locs.push(
+                    addModel(
                         createSceneModel(
                             locTypeLoader,
                             scene,
@@ -455,7 +467,7 @@ export function getSceneLocs(
                         ),
                     );
                 } else if (sourceTile.wallDecoration.entity0 instanceof LocEntity) {
-                    locEntities.push(
+                    addEntity(
                         createSceneLocEntity(
                             locTypeLoader,
                             sourceTile.wallDecoration.entity0,
@@ -470,7 +482,7 @@ export function getSceneLocs(
                 }
 
                 if (sourceTile.wallDecoration.entity1 instanceof Model) {
-                    locs.push(
+                    addModel(
                         createSceneModel(
                             locTypeLoader,
                             scene,
@@ -486,7 +498,7 @@ export function getSceneLocs(
                         ),
                     );
                 } else if (sourceTile.wallDecoration.entity1 instanceof LocEntity) {
-                    locEntities.push(
+                    addEntity(
                         createSceneLocEntity(
                             locTypeLoader,
                             sourceTile.wallDecoration.entity1,
@@ -512,7 +524,7 @@ export function getSceneLocs(
                     locModelType,
                 );
                 if (loc.entity instanceof Model) {
-                    locs.push(
+                    addModel(
                         createSceneModel(
                             locTypeLoader,
                             scene,
@@ -528,7 +540,7 @@ export function getSceneLocs(
                         ),
                     );
                 } else if (loc.entity instanceof LocEntity) {
-                    locEntities.push(
+                    addEntity(
                         createSceneLocEntity(
                             locTypeLoader,
                             loc.entity,

@@ -1,4 +1,5 @@
 import { preparedLocSequence } from "./LocPacketAnimation";
+import { isChangingLocType, isStillLocType, locSlotKey, placedLocKey, placedLocsOf } from "./ChangingLocs";
 import { finishBuild } from "../../common/utils/BuildSteps";
 import {
     CHUNK_SIZE,
@@ -661,6 +662,16 @@ export class SceneBuilder {
                         );
                         const finalId = resolveLocOverrideId(override, id);
                         const finalRotation = override?.newRotation ?? rotation;
+                        const changing = this.noteCacheLoc(
+                            scene,
+                            SceneBuilder.serverLevel(scene, sceneX, sceneY, level),
+                            sceneX,
+                            sceneY,
+                            id,
+                            type,
+                            override,
+                            finalId,
+                        );
                         const moveToX = override?.moveToX;
                         const moveToY = override?.moveToY;
                         const seqId = override?.seqId;
@@ -703,6 +714,8 @@ export class SceneBuilder {
                             locLoadType,
                             seqId,
                             seqRandomStart,
+                            undefined,
+                            changing,
                         );
                     }
                 }
@@ -744,6 +757,10 @@ export class SceneBuilder {
                     spawn.rotation,
                     scene.collisionMaps[mapLevel],
                     locLoadType,
+                    undefined,
+                    undefined,
+                    undefined,
+                    isChangingLocType(this.locTypeLoader.load(spawn.id), spawn.type),
                 );
             }
         }
@@ -794,6 +811,18 @@ export class SceneBuilder {
         seqOverride?: number,
         seqRandomStartOverride?: boolean,
     ): void {
+        // Ours (upstream issue #6240): a still object the server put where the cache has a
+        // tree, rock or stall (its stump, its used-up form, itself grown back) is drawn with the
+        // doors, as that object is. Where it took another cache loc's place it is in the loc group.
+        const slot = locSlotKey(level, tileX, tileY, type);
+        const locType = (id | 0) >= 0 ? this.locTypeLoader.load(id) : undefined;
+        const record = placedLocsOf(scene);
+        const changing =
+            locType !== undefined &&
+            seqOverride === undefined &&
+            isStillLocType(locType, type) &&
+            !record.baseChangedSlots.has(slot) &&
+            (record.changingSlots.has(slot) || isChangingLocType(locType, type));
         this.addLoc(
             scene,
             level,
@@ -807,7 +836,34 @@ export class SceneBuilder {
             seqOverride,
             seqRandomStartOverride,
             SceneBuilder.mapLevel(scene, tileX, tileY, level),
+            changing,
         );
+    }
+
+    /**
+     * Ours (upstream issue #6240): records what a cache loc's slot holds, and returns whether the
+     * loc is drawn with the doors: the cache's object there changes in play, and what it shows
+     * now is one still model. `level` is the server's plane.
+     */
+    private noteCacheLoc(
+        scene: Scene,
+        level: number,
+        tileX: number,
+        tileY: number,
+        id: number,
+        type: LocModelType,
+        override: { seqId?: number; moveToX?: number; moveToY?: number } | undefined,
+        finalId: number,
+    ): boolean {
+        const slot = locSlotKey(level, tileX, tileY, type);
+        if (!isChangingLocType(this.locTypeLoader.load(id), type)) {
+            if (override && (finalId | 0) !== (id | 0)) placedLocsOf(scene).baseChangedSlots.add(slot);
+            return false;
+        }
+        placedLocsOf(scene).changingSlots.add(slot);
+        if ((finalId | 0) < 0 || override?.seqId !== undefined) return false;
+        if (override?.moveToX !== undefined || override?.moveToY !== undefined) return false;
+        return (finalId | 0) === (id | 0) || isStillLocType(this.locTypeLoader.load(finalId), type);
     }
 
     addLoc(
@@ -823,10 +879,16 @@ export class SceneBuilder {
         seqOverride?: number,
         seqRandomStartOverride?: boolean,
         heightLevel: number = level,
+        changing: boolean = false,
     ): void {
         if ((id | 0) < 0) {
             return;
         }
+
+        // Ours (upstream issue #6240): see ChangingLocs.ts.
+        const record = placedLocsOf(scene);
+        if (changing) record.changing.add(placedLocKey(id, heightLevel, tileX, tileY));
+        record.placed.push(id, heightLevel, tileX, tileY, type, rotation, seqOverride ?? -2, changing ? 1 : 0);
 
         const locType = this.locTypeLoader.load(id);
 
@@ -914,6 +976,8 @@ export class SceneBuilder {
             seqId !== -1 ||
             preparedLocSequence(id, type) !== undefined ||
             locType.transforms !== undefined ||
+            // Drawn with the doors, so built by itself in every kind of build.
+            changing ||
             locLoadType === LocLoadType.NO_MODELS;
 
         if (type === LocModelType.FLOOR_DECORATION) {
@@ -979,8 +1043,13 @@ export class SceneBuilder {
                 );
                 if (added && locType.clipped) {
                     let lightOcclusion = 15;
-                    if (entity instanceof Model) {
-                        lightOcclusion = (entity.getXZRadius() / 4) | 0;
+                    // Ours (upstream issue #6240): a tree drawn with the doors keeps the shade
+                    // its own width casts on the ground (only a whole build draws the ground).
+                    const shading = entity instanceof Model || !changing || locLoadType !== LocLoadType.MODELS
+                        ? entity
+                        : this.locModelLoader.getModel(locType, LocModelType.NORMAL, locRotation, contourGroundInfo);
+                    if (shading instanceof Model) {
+                        lightOcclusion = (shading.getXZRadius() / 4) | 0;
                         if (lightOcclusion > 30) {
                             lightOcclusion = 30;
                         }
@@ -2243,6 +2312,7 @@ export class SceneBuilder {
                         const finalRotation = (orientation + rotation) & 3;
                         const override = this.getLocOverride(sceneX, sceneY, targetPlane, id, type, finalRotation);
                         const finalId = resolveLocOverrideId(override, id);
+                        const changing = this.noteCacheLoc(scene, targetPlane, sceneX, sceneY, id, type, override, finalId);
                         if (finalId < 0) continue;
                         const moved = Number.isFinite(override?.moveToX) && Number.isFinite(override?.moveToY);
                         const targetX = moved ? override!.moveToX! | 0 : sceneX;
@@ -2269,6 +2339,8 @@ export class SceneBuilder {
                             locLoadType,
                             override?.seqId,
                             override?.seqRandomStart,
+                            undefined,
+                            changing,
                         );
                     }
                 }

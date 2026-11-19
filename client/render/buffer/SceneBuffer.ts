@@ -38,6 +38,8 @@ export type ModelInfo = {
     priority: number;
     interactType: InteractType;
     interactId: number;
+    /** Ours (upstream issue #6240): a loc's place in the scene walk (SceneLocs.getSceneLocs). */
+    order?: number;
 };
 
 export type DrawCommand = {
