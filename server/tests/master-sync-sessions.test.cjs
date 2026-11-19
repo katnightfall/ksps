@@ -377,3 +377,48 @@ test("a world that is stopping hands in its last saves even when one save would 
   assert.match(source, /persistence\.flush = flushThenHandIn\(persistence\.flush\.bind\(persistence\), \(\) => sync\.shutdown\(\), \(\) => core\.Server\?\.isShuttingDown\?\.\(\) === true\);/);
   assert.equal(typeof require("../dist/Server").Server.isShuttingDown, "function");
 });
+
+test("a write of the world's notes cut short leaves the notes as they were", async (t) => {
+  const hub = await master(t);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "master-sync-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const stateFile = path.join(dir, "master-sync.json");
+  const rows = new Map();
+  const persistence = { saveKey: (name) => String(name).toLowerCase(), currentJson: (key) => rows.get(key), enqueue: (key, writes) => rows.set(key, writes.find((write) => write.kind === "row").json) };
+  let down = false;
+  const call = async (method, target, body) => {
+    if (down) throw new Error("unreachable");
+    const text = body === undefined ? "" : JSON.stringify(body);
+    const response = await fetch(`${hub.url}${target}`, { method, body: method === "POST" ? text : undefined, headers: { "x-master-sync": signRequest(KEY, method, target, text, hub.clock.now) } });
+    return { status: response.status, answer: await response.json().catch(() => ({})) };
+  };
+  const start = () => createMasterSync({ persistence, call, world: "1 - Dallas", stateFile, localKeys: () => [...rows.keys()], now: () => hub.clock.now });
+  const saves = async (sync, key, save) => { rows.set(key, JSON.stringify(save)); await sync.rowWritten(key); };
+  const dallas = start();
+  await dallas.prepare({ names: ["Kat"], refuse: null });
+  await dallas.entered("Kat");
+  await saves(dallas, "kat", { skills: { experience: [500] }, at: "handed in" });
+  await dallas.tick();
+  // The master goes out of reach; Kat's next save is noted as still to hand in.
+  down = true;
+  await saves(dallas, "kat", { skills: { experience: [900] }, at: "not handed in yet" });
+  assert.deepEqual(JSON.parse(fs.readFileSync(stateFile, "utf8")).dirty, ["kat"]);
+  // The disk fills up: the next write of the notes gets a few bytes out and fails. Then the world is ended.
+  const writeFileSync = fs.writeFileSync;
+  t.mock.method(fs, "writeFileSync", (file, data, ...rest) => {
+    writeFileSync(file, String(data).slice(0, 12), ...rest);
+    throw Object.assign(new Error("ENOSPC: no space left on device"), { code: "ENOSPC" });
+  });
+  await saves(dallas, "kat", { skills: { experience: [950] }, at: "not handed in yet either" });
+  t.mock.restoreAll();
+  const kept = JSON.parse(fs.readFileSync(stateFile, "utf8"));
+  assert.deepEqual(kept.dirty, ["kat"], "the notes are whole, as last written");
+  assert.ok(kept.versions.kat > 0);
+  // The world starts again, the master in reach: what it owed is handed in as what it is, a later save of the same character.
+  down = false;
+  const again = start();
+  assert.deepEqual(again.state().dirty, ["kat"]);
+  await again.started();
+  assert.deepEqual(again.state().dirty, []);
+  assert.deepEqual(hub.saved("kat"), { skills: { experience: [950] }, at: "not handed in yet either" });
+});

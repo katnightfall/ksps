@@ -152,7 +152,13 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
     if (!stateFile) return;
     try {
       fs.mkdirSync(path.dirname(stateFile), { recursive: true });
-      fs.writeFileSync(stateFile, JSON.stringify({ reset, cursor, dirty: [...dirty.keys()], versions: Object.fromEntries(versions) }));
+      // Written beside it and moved over it: a write cut short (a full disk, the process ended)
+      // left half a file, which the next start read as "this world has shared nothing yet". The
+      // saves still to hand in were forgotten, and every character it held was handed in again
+      // as if new, the more played copy winning over what other worlds had saved since.
+      const temporary = `${stateFile}.tmp`;
+      fs.writeFileSync(temporary, JSON.stringify({ reset, cursor, dirty: [...dirty.keys()], versions: Object.fromEntries(versions) }));
+      fs.renameSync(temporary, stateFile);
     } catch (error) {
       log("state_write_failed", { error: String(error?.message ?? error) });
     }
