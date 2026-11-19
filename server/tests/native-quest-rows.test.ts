@@ -10,10 +10,12 @@ const rfd = { key: "rfd", name: "Recipe for Disaster" };
 // Matching cache 242 / OpenRS2 2757: quest IDs 1..219, then generated headers.
 // https://github.com/Joshua-F/osrs-dumps/tree/853150e3f75e1463391b470f98caf5d3bf796339
 // config/dump.dbrow + dump.dbtable; script/[proc,questlist_draw].cs2.
-const LAST_QUEST_ROW = 219;
-const FIRST_HEADER_ROW = 220;
-const RELEASED_MAIN_QUESTS = 187;
-const RELEASED_QUEST_POINTS = 346;
+// Ours: our cache, osrs-242_2026-11-11, adds rows 220 (A Shell of a Friend, 2 quest points) and
+// 221 (The Birds and the Wasps, 1 quest point); the headers start at 222.
+const LAST_QUEST_ROW = 221;
+const FIRST_HEADER_ROW = 222;
+const RELEASED_MAIN_QUESTS = 189;
+const RELEASED_QUEST_POINTS = 349;
 
 test("canonical cache identities select quests independently of registration or visual order", () => {
     for (const quests of [[pirate, elemental], [elemental, pirate]]) {
@@ -38,7 +40,7 @@ test("RFD subrows resolve to the combined quest unless registered separately", (
 
 test("native row ops use canonical journals, metadata map/wiki actions and the live event mask", () => {
     assert.equal(questRowById(218, cache).displayname[0], "Mudfoot's Big Adventure", "the former header slot is now a quest");
-    assert.equal(questRowById(LAST_QUEST_ROW, cache).displayname[0], "The Writing's on the Wall");
+    assert.equal(questRowById(LAST_QUEST_ROW, cache).displayname[0], "The Birds and the Wasps");
     assert.equal(questRowById(FIRST_HEADER_ROW, cache), undefined, "header control is outside the native quest IDs");
     const buttons = new Map<number, Function>();
     const Q = require("../plugins/quests/QuestRuntime");
