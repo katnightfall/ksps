@@ -40,6 +40,8 @@ const onNewYork = { serverAddress: "rs.example/w/new-york", serverSecure: true, 
         ["Frankfurt, DE", "", GERMANY], ["Sydney", "", AUSTRALIA], ["Toronto 1", "", CANADA], ["nl-ams", "", NETHERLANDS], ["Stockholm", "", SWEDEN], ["Helsinki, FI", "", FINLAND],
         [undefined, "Kat-Net New York", UNITED_STATES], ["node 3", "Kat-Net London", UNITED_KINGDOM],
         ["node 3", "Bring us de gold", UNKNOWN], [undefined, "Kat-Net", UNKNOWN], ["", "", UNKNOWN],
+        // Our live worlds: a stated location no table knows, and the country in capitals in the name.
+        ["SD", "4 - Kat-Net - US SD", UNITED_STATES], ["United Kindom", "5 - Kat-Net - UK", UNITED_KINGDOM],
     ] as [string | undefined, string, number][]) {
         assert.equal(worldLocation(location, name), expected, `${location} / ${name}`);
     }

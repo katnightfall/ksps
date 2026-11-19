@@ -60,13 +60,28 @@ const LOCATION_CODES: [RegExp, number][] = [
 const words = (text: string | undefined): string => String(text ?? "").toLowerCase().replace(/[^a-z]+/g, " ").trim();
 const locationIn = (text: string, table: [RegExp, number][]): number | undefined => table.find(([pattern]) => pattern.test(text))?.[1];
 
+// Ours: a country code written in capitals in a world's name ("Kat-Net - US SD", "Kat-Net - UK") is
+// the country: our worlds are named so, and their stated locations ("SD", a misspelt "United
+// Kindom") name no country the tables know. Capitals only: "us" in a name is still a word.
+const NAME_CODES: [RegExp, number][] = [
+    [/\b(UK|GB)\b/, WorldLocation.UNITED_KINGDOM],
+    [/\bDE\b/, WorldLocation.GERMANY],
+    [/\bAU\b/, WorldLocation.AUSTRALIA],
+    [/\bCA\b/, WorldLocation.CANADA],
+    [/\bNL\b/, WorldLocation.NETHERLANDS],
+    [/\bSE\b/, WorldLocation.SWEDEN],
+    [/\bFI\b/, WorldLocation.FINLAND],
+    [/\b(US|USA)\b/, WorldLocation.UNITED_STATES],
+];
+
 /**
  * The OSRS location of a world from its stated location ("Dallas, US", "London 2", "United
  * Kingdom", "uk") or, failing that, from a place in its name ("Kat-Net New York").
  */
 export function worldLocation(location: string | undefined, name?: string): number {
     const stated = words(location);
-    return locationIn(stated, LOCATION_NAMES) ?? locationIn(stated, LOCATION_CODES) ?? locationIn(words(name), LOCATION_NAMES) ?? WorldLocation.UNKNOWN;
+    return locationIn(stated, LOCATION_NAMES) ?? locationIn(stated, LOCATION_CODES) ?? locationIn(words(name), LOCATION_NAMES)
+        ?? locationIn(String(name ?? ""), NAME_CODES) ?? WorldLocation.UNKNOWN;
 }
 
 /** Where the client is connected, as LoginState keeps it. */
