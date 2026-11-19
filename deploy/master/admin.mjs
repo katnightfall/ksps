@@ -22,7 +22,7 @@ import fs from "node:fs";
 
 import { cleanWorld } from "../worlds.mjs";
 import { PanelError } from "./panel.mjs";
-import { slug } from "./registry.mjs";
+import { RegistryUnreadable, slug } from "./registry.mjs";
 
 const COOKIE = "tsps_admin";
 const SESSION_MS = 7 * 86_400_000;
@@ -201,7 +201,8 @@ export function createAdmin(options) {
             // The characters every world shares (deploy/master/characters.mjs): how many, and how many are in a world.
             characters: options.characters?.() ?? null,
             defaultId: options.masterOnly === true ? (listedIds.includes(picked) ? picked : listedIds[0] ?? "") : "",
-            storage,
+            // Shown across the page: the folder cannot be written, or the list in it cannot be read.
+            storage: storage ?? registry.problem?.() ?? null,
             defaults: DEFAULTS,
             panel: panelInfo,
             worlds: worlds.map((world, index) => {
@@ -375,7 +376,8 @@ export function createAdmin(options) {
             if (method !== "GET" && method !== "HEAD") {
                 if (request.headers["x-tsps-admin"] !== "1") throw new Refusal(403, "That request did not come from the admin page.");
                 const origin = request.headers.origin;
-                if (origin && new URL(origin).host !== request.headers.host) throw new Refusal(403, "That request came from another site.");
+                // An origin that is no address ("null", from a sandboxed frame) is another site too.
+                if (origin && (!URL.canParse(origin) || new URL(origin).host !== request.headers.host)) throw new Refusal(403, "That request came from another site.");
             }
 
             if (action === "login" && method === "POST") {
@@ -415,6 +417,7 @@ export function createAdmin(options) {
         } catch (error) {
             if (error instanceof Refusal) return send(response, error.status, { error: error.message });
             if (error instanceof PanelError) return send(response, 502, { error: `The panel said: ${error.message}` });
+            if (error instanceof RegistryUnreadable) return send(response, 503, { error: error.message });
             console.error("[master] admin request failed", error);
             return send(response, 500, { error: "Something went wrong here. The server's log has the details." });
         }

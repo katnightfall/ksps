@@ -82,8 +82,10 @@ test("the master's id is its settings' part and its admin page's part; either ch
   assert.equal(combinedResetId("a b;rm -rf", ""), "abrm-rf|", "only plain characters");
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "reset-master-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  assert.equal(masterResetId(root), "");
+  assert.equal(masterResetId(root), null, "no settings file to read: not known (below), which is never a reset");
   fs.mkdirSync(path.join(root, "deploy"));
+  fs.writeFileSync(path.join(root, "deploy", "settings.env"), "DEV_USERNAME=kat\n");
+  assert.equal(masterResetId(root), "", "nothing called");
   fs.writeFileSync(path.join(root, "deploy", "settings.env"), "DEV_USERNAME=kat\nACCOUNTS_RESET_ID=2026-11-17\n");
   assert.equal(masterResetId(root), "2026-11-17|");
   fs.mkdirSync(path.join(root, "server", "data", "saves", "master"), { recursive: true });
@@ -109,4 +111,60 @@ test("a world the master made applies the first reset it hears of; one joined by
   assert.equal(bornUnderMaster(worlds, "Somebody else"), false, "not on the list at all");
   for (const name of ["", undefined, null]) assert.equal(bornUnderMaster(worlds, name), false);
   assert.equal(bornUnderMaster(null, "1"), false);
+});
+
+test("an id that cannot be read is not known, and what is not known resets nothing", async (t) => {
+  const { applyReset, masterResetId } = await reset;
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "reset-master-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const settings = path.join(root, "deploy", "settings.env");
+  const worlds = path.join(root, "server", "data", "saves", "master", "master-worlds.json");
+  fs.mkdirSync(path.dirname(settings), { recursive: true });
+  fs.mkdirSync(path.dirname(worlds), { recursive: true });
+  fs.writeFileSync(settings, "ACCOUNTS_RESET_ID=2026-11-17\n");
+  fs.writeFileSync(worlds, JSON.stringify({ accountsReset: "2026-12-01T10:00:00Z", worlds: [] }));
+  const whole = "2026-11-17|2026-12-01T10:00:00Z";
+  assert.equal(masterResetId(root), whole);
+
+  // A deploy putting a new settings file in place: for a moment it is not there, or is empty.
+  // Half the id ("|2026-12-01T10:00:00Z") is another id, and so a reset of everything.
+  fs.rmSync(settings);
+  assert.equal(masterResetId(root), null);
+  fs.writeFileSync(settings, "");
+  assert.equal(masterResetId(root), null);
+  fs.writeFileSync(settings, "ACCOUNTS_RESET_ID=2026-11-17\n");
+  assert.equal(masterResetId(root), whole);
+  // The admin page's file, there and not readable (cut short, or a slip in a hand edit).
+  for (const broken of ["", '{ "accountsReset": "2026-12-01T10:00:00Z", "worlds": [', "null"]) {
+    fs.writeFileSync(worlds, broken);
+    assert.equal(masterResetId(root), null, JSON.stringify(broken));
+  }
+  // Never there at all: the admin page has called no reset.
+  fs.rmSync(worlds);
+  assert.equal(masterResetId(root), "2026-11-17|");
+
+  // And what is not known moves nothing (the master's own saves, deploy/run.sh).
+  const dir = saves(t);
+  fs.writeFileSync(path.join(dir, ".accounts-reset"), `${whole}\n`);
+  const before = list(dir);
+  assert.deepEqual(applyReset(dir, null), { result: "none", moved: [], backup: null });
+  assert.deepEqual(list(dir), before);
+});
+
+test("a marker cut short is no marker: a world joined by hand notes the reset again and keeps its saves", async (t) => {
+  const { applyReset } = await reset;
+  const dir = saves(t);
+  // As a full disk leaves it: the file made, nothing in it.
+  fs.writeFileSync(path.join(dir, ".accounts-reset"), "");
+  const before = list(dir);
+  assert.equal(applyReset(dir, "2026-11-17", { adopt: true }).result, "adopted");
+  assert.deepEqual(list(dir), before, "nothing was moved, and nothing is left beside the marker");
+  assert.equal(fs.readFileSync(path.join(dir, ".accounts-reset"), "utf8"), "2026-11-17\n");
+  assert.equal(fs.readFileSync(path.join(dir, "players.sqlite"), "utf8"), "accounts");
+  assert.equal(applyReset(dir, "2026-11-17", { adopt: true }).result, "current");
+  // A real reset still is one, and writes its marker whole.
+  const done = applyReset(dir, "2026-12-01", { adopt: true });
+  assert.equal(done.result, "reset");
+  assert.equal(fs.readFileSync(path.join(dir, ".accounts-reset"), "utf8"), "2026-12-01\n");
+  assert.equal(fs.existsSync(path.join(dir, ".accounts-reset.tmp")), false);
 });

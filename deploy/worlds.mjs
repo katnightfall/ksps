@@ -35,6 +35,10 @@ export function cleanWorld(entry) {
     const address = text(entry.address, 255).toLowerCase();
     // A host, with a port if it has one: nothing that could carry a path or a login.
     if (!/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:\d{1,5})?$/.test(address)) return null;
+    // A port there is: connecting to one that is not (70000) throws where it is asked for, which
+    // stopped the front door, and every player's connection with it, at the first visitor.
+    const port = address.includes(":") ? Number(address.split(":")[1]) : 1;
+    if (port < 1 || port > 65535) return null;
     const name = text(entry.name, 40);
     if (!name) return null;
     const id = text(entry.id, 40).toLowerCase().replace(/[^a-z0-9-]+/g, "-") || address.replace(/[^a-z0-9]+/g, "-");

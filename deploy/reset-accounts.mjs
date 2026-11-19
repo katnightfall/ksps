@@ -38,15 +38,29 @@ export function combinedResetId(fromSettings, fromAdmin) {
     return parts.some(Boolean) ? parts.join("|") : "";
 }
 
-/** The master's reset id, read from its own files (`root`: the project's folder). */
+/**
+ * The master's reset id, read from its own files (`root`: the project's folder). null when it
+ * cannot be known just now: deploy/settings.env is missing or empty (a deploy is putting a new
+ * one in place), or the admin page's file is there and cannot be read. An id made from half of
+ * what the master has is a different id, and a different id is a reset: of every world that
+ * starts just then, and of the master's own copy of every character. So what cannot be read is
+ * "not known", and nobody resets on that.
+ */
 export function masterResetId(root = ROOT) {
     let fromSettings = "", fromAdmin = "";
     try {
-        fromSettings = /^ACCOUNTS_RESET_ID=(.*)$/m.exec(fs.readFileSync(path.join(root, "deploy", "settings.env"), "utf8"))?.[1]?.trim() ?? "";
-    } catch {}
+        const settings = fs.readFileSync(path.join(root, "deploy", "settings.env"), "utf8");
+        if (!settings.trim()) return null;
+        fromSettings = /^ACCOUNTS_RESET_ID=(.*)$/m.exec(settings)?.[1]?.trim() ?? "";
+    } catch {
+        return null;
+    }
     try {
         fromAdmin = JSON.parse(fs.readFileSync(path.join(root, "server", "data", "saves", "master", "master-worlds.json"), "utf8")).accountsReset ?? "";
-    } catch {}
+    } catch (error) {
+        // No file: the admin page has never saved anything, so it has called no reset.
+        if (error?.code !== "ENOENT") return null;
+    }
     return combinedResetId(fromSettings, fromAdmin);
 }
 
@@ -62,14 +76,21 @@ export function applyReset(savesDir, id, { adopt = false, now = new Date() } = {
     if (!id || typeof id !== "string") return { result: "none", moved: [], backup: null };
     const marker = path.join(savesDir, MARKER);
     let applied = null;
-    try { applied = fs.readFileSync(marker, "utf8").trim(); } catch {}
+    // An empty marker is one whose writing was cut short (a full disk, a stop): no marker. Read as
+    // "another reset was applied here", it had a world joined by hand set its saves aside.
+    try { applied = fs.readFileSync(marker, "utf8").trim() || null; } catch {}
     if (applied === id) return { result: "current", moved: [], backup: null };
     fs.mkdirSync(savesDir, { recursive: true });
+    // Written whole beside it, then put in its place: never a marker with half an id in it.
+    const note = () => {
+        fs.writeFileSync(`${marker}.tmp`, `${id}\n`);
+        fs.renameSync(`${marker}.tmp`, marker);
+    };
     if (applied === null && adopt) {
-        fs.writeFileSync(marker, `${id}\n`);
+        note();
         return { result: "adopted", moved: [], backup: null };
     }
-    const entries = fs.readdirSync(savesDir).filter((name) => !KEPT.test(name));
+    const entries = fs.readdirSync(savesDir).filter((name) => !KEPT.test(name) && name !== `${MARKER}.tmp`);
     let backup = null;
     if (entries.length > 0) {
         const stamp = now.toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
@@ -79,7 +100,7 @@ export function applyReset(savesDir, id, { adopt = false, now = new Date() } = {
         for (const name of entries) fs.renameSync(path.join(savesDir, name), path.join(backup, name));
     }
     // Written last: a reset cut short is done again at the next start, on what is left.
-    fs.writeFileSync(marker, `${id}\n`);
+    note();
     return { result: "reset", moved: entries, backup };
 }
 
@@ -114,6 +135,7 @@ async function main(argv) {
         adopt = !bornUnderMaster(answer.worlds, argv[argv.indexOf("--world") + 1]);
     } else {
         id = masterResetId(ROOT);
+        if (id === null) console.log("[reset] The master's reset id cannot be read just now (deploy/settings.env or the admin page's list): nothing is reset on this start.");
     }
     const done = applyReset(saves, id, { adopt });
     if (done.result === "reset") console.log(`[reset] A fresh start (${id}): ${done.moved.length ? `${done.moved.length} saves moved to ${done.backup}` : "there was nothing to set aside"}.`);

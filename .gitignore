@@ -118,3 +118,8 @@ server/data/definitions/bot-activities.local.json.tmp
 # Ours: what the bots have up on the Grand Exchange, and a world's syncing state with its master.
 /server/data/saves/bot-exchange.json
 /server/data/saves/master-sync.json
+/server/data/saves/master-sync.json.tmp
+# Ours: the master's own folder (deploy/master/server.mjs): the key that signs the admin page's
+# sign-ins, the key its worlds share, its list of worlds and its copy of every character. Made
+# wherever a master is tried out, this PC included, and the project is public.
+/server/data/saves/master/

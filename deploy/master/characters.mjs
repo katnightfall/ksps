@@ -101,12 +101,16 @@ export function createCharacterStore(file, resetId = () => "") {
 
     /** The database for the master's reset id as it is now: a new id sets the old characters aside. */
     function current(now) {
-        const id = String(resetId() ?? "");
-        if (db && opened === id) return db;
+        // null: the master's id is not known just now (its files could not be read:
+        // deploy/reset-accounts.mjs masterResetId). The reset the store is on then stands. Taken
+        // for a new id, it set every character aside and began an empty store.
+        const stated = resetId() ?? null;
+        if (db && opened !== null && (stated === null || opened === String(stated))) return db;
         if (!db) db = open();
         const kept = meta("reset");
+        const id = stated === null ? kept ?? "" : String(stated);
         if (kept === undefined) {
-            setMeta("reset", id);
+            if (stated !== null) setMeta("reset", id);
         } else if (kept !== id) {
             db.close();
             const stamp = new Date(now).toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
@@ -121,7 +125,8 @@ export function createCharacterStore(file, resetId = () => "") {
             // it has had time to say so again.
             db.prepare("UPDATE characters SET held_at = ? WHERE held_by IS NOT NULL").run(now);
         }
-        opened = id;
+        // A new store, with the id not known yet, is on no reset until it is.
+        opened = stated === null && kept === undefined ? null : id;
         return db;
     }
 

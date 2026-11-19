@@ -138,7 +138,11 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
     if (!stateFile) return;
     try {
       fs.mkdirSync(path.dirname(stateFile), { recursive: true });
-      fs.writeFileSync(stateFile, JSON.stringify({ reset, cursor, dirty: [...dirty.keys()], versions: Object.fromEntries(versions) }));
+      // Written whole beside it, then put in its place. Written straight over the file, a stop or
+      // a full disk in the middle left half a file, which the next start reads as nothing: the
+      // saves still to hand in were forgotten, and the master's older copy then replaced them here.
+      fs.writeFileSync(`${stateFile}.tmp`, JSON.stringify({ reset, cursor, dirty: [...dirty.keys()], versions: Object.fromEntries(versions) }));
+      fs.renameSync(`${stateFile}.tmp`, stateFile);
     } catch (error) {
       log("state_write_failed", { error: String(error?.message ?? error) });
     }

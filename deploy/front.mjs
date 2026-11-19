@@ -322,6 +322,9 @@ async function startMaster() {
     run();
 }
 
+/** Whether the website we started has ever answered: one that has is started again when it stops; one that never did has failed to start. */
+let websiteAnswered = false;
+
 /** `staticPort`: the website's private port, or 0 on a headless world (no website of its own). */
 function listen(staticPort) {
     const refuse = (response, status, message) => {
@@ -342,6 +345,7 @@ function listen(staticPort) {
         // The admin page sets its cookie Secure on an https visit; only this proxy may say so.
         if (admin) headers["x-forwarded-proto"] = secureVisitor(request) ? "https" : "http";
         const upstream = http.request({ host: LOCAL, port, method: request.method, path: url, headers }, (answer) => {
+            if (port === staticPort) websiteAnswered = true;
             response.writeHead(answer.statusCode ?? 502, answer.headers);
             answer.pipe(response);
         });
@@ -505,13 +509,25 @@ if (process.env.FRONT_STATIC_PORT) {
 } else {
     const staticPort = await freePort();
     const client = path.join(ROOT, "client");
-    const website = spawn(process.execPath, ["scripts/serve-build.mjs"], {
-        cwd: client,
-        env: { ...process.env, PORT: String(staticPort), HOST: LOCAL },
-        stdio: "inherit",
-    });
-    // One service: if the website stops, so does this, and systemd starts both again.
-    website.on("exit", (code) => process.exit(code ?? 1));
-    for (const signal of ["SIGTERM", "SIGINT"]) process.on(signal, () => { website.kill(); process.exit(0); });
+    // The website is started again by itself when it stops, as the admin page is. This process
+    // used to stop with it, and every game connection carried here, to every world, went too:
+    // for a fault in serving a static file. A website that stops before it has answered anything
+    // has not started (nothing built, a fault in its own file): then this stops too, as before,
+    // so that systemd starts both again and the updater sees a port that does not stay open.
+    let website = null;
+    const startWebsite = () => {
+        website = spawn(process.execPath, ["scripts/serve-build.mjs"], {
+            cwd: client,
+            env: { ...process.env, PORT: String(staticPort), HOST: LOCAL },
+            stdio: "inherit",
+        });
+        website.on("exit", (code) => {
+            if (!websiteAnswered) process.exit(code ?? 1);
+            console.log(`[front] the website stopped (exit ${code}); starting it again`);
+            setTimeout(startWebsite, 3_000).unref();
+        });
+    };
+    startWebsite();
+    for (const signal of ["SIGTERM", "SIGINT"]) process.on(signal, () => { website.removeAllListeners("exit"); website.kill(); process.exit(0); });
     listen(staticPort);
 }
