@@ -420,38 +420,37 @@ test("Dig Site: the examiner replaces a lost trowel, during the exams and after 
   assert.equal(stageOf(after, DIG), 4);
 });
 
+// The Dig Site's second half is built now (tests/dig-site-second-half.test.cjs): Terry no longer hands over a
+// compound, then a talisman, then the end, one conversation each. These two keep their points on the real steps.
 test("Dig Site: finishing with Terry Balando leaves one ancient talisman, not two", async (t) => {
   const f = actor(t, DIG, 8);
+  f.p.setAttribute("quest.the_dig_site.discovery", 16); // stage 8 set by the discovery: the wall is blown
   put(f, I.ANCIENT_TALISMAN, 0);
+  put(f, I.STONE_TABLET, 1);
   await talk(t, f, N.TERRY_BALANDO);
   assert.equal(quest(DIG).isComplete(f.p), true);
+  assert.equal(f.inv.getAmount(I.STONE_TABLET), 0, "he keeps the tablet");
   assert.equal(f.inv.getAmount(I.ANCIENT_TALISMAN), 1);
   assert.equal(f.inv.getAmount(I.GOLD_BAR), 2);
 });
 
-test("Dig Site: Terry doesn't need the certificates, and needs room for the compound", async (t) => {
+test("Dig Site: Terry doesn't need the certificates, and a full bag loses nothing to the talisman's hand-over", async (t) => {
   const certificates = () => [I.LEVEL_1_CERTIFICATE, I.LEVEL_2_CERTIFICATE, I.LEVEL_3_CERTIFICATE];
 
-  const lost = actor(t, DIG, 4);
-  await talk(t, lost, N.TERRY_BALANDO);
-  assert.equal(lost.inv.getAmount(I.CHEMICAL_COMPOUND), 1, "no certificates: he still hands it over");
-  assert.equal(stageOf(lost, DIG), 7, "and the stage moves");
+  const none = actor(t, DIG, 4);
+  await talk(t, none, N.TERRY_BALANDO);
+  assert.equal(none.inv.getFreeSlots(), 28, "nothing is handed over before there is a find");
+  assert.equal(stageOf(none, DIG), 4);
 
-  const swap = actor(t, DIG, 4);
-  certificates().forEach((id, slot) => put(swap, id, slot));
-  fill(swap);
-  await talk(t, swap, N.TERRY_BALANDO);
-  assert.equal(swap.inv.getAmount(I.CHEMICAL_COMPOUND), 1, "control: a full bag holding certificates has room once they go");
-  assert.equal(swap.inv.getAmount(I.LEVEL_1_CERTIFICATE), 0, "control: they go, as before");
-
-  const full = actor(t, DIG, 4);
-  fill(full);
-  await talk(t, full, N.TERRY_BALANDO);
-  assert.equal(stageOf(full, DIG), 4, "a full bag with none to free waits");
-  assert.ok(anyRoomMessage(full), JSON.stringify(full.messages));
-  freeSlot(full);
-  await talk(t, full, N.TERRY_BALANDO);
-  assert.equal(full.inv.getAmount(I.CHEMICAL_COMPOUND), 1, "with room he hands it over");
+  const kept = actor(t, DIG, 4);
+  certificates().forEach((id, slot) => put(kept, id, slot));
+  put(kept, I.ANCIENT_TALISMAN, 3);
+  fill(kept);
+  await talk(t, kept, N.TERRY_BALANDO);
+  assert.equal(kept.inv.getAmount(I.ANCIENT_TALISMAN), 0, "he keeps the talisman");
+  assert.equal(kept.inv.getAmount(I.INVITATION_LETTER), 1, "and the letter takes its place in a full bag");
+  assert.ok(certificates().every((id) => kept.inv.getAmount(id) === 1), "the certificates stay the player's");
+  assert.equal(stageOf(kept, DIG), 5);
 });
 
 // ------------------------------------------------------------------ Icthlarin's Little Helper
