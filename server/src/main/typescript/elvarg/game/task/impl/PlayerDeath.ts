@@ -346,11 +346,6 @@ export class PlayerDeathTask extends Task {
         return (player.getSkullTimer() > 0 ? 0 : 3) + (protectItem ? 1 : 0);
     }
 
-    /**
-     * Killed by a player in the Wilderness, an unkept item with tradeable components (an upgraded
-     * Nightmare staff: the staff and its orb, `deathComponents` in item-gameplay.json) drops as
-     * those components for the killer, and the item itself is gone (Wiki).
-     */
     /** The item id in each inventory and equipment slot, -1 where empty. */
     private static slotLayout(player: Player): { inventory: number[]; equipment: number[] } {
         const ids = (items: Item[]) => items.map((item) => (item && item.getId() > 0 && item.getAmount() > 0 ? item.getId() : -1));
@@ -367,13 +362,40 @@ export class PlayerDeathTask extends Task {
             && player.getAttribute(MORTAL_DEVELOPER_ATTRIBUTE) !== true;
     }
 
+    /**
+     * A death to another player on dangerous PvP ground (Wiki: Items Kept on Death, "PvP death"): the
+     * Wilderness and every other `pvp` zone of world.json, or ground that content says counts the same
+     * (`player-death:pvp-ground` { player, killer, pvp }).
+     */
+    // Ours (upstream issue #6002): Bounty Hunter's arena is PvP ground that no `pvp` zone covers, so the
+    // rules below never ran there and an upgraded Nightmare staff, a fire cape or a Slayer helmet came
+    // back whole from a death to a player in Daimon's Crater.
+    public static isPvpDeath(player: Player, killer: Player | null | undefined): boolean {
+        if (!killer || killer === player) return false;
+        if (Wilderness.isIn(player)) return true;
+        const query = { player, killer, pvp: false };
+        PluginManager.emitCustomEvent("player-death:pvp-ground", query);
+        return query.pvp === true;
+    }
+
+    /**
+     * On a PvP death, an unkept item made of other items drops as those items, and the item itself
+     * is gone (Wiki: Items Kept on Death). An upgraded Nightmare staff becomes the staff and its orb
+     * (`deathComponents` in item-gameplay.json). Content answers for the rest through
+     * `player-death:pvp-item-parts` { player, killer, item, parts }: `parts` lists what the item
+     * becomes (an ornamented item: the plain item and its kit), and each part then meets the death
+     * as an item of its own: dropped for the killer if it trades, kept or broken if it does not.
+     */
     private static splitIntoComponents(player: Player, killer: Player | null | undefined, kept: Item[], items: Item[]): Item[] {
-        if (!killer || killer === player || !Wilderness.isIn(player)) return items;
+        if (!PlayerDeathTask.isPvpDeath(player, killer)) return items;
         if (PlayerDeathTask.keepsEverything(player)) return items;
         return items.flatMap((item) => {
+            if (kept.includes(item) || item.isLostOnDeath()) return [item];
             const components = item.getDefinition().getDeathComponents();
-            if (components.length === 0 || kept.includes(item) || item.isLostOnDeath()) return [item];
-            return components.map((id) => new Item(id, item.getAmount()));
+            if (components.length > 0) return components.map((id) => new Item(id, item.getAmount()));
+            const query = { player, killer, item, parts: null as Item[] | null };
+            PluginManager.emitCustomEvent("player-death:pvp-item-parts", query);
+            return Array.isArray(query.parts) && query.parts.length > 0 ? query.parts : [item];
         });
     }
 
