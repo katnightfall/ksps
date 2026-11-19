@@ -16,6 +16,14 @@ const Common = require("./hardcoreworld/Common.HardcoreWorld");
 
 module.exports = {
   name: "HardcoreWorld",
+  description: "Hardcore Worlds: every login is the account's Hardcore character, with one life; a death that counts is announced to the world and the character resets or transfers out.",
+  // Ours: the option was read but never declared, so the world settings page could not show or set it.
+  config: {
+    "HardcoreWorld:enabled": {
+      type: "boolean", label: "Hardcore World", default: false,
+      help: "Makes this world a Hardcore World: every login is the account's Hardcore character (a save of its own) with one life. Off leaves the world as it is.",
+    },
+  },
   register(api) {
     if (!Common.init(api)) return;
     require("./hardcoreworld/Account.HardcoreWorld")(api);
