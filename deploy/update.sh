@@ -73,6 +73,15 @@ run_logged() {   # log name, what it is, command...
   fi
 }
 
+remove_listed() {   # folder, list of files in it: the files, then the folders that emptied
+  local p
+  if [ ! -s "$2" ]; then return 0; fi
+  (cd "$1" && xargs -d '\n' rm -f -- < "$2")
+  sed -n 's|/[^/]*$||p' "$2" | sort -ur | (cd "$1" && while IFS= read -r p; do
+    rmdir -p --ignore-fail-on-non-empty "$p" 2>/dev/null || true
+  done)
+}
+
 phase_stage() {   # <commit of the version the upload builds on> | full | rebuild
   local base="$1" src="$INCOMING/tree" current new_commit first=0
   rm -rf "$INCOMING" "$STAGE"
@@ -167,8 +176,9 @@ phase_stage() {   # <commit of the version the upload builds on> | full | rebuil
     for own in "${OWN[@]}"; do excludes+=("--exclude=./$own"); done
     tar -C "$DEST" --anchored "${excludes[@]}" -cf - . | tar -C "$STAGE" -xf -
   fi
+  # Removals first: a file that became a folder (or the other way round) is in the way of what replaces it.
+  remove_listed "$STAGE" "$INCOMING/deleted"
   if [ -s "$INCOMING/changed" ]; then tar -C "$src" -cf - --verbatim-files-from -T "$INCOMING/changed" | tar -C "$STAGE" -xf -; fi
-  if [ -s "$INCOMING/deleted" ]; then (cd "$STAGE" && xargs -d '\n' rm -f -- < "$INCOMING/deleted"); fi
   if [ -f "$DEST/.env" ]; then cp -p "$DEST/.env" "$STAGE/.env"; fi     # the client build reads its REACT_APP_ settings from it
 
   local pkg
@@ -205,22 +215,22 @@ phase_swap() {
   mkdir -p "$b" "$DEST"
 
   # What is about to be replaced or removed, and what will be new (to take out again on a rollback).
+  # Files only: where a folder stands in a new file's place, the file is "added" (a rollback takes
+  # it out again), and the folder's own files are each on the list of removals.
   cat "$INCOMING/changed" "$INCOMING/deleted" | (cd "$DEST" && while IFS= read -r p; do
-    if [ -e "$p" ]; then printf '%s\n' "$p"; fi
+    if [ -f "$p" ]; then printf '%s\n' "$p"; fi
   done) | sort > "$b/replaced"
   comm -23 "$INCOMING/changed" "$b/replaced" > "$b/added"
   if [ -s "$b/replaced" ]; then tar -C "$DEST" -czf "$b/old.tgz" --verbatim-files-from -T "$b/replaced"; fi
   if [ -f "$BASE/commit" ]; then cp "$BASE/commit" "$BASE/manifest" "$b/"; fi
   cp "$INCOMING/plan" "$b/plan"
 
+  # Removals first, with the folders they emptied. The new files went in first, and one that
+  # had become a folder where a file was (or a file where a folder was) could not be written:
+  # the update stopped there, with the live folder half new, the version on record still the
+  # old one, nothing restarted, and the same again at every later deploy.
+  remove_listed "$DEST" "$INCOMING/deleted"
   if [ -s "$INCOMING/changed" ]; then tar -C "$src" -cf - --verbatim-files-from -T "$INCOMING/changed" | tar -C "$DEST" -xf -; fi
-  if [ -s "$INCOMING/deleted" ]; then
-    (cd "$DEST" && xargs -d '\n' rm -f -- < "$INCOMING/deleted")
-    # Folders the removals emptied.
-    sed -n 's|/[^/]*$||p' "$INCOMING/deleted" | sort -ur | (cd "$DEST" && while IFS= read -r p; do
-      rmdir -p --ignore-fail-on-non-empty "$p" 2>/dev/null || true
-    done)
-  fi
   local pkg
   for pkg in server client; do
     if [ "$(flag "pk_$pkg")" = 1 ]; then swap_in packages "$DEST/$pkg/node_modules" "$STAGE/$pkg/node_modules" "$b/node_modules-$pkg"; fi
@@ -246,7 +256,7 @@ phase_rollback() {
   id="$(cat "$BASE/last-backup" 2>/dev/null || true)"
   b="$BACKUPS/$id"
   if [ -z "$id" ] || [ ! -f "$b/plan" ]; then fail "There is no backup to go back to."; fi
-  if [ -s "$b/added" ]; then (cd "$DEST" && xargs -d '\n' rm -f -- < "$b/added"); fi
+  remove_listed "$DEST" "$b/added"
   if [ -f "$b/old.tgz" ]; then tar -C "$DEST" -xzf "$b/old.tgz" --no-same-owner; fi
   for pkg in server client; do put_back "$DEST/$pkg/node_modules" "$b/node_modules-$pkg"; done
   put_back "$DEST/server/dist" "$b/dist"
@@ -358,6 +368,12 @@ if [ ! -d "$BASE" ]; then fail "This server isn't set up for deploys yet. Run np
 cd /     # the login's home folder, where this starts, is closed to the tsps user
 UPDATE_LOG=/var/log/tsps-update.log
 
+one_at_a_time() {   # an update, a rebuild or a rollback: never two of them together
+  if [ -n "$TEST" ]; then return 0; fi
+  exec 9> /run/tsps-update.lock
+  if ! flock -n 9; then fail "Another update or rollback is running. Try again when it has finished."; fi
+}
+
 args=("$@")
 if [ "${1:-}" = "--ssh" ]; then read -r -a args <<< "${2:-${SSH_ORIGINAL_COMMAND:-}}"; fi
 which="${args[1]:-}"
@@ -387,6 +403,9 @@ case "${args[0]:-}" in
     say "Both halves are up."
     exit ;;
   rollback)
+    # Not while an update is building or swapping: it would be built from, or swapped over, a
+    # folder that is half back at the version before.
+    one_at_a_time
     plan="$BASE/backups/$(cat "$BASE/last-backup" 2>/dev/null || echo none)/plan"
     if [ ! -f "$plan" ]; then fail "There is no backup to go back to."; fi
     game=0; web=0
@@ -399,9 +418,8 @@ case "${args[0]:-}" in
 esac
 
 # ---- update, rebuild --------------------------------------------------------------------------------
+one_at_a_time
 if [ -z "$TEST" ]; then
-  exec 9> /run/tsps-update.lock
-  if ! flock -n 9; then fail "Another update is running. Try again when it has finished."; fi
   # An update that has started finishes even if the connection from the PC drops: hang-ups
   # are ignored, and everything printed also goes to a log that outlives the connection
   # (npm run remote -- logs update).
