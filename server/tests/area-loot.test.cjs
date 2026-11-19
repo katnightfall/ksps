@@ -77,8 +77,9 @@ test("everything in range comes at once: piles ten tiles away, not those beyond"
 
 test("the distance is the world's: thirty tiles when it says so, never more", (t) => {
   const p = character(t);
-  drop(p, Items.COINS, 5, 30, 0);
-  drop(p, Items.BONES, 1, 31, 0);
+  // West along the castle's path: thirty tiles east lies the River Lum, which nobody walks to.
+  drop(p, Items.COINS, 5, -30, 0);
+  drop(p, Items.BONES, 1, -31, 0);
   assert.equal(AreaLoot._test.nearby(p).length, 0);
   config["AreaLoot:radius"] = 30;
   assert.equal(AreaLoot._test.radius(), 30);
@@ -167,4 +168,73 @@ test("an item that spawns in the world stays where it is", (t) => {
   loot(p);
   assert.equal(carried(p, Items.BRONZE_PICKAXE), 0);
   assert.deepEqual(p.said, ["There is nothing to pick up within 10 tiles."]);
+});
+
+// What a walk-up Take refuses, the sweep refuses: the audit's three ways round it.
+test("an Ironman takes no other player's drop by sweeping, though anyone else may", (t) => {
+  // The Ironman rule is a pick-up hook (plugins/modes/ironman/Loot.Ironman.js), as a click's is.
+  const Common = require("../plugins/modes/ironman/Common.Ironman");
+  const hooks = [];
+  const api = { core, emitCustomEvent() {}, onCustomEvent() {}, onGroundItemPickup: (hook) => hooks.push(hook), onCanAttack() {},
+    onPlayerDeathItemDrop() {}, onCanGainExperience() {} };
+  Common.init(api);
+  require("../plugins/modes/ironman/Loot.Ironman")(api);
+  const emit = PluginManager.emitGroundItemPickup;
+  PluginManager.emitGroundItemPickup = (event) => { for (const hook of hooks) hook(event); return event.handled === true; };
+  t.after(() => { PluginManager.emitGroundItemPickup = emit; });
+
+  const iron = character(t);
+  iron.setAttribute("ironman:mode", "ironman");
+  const other = character(t, [HOME[0] + 1, HOME[1], 0]);
+  const main = character(t, [HOME[0], HOME[1] + 1, 0]);
+  // Their drop, gone public: every player sees it and may take it, an Ironman may not.
+  core.ItemOnGroundManager.registerLocation(other, new core.Item(Items.RUNE_SCIMITAR, 1),
+    new core.Location(HOME[0] + 1, HOME[1] + 1, 0), undefined, { public: true });
+  drop(iron, Items.BONES, 1, 0, 0);
+  loot(iron);
+  assert.equal(carried(iron, Items.RUNE_SCIMITAR), 0, "another player's drop is not an Ironman's to take");
+  assert.equal(carried(iron, Items.BONES), 1, "their own still comes");
+  loot(main);
+  assert.equal(carried(main, Items.RUNE_SCIMITAR), 1, "any other player takes it");
+});
+
+test("a pile in the Wilderness is not swept up from the safe side of the ditch", (t) => {
+  // Edgeville: the ditch runs along y 3520-3523, the Wilderness begins at y 3525.
+  const SAFE = [3096, 3518, 0];
+  core.RegionManager.loadMapFiles(SAFE[0], SAFE[1]);
+  const safe = character(t, SAFE);
+  const fighter = character(t, [SAFE[0], SAFE[1] + 9, 0]);
+  const loot9 = core.ItemOnGroundManager.registerLocation(fighter, new core.Item(Items.RUNE_SCIMITAR, 1),
+    new core.Location(SAFE[0], SAFE[1] + 9, 0), undefined, { public: true });
+  assert.ok(core.Wilderness.isInLocation(loot9.getPosition()), "the pile lies in the Wilderness");
+  assert.equal(Number(safe.getWildernessLevel() ?? 0), 0, "the sweeper does not");
+  assert.equal(AreaLoot._test.nearby(safe).includes(loot9), false, "out of the sweep's reach");
+  loot(safe);
+  assert.equal(carried(safe, Items.RUNE_SCIMITAR), 0);
+  config["AreaLoot:wilderness"] = true;
+  assert.equal(AreaLoot._test.nearby(safe).includes(loot9), true, "a world that allows Wilderness sweeps lists it");
+});
+
+test("a pile the player cannot walk to stays: walled in it is left, the wall gone it comes", (t) => {
+  const p = character(t);
+  const [x, y] = [HOME[0] + 4, HOME[1]];
+  const BLOCKED = core.RegionManager.BLOCKED_TILE;
+  const ring = [];
+  // Two rings of solid tiles round the pile: no tile beside it can be stood on.
+  for (let dx = -2; dx <= 2; dx++) for (let dy = -2; dy <= 2; dy++) if (dx || dy) ring.push([x + dx, y + dy]);
+  const before = ring.map(([rx, ry]) => core.RegionManager.getClipping(rx, ry, 0, null));
+  const lift = () => ring.forEach(([rx, ry], i) => { if (!(before[i] & BLOCKED)) core.RegionManager.removeClipping(rx, ry, 0, BLOCKED, null); });
+  for (const [rx, ry] of ring) core.RegionManager.addClipping(rx, ry, 0, BLOCKED, null);
+  t.after(lift);
+  drop(p, Items.RUNE_SCIMITAR, 1, 4, 0);
+  drop(p, Items.BONES, 1, 0, 1);
+  loot(p);
+  assert.equal(carried(p, Items.RUNE_SCIMITAR), 0, "behind the wall");
+  assert.equal(carried(p, Items.BONES), 1, "in the open");
+  assert.deepEqual(p.said, ["You pick up 1 item from 1 pile nearby. You can't reach 1 more."]);
+  loot(p, Items.RUNE_SCIMITAR, x, y);
+  assert.deepEqual(p.said, ["You can't reach that."]);
+  lift();
+  loot(p);
+  assert.equal(carried(p, Items.RUNE_SCIMITAR), 1, "the way open, it comes");
 });
