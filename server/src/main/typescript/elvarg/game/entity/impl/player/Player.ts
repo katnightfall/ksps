@@ -816,6 +816,11 @@ export class Player extends Mobile {
         this.getRelations().updateLists(false);
         CombatPoisonEffect.suspend(this);
         TaskManager.cancelTasks(this);
+        // Ours: a walk-to (a click on an object, NPC, ground item or player) is queued under the
+        // player's index, not the player, so the line above left it running: the world's sweep
+        // re-routed it every other cycle for a player no longer here, and the next player given
+        // the index had it ticked in their turn until their first click cancelled it.
+        TaskManager.cancelWalkToTasks(this.getIndex());
         // Logout hooks may fast-forward an obstacle and create a final movement receipt.
         this.temporaryMovementType = undefined;
         this.setHasVengeance(false);
