@@ -21,6 +21,18 @@ key, rewards, progress and previous distance comparison. The silver merchant's
 Losing an earned steel key ring does not block buying a replacement enchanted key;
 a key still owned in a carried or banked ring does block duplicate replacement.
 
+## Quest list row and journal
+
+The quest list's own row for the miniquest (quest table id 98, read from varbit 13717
+`enchantedkey`) is backed by a registered miniquest, `the_enchanted_key`, so the row opens
+something (upstream issues #5656 and #4289: a click on it did nothing). Its stage is derived
+from the route and never set by hand: 0 until Making History is complete (the row opens the
+overview), 1 while treasures remain, 2 once all eleven are found. The journal says how the key
+works, how many treasures have been dug up and, when the key is not carried, where a
+replacement is sold. **The journal's wording is ours:** the Wiki has no journal transcript for
+this miniquest and no capture of the row was found. Finishing the route still ends with the
+key's own box, with no completion scroll.
+
 ## Sources and identifiers
 
 The Wiki supplies site coordinates, order, distance bands and the dig radius.
