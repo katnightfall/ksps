@@ -170,6 +170,7 @@ import { type MinimapIcon, SdMapData } from "../loader/SdMapData";
 import { SdMapDataLoader } from "../loader/SdMapDataLoader";
 import { SdMapLoaderInput } from "../loader/SdMapLoaderInput";
 import { isDoorLocType } from "../loc/SceneLocs";
+import { isStaleDoorBuild, reloadingSquares } from "./staleDoorBuilds";
 import {
     DynamicNpcAnimLoader,
     DynamicNpcFrameGeometry,
@@ -245,8 +246,18 @@ export function beginLocReloadBatch(host: WebGLOsrsRendererHost, maps: Array<{ m
             loaded: new Map<number, SdMapData>(),
         });
 
+        // Ours (upstream issue #6240): one reload of a square at a time. The one on its way sees
+        // that the square changed again when it ends and builds it again (queueLoadMap), so a
+        // second one here would only build the same thing beside it.
+        const reloading = reloadingSquares(host);
         for (const entry of ordered) {
-            void host.queueLoadMap(entry.mapX, entry.mapY, undefined, batchId);
+            if (reloading.has(entry.mapId)) {
+                host.resolveLocReloadBatchMap(batchId, entry.mapId, undefined);
+                continue;
+            }
+            reloading.add(entry.mapId);
+            void host.queueLoadMap(entry.mapX, entry.mapY, undefined, batchId)
+                .finally(() => reloading.delete(entry.mapId));
         }
     
 }
@@ -281,6 +292,28 @@ export function loadMap(host: WebGLOsrsRendererHost,
         const isDoorOnlyUpdate =
             !isLocUpdate && !isLocGeometryUpdate && host.pendingDoorLocUpdates.has(mapId);
 
+        // Ours (upstream issue #6240): a door-only build that a later change overtook. It is the
+        // square as it was a moment ago: shown while a door-only build is still what the square
+        // waits for (which stays pending: the build of the later change is on its way).
+        if (isStaleDoorBuild(mapData)) {
+            WebGLMapSquare.cancelPreparedLoad(mapData);
+            if (isDoorOnlyUpdate && existing instanceof WebGLMapSquare) {
+                existing.refreshDoorGeometry(
+                    host.app,
+                    mainProgram,
+                    mainAlphaProgram,
+                    textureArray,
+                    textureMaterials,
+                    waterTextures,
+                    sceneUniformBuffer,
+                    mapData,
+                    existing.timeLoaded,
+                );
+                host.updateTextureArray(mapData.loadedTextures);
+            }
+            return;
+        }
+
         // A door-only payload is valid only while the original map square is
         // still resident and no broader loc update has superseded it.
         if (mapData.doorOnly && (!isDoorOnlyUpdate || !(existing instanceof WebGLMapSquare))) {
@@ -299,6 +332,10 @@ export function loadMap(host: WebGLOsrsRendererHost,
             existing instanceof WebGLMapSquare
         ) {
             WebGLMapSquare.cancelPreparedLoad(mapData);
+            // Ours (upstream issue #6240): a door-only build made from a scene whose loc group is
+            // not the one drawn here (SdMapData.locSignature): the loc group is rebuilt as well.
+            const locGroupStale = isDoorOnlyUpdate && mapData.doorOnly === true &&
+                mapData.locSignature !== undefined && mapData.locSignature !== existing.locSignature;
             if (isDoorOnlyUpdate && mapData.doorOnly) {
                 existing.refreshDoorGeometry(
                     host.app,
@@ -323,6 +360,18 @@ export function loadMap(host: WebGLOsrsRendererHost,
                     sceneUniformBuffer,
                     mapData,
                     getClientCycle() | 0,
+                    existing.timeLoaded,
+                );
+                // Ours (upstream issue #6240): a loc-only build carries the door group too.
+                existing.refreshDoorGeometry(
+                    host.app,
+                    mainProgram,
+                    mainAlphaProgram,
+                    textureArray,
+                    textureMaterials,
+                    waterTextures,
+                    sceneUniformBuffer,
+                    mapData,
                     existing.timeLoaded,
                 );
             } else {
@@ -357,6 +406,10 @@ export function loadMap(host: WebGLOsrsRendererHost,
             host.pendingLocGeometryUpdates.delete(mapId);
             host.pendingDoorLocUpdates.delete(mapId);
             host.updateTextureArray(mapData.loadedTextures);
+            if (locGroupStale) {
+                if (host.instanceActive) host.scheduleInstanceLocUpdate("loc");
+                else host.scheduleLocGeometryUpdate(mapX, mapY, "loc");
+            }
             return;
         }
 

@@ -169,6 +169,7 @@ import { type MinimapIcon, SdMapData } from "../loader/SdMapData";
 import { SdMapDataLoader } from "../loader/SdMapDataLoader";
 import { SdMapLoaderInput, snapshotMapInput } from "../loader/SdMapLoaderInput";
 import { isDoorLocType } from "../loc/SceneLocs";
+import { markStaleDoorBuild } from "./staleDoorBuilds";
 import {
     DynamicNpcAnimLoader,
     DynamicNpcFrameGeometry,
@@ -291,6 +292,12 @@ export async function queueLoadMap(host: WebGLOsrsRendererHost,
             return;
         }
         if (locReloadVersion !== (host.locReloadVersions.get(mapId) ?? 0)) {
+            // Ours (upstream issue #6240): a door-only build overtaken by a later change is shown
+            // while the next is made (staleDoorBuilds.ts).
+            if (doorOnly && mapData && host.isValidMapData(mapData)) {
+                markStaleDoorBuild(mapData);
+                host.mapsToLoad.push(mapData);
+            }
             await host.queueLoadMap(mapX, mapY, streamGeneration, locReloadBatchId);
             return;
         }

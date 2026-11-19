@@ -83,8 +83,19 @@ export type SdMapData = {
     /** True when this payload only contains replacement door geometry. */
     doorOnly?: boolean;
 
-    /** True when this payload only contains replacement non-door loc geometry. */
+    /**
+     * True when this payload holds every loc's geometry (the loc group and the door group) and no
+     * ground: what a loc change outside the door group rebuilds.
+     */
     locOnly?: boolean;
+
+    /**
+     * Ours (upstream issue #6240): what the loc group of the scene this was built from holds
+     * (ChangingLocs.locGroupSignature). A door-only payload whose text differs from the drawn
+     * square's was built from a scene whose loc group has changed too: the square needs a
+     * loc-only build as well.
+     */
+    locSignature?: string;
 
     borderSize: number;
     heightMapSize: number;

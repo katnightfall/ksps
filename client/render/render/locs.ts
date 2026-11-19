@@ -171,6 +171,7 @@ import { type MinimapIcon, SdMapData } from "../loader/SdMapData";
 import { SdMapDataLoader } from "../loader/SdMapDataLoader";
 import { SdMapLoaderInput } from "../loader/SdMapLoaderInput";
 import { isDoorLoc } from "../loc/SceneLocs";
+import { isChangingTile, isDoorGroupAddedLoc, isDoorGroupChange } from "../loc/DoorGroupLocs";
 import {
     DynamicNpcAnimLoader,
     DynamicNpcFrameGeometry,
@@ -224,12 +225,19 @@ export function onLocChange(host: WebGLOsrsRendererHost,
             // Keeping doors and ordinary locs in separate GPU groups lets us
             // match the game's partial loc-update behaviour. A change that
             // crosses those groups retains the conservative full rebuild.
+            // Ours (upstream issue #6240): a tree, rock or stall changing form is drawn with the
+            // doors, and rebuilt with them (DoorGroupLocs.ts). A loc spawned on empty ground is not.
+            const isChangingLocUpdate =
+                !hasUnknownLocType && (oldId | 0) > 0 && !opts?.newTile &&
+                host.locSpawns.get(`${(opts?.oldTile ?? tile).x | 0},${(opts?.oldTile ?? tile).y | 0},${level | 0}`)?.id !== (oldId | 0) &&
+                isDoorGroupChange(host.osrsClient.locTypeLoader, oldId, newId);
             const isDoorOnlyUpdate =
-                !hasUnknownLocType &&
+                isChangingLocUpdate ||
+                (!hasUnknownLocType &&
                 (oldId <= 0 || oldIsDoor) &&
                 (newId <= 0 || newIsDoor) &&
-                (oldIsDoor || newIsDoor);
-            const isLocOnlyUpdate = !hasUnknownLocType && !oldIsDoor && !newIsDoor;
+                (oldIsDoor || newIsDoor));
+            const isLocOnlyUpdate = !isChangingLocUpdate && !hasUnknownLocType && !oldIsDoor && !newIsDoor;
             const matchesChangedTile = (target: {
                 tileX: number;
                 tileY: number;
@@ -543,8 +551,13 @@ export function onLocAddChange(host: WebGLOsrsRendererHost,
                 if (deckView && host.worldEntityOverlays?.has(deckView.id)) {
                     host.scheduleWorldEntityLocRebuild(deckView.id);
                 } else {
-                    const locType = host.osrsClient.locTypeLoader.load(locId | 0);
-                    const group = locType && isDoorLoc(locType, host.osrsClient.varManager, host.osrsClient.locTypeLoader) ? "door" : "loc";
+                    const loader = host.osrsClient.locTypeLoader;
+                    const locType = loader.load(locId | 0);
+                    // Ours (upstream issue #6240): a still object where the cache has a tree, rock
+                    // or stall (its stump, itself grown back) is drawn and rebuilt with the doors.
+                    const withDoors = isDoorGroupAddedLoc(loader, locId, shape,
+                        isChangingTile(host.locOverrides, loader, tile, level, addChangeSlotIds(host, tile, level, shape, rotation), shape));
+                    const group = withDoors || (locType && isDoorLoc(locType, host.osrsClient.varManager, loader)) ? "door" : "loc";
                     // An instance builds the new loc from extraLocs.
                     if (host.instanceActive) host.scheduleInstanceLocUpdate(group);
                     else host.scheduleLocGeometryUpdate(mapX, mapY, group);

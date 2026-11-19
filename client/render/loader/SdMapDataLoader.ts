@@ -19,6 +19,7 @@ import { Scene } from "../../rs/scene/Scene";
 import { collectObjSurfaceHeights } from "../../rs/scene/ObjSurfaceHeights";
 import { LocLoadType } from "../../rs/scene/SceneBuilder";
 import { preparedLocSequence } from "../../rs/scene/LocPacketAnimation";
+import { PLACED_LOC_FIELDS, locGroupSignature, placedLocKey, placedLocsOf } from "../../rs/scene/ChangingLocs";
 import { SceneTile } from "../../rs/scene/SceneTile";
 import { getIdFromTag } from "../../rs/scene/entity/EntityTag";
 import { LocEntity } from "../../rs/scene/entity/LocEntity";
@@ -1022,6 +1023,8 @@ export function addLocEntities(
     locEntities: SceneLocEntity[],
     smoothAnimations: boolean = false,
     maxSteps: number = SMOOTHED_STEPS_PER_FRAME,
+    // Ours (upstream issue #6240): the locs drawn with the doors though they are no doors.
+    isChanging: (entity: LocEntity) => boolean = () => false,
 ): Iterable<LocAnimatedGroup> {
     const locAnimatedGroupMap = new Map<string, LocAnimatedGroup>();
 
@@ -1061,7 +1064,7 @@ export function addLocEntities(
                 entity.seqOverride, entity.seqRandomStartOverride);
         }
 
-        const isDoor = isDoorLocType(locType);
+        const isDoor = isDoorLocType(locType) || isChanging(entity);
 
         let startX = (sizeX >> 1) + tileX;
         let endX = ((sizeX + 1) >> 1) + tileX;
@@ -1747,14 +1750,37 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
                 }
             }
         }
+        // Ours (upstream issue #6240): a tree, a rock or a stall, and what the server puts in its
+        // place, is drawn with the doors (ChangingLocs.ts), so that only that small group is
+        // rebuilt when it changes.
+        const sceneLocRecord = placedLocsOf(scene);
+        const isChanging = (entity: LocEntity) =>
+            sceneLocRecord.changing.has(placedLocKey(entity.id, entity.level, entity.tileX, entity.tileY));
         // Split as addLocEntities draws them: a multiloc by the variant it shows.
         const isDoorEntity = (loc: SceneLocEntity) =>
+            isChanging(loc.entity) ||
             isDoorLoc(locTypeLoader.load(loc.interactId), varManager, locTypeLoader);
+        // A loc-only build draws the door group too: it is everything but the ground.
         const locEntities = shouldLoadDoorOnly
             ? sceneLocs.locEntities.filter(isDoorEntity)
-            : shouldLoadLocOnly
-              ? sceneLocs.locEntities.filter((loc) => !isDoorEntity(loc))
-              : sceneLocs.locEntities;
+            : sceneLocs.locEntities;
+        // What the loc group holds, for a renderer to compare a door-only build with (it is the
+        // same text for every kind of build of the same scene).
+        const doorIds = new Map<number, boolean>();
+        const placedLocs = sceneLocRecord.placed;
+        const locSignature = locGroupSignature(placedLocs, (at) => {
+            if (placedLocs[at + PLACED_LOC_FIELDS - 1] !== 0) return false;
+            const tileX = placedLocs[at + 2] - usedBorderSize;
+            const tileY = placedLocs[at + 3] - usedBorderSize;
+            if (tileX < 0 || tileY < 0 || tileX >= coreSize || tileY >= coreSize) return false;
+            const id = placedLocs[at];
+            let door = doorIds.get(id);
+            if (door === undefined) {
+                door = isDoorLoc(locTypeLoader.load(id), varManager, locTypeLoader);
+                doorIds.set(id, door);
+            }
+            return !door;
+        });
 
         // Create loc animated groups and add transformed locs
         const locAnimatedGroups = addLocEntities(
@@ -1768,6 +1794,7 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
             locEntities,
             smoothLocAnimations,
             smoothLocAnimationSteps,
+            isChanging,
         );
 
         // Npcs
@@ -1821,15 +1848,16 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
                 minimizeDrawCalls,
             ));
         }
-        if (!shouldLoadLocOnly) {
-            await build.run(addSceneModels(
-                this.modelHashBuf!,
-                textureLoader,
-                doorSceneBuf,
-                doorSceneModels,
-                minimizeDrawCalls,
-            ));
-        }
+        // Ours (upstream issue #6240): in the scene's own order, whichever of them the scene held
+        // as models, so that every kind of build packs the door group alike.
+        doorSceneModels.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        await build.run(addSceneModels(
+            this.modelHashBuf!,
+            textureLoader,
+            doorSceneBuf,
+            doorSceneModels,
+            minimizeDrawCalls,
+        ));
 
         // Animated locs
         const locsAnimated = shouldLoadDoorOnly
@@ -2358,6 +2386,7 @@ export class SdMapDataLoader implements RenderDataLoader<SdMapLoaderInput, SdMap
                 smoothTerrain,
                 doorOnly: shouldLoadDoorOnly,
                 locOnly: shouldLoadLocOnly,
+                locSignature,
 
                 borderSize: usedBorderSize,
                 heightMapSize: mapSize,

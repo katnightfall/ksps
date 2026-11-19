@@ -61,6 +61,7 @@ import { EditorOverlays } from "./overlays/EditorOverlays";
 import { OverlayHost } from "./overlays/OverlayHost";
 import { WebGPUOverlays } from "./overlays/WebGPUOverlays";
 import { LocUpdates, type LocReloadGroup } from "./locUpdates";
+import { DOOR_BUILD_LIMIT_MS, doorBuildsOf } from "./doorBuilds";
 import { getClientCycle } from "../../network/ServerConnection";
 import { WebGPUUi } from "./ui/WebGPUUi";
 import { WebGPUHeldScene } from "./heldScene";
@@ -418,6 +419,18 @@ export class WebGPURenderer extends GameRenderer<WebGPUMapSquare> {
             return;
         }
         const partial = this.mapManager.getMap(mapX, mapY) && group !== "full" ? group : undefined;
+        // Ours (upstream issue #6240): one door-only build of a square at a time (doorBuilds.ts).
+        const mapId = getMapSquareId(mapX, mapY);
+        if (partial === "door") {
+            const doorBuilds = doorBuildsOf(this, this.mapLoadEpoch);
+            const started = doorBuilds.started.get(mapId);
+            if (started !== undefined && performance.now() - started < DOOR_BUILD_LIMIT_MS) {
+                // The build on its way is shown first; the one after it draws this change.
+                if (batch) this.settleLocReloadBatch(batch);
+                return;
+            }
+            doorBuilds.started.set(mapId, performance.now());
+        }
         const load = this.loadMapData(mapX, mapY, undefined, partial, batch);
         if (batch) void load.finally(() => this.settleLocReloadBatch(batch));
     }
@@ -479,6 +492,8 @@ export class WebGPURenderer extends GameRenderer<WebGPUMapSquare> {
         const epoch = this.mapLoadEpoch;
         this.locUpdates.applyGamemode();
         const locVersion = this.locUpdates.version(mapX, mapY);
+        doorBuildsOf(this, epoch).startedVersions.set(getMapSquareId(mapX, mapY), locVersion);
+        let queuedDoorBuild = false;
         // Ours: `?map-profile=1` times this renderer's map builds too (it was WebGL's only).
         const queuedAt = performance.now();
         const input: SdMapLoaderInput = snapshotMapInput({
@@ -503,8 +518,9 @@ export class WebGPURenderer extends GameRenderer<WebGPUMapSquare> {
         });
         try {
             if (input.mapProfileEnabled) console.info(`[map-profile] ${mapX},${mapY} queued for region build`);
+            // A door-only build is not given up for a later loc change (see doorBuilds).
             const mapData = await this.loadSceneData(input, () => epoch === this.mapLoadEpoch &&
-                !this.instanceActive && this.locUpdates.version(mapX, mapY) === locVersion &&
+                !this.instanceActive && (partial === "door" || this.locUpdates.version(mapX, mapY) === locVersion) &&
                 (streamGeneration === undefined || this.mapManager.isMapInTargetGrid(mapX, mapY)));
             if (epoch !== this.mapLoadEpoch || this.instanceActive) return;
             if (streamGeneration !== undefined && !this.mapManager.isMapInTargetGrid(mapX, mapY)) {
@@ -520,10 +536,14 @@ export class WebGPURenderer extends GameRenderer<WebGPUMapSquare> {
             const queued = { mapData, streamGeneration, locVersion };
             if (batch) batch.ready.push(queued);
             else this.mapsToLoad.push(queued);
+            queuedDoorBuild = partial === "door";
         } catch (error) {
             if ((error as Error)?.name === "AbortError" || epoch !== this.mapLoadEpoch || this.instanceActive) return;
             console.error(`[webgpu] map load failed for (${mapX}, ${mapY})`, error);
             this.mapManager.deferFailedMapLoad(mapX, mapY);
+        } finally {
+            // A door-only build that will not be shown no longer holds the next one back.
+            if (partial === "door" && !queuedDoorBuild) doorBuildsOf(this, this.mapLoadEpoch).started.delete(getMapSquareId(mapX, mapY));
         }
     }
 
@@ -704,13 +724,14 @@ export class WebGPURenderer extends GameRenderer<WebGPUMapSquare> {
             for (const partial of partials) {
                 const square = this.mapManager.getMap(partial.mapX, partial.mapY);
                 if (!square) continue;
-                square.refreshPartial(partial, this.osrsClient.seqTypeLoader, getClientCycle() | 0);
+                const locGroupStale = square.refreshPartial(partial, this.osrsClient.seqTypeLoader, getClientCycle() | 0);
                 world.uploadMapTextures(partial.loadedTextures);
                 if (partial.locOnly) {
                     this.ui?.registerMinimapData(partial);
                     this.overlays?.onMapLocsRefreshed(partial.mapX, partial.mapY);
                 }
                 this.locUpdates.applied(partial.mapX, partial.mapY);
+                if (locGroupStale === true) this.locUpdates.scheduleReload(partial.mapX, partial.mapY, "loc");
             }
             return;
         }
@@ -769,8 +790,9 @@ export class WebGPURenderer extends GameRenderer<WebGPUMapSquare> {
                 this.mapManager.loadingMapIds.delete(getMapSquareId(mapX, mapY));
                 continue;
             }
-            // Built before a loc change: the reload LocUpdates queued replaces it.
-            if (queued.locVersion !== undefined && !this.locUpdates.isCurrent(mapX, mapY, queued.locVersion)) {
+            // Built before a loc change: the reload LocUpdates queued replaces it. A door-only
+            // build is shown all the same (applyQueuedMap decides).
+            if (!mapData.doorOnly && queued.locVersion !== undefined && !this.locUpdates.isCurrent(mapX, mapY, queued.locVersion)) {
                 this.mapsToLoad.shift();
                 WebGPUMapSquare.cancelPreparedLoad(mapData);
                 continue;
@@ -792,7 +814,7 @@ export class WebGPURenderer extends GameRenderer<WebGPUMapSquare> {
         }
         // Built before a later loc change: the reload LocUpdates queued for that replaces it.
         const current = members.filter(({ mapData, locVersion }) =>
-            locVersion === undefined || this.locUpdates.isCurrent(mapData.mapX, mapData.mapY, locVersion));
+            mapData.doorOnly || locVersion === undefined || this.locUpdates.isCurrent(mapData.mapX, mapData.mapY, locVersion));
         let uploaded = true;
         for (const { mapData } of current) {
             if (!mapData.doorOnly && !mapData.locOnly && !WebGPUMapSquare.prepareLoad(this.device, mapData)) uploaded = false;
@@ -810,6 +832,11 @@ export class WebGPURenderer extends GameRenderer<WebGPUMapSquare> {
         const { mapData } = queued;
         const { mapX, mapY } = mapData;
         const existing = this.mapManager.getMap(mapX, mapY);
+        const mapId = getMapSquareId(mapX, mapY);
+        const locVersion = queued.locVersion;
+        const isCurrent = locVersion === undefined || this.locUpdates.isCurrent(mapX, mapY, locVersion);
+        const doorBuilds = doorBuildsOf(this, this.mapLoadEpoch);
+        if (mapData.doorOnly) doorBuilds.started.delete(mapId);
         if (mapData.doorOnly || mapData.locOnly) {
             // A door-only/loc-only build only replaces that group of a resident square;
             // if the square is gone (pruned or never applied) rebuild it whole.
@@ -817,16 +844,35 @@ export class WebGPURenderer extends GameRenderer<WebGPUMapSquare> {
                 this.queueLocReload(mapX, mapY, "full");
                 return;
             }
-            existing.refreshPartial(mapData, this.osrsClient.seqTypeLoader, getClientCycle() | 0);
+            // Ours (upstream issue #6240): a door-only build made before a later change is shown
+            // unless something newer is on screen already, and the later change is then built.
+            if (!isCurrent) {
+                if ((locVersion ?? -1) > (doorBuilds.shownVersions.get(mapId) ?? -1)) {
+                    existing.refreshPartial(mapData, this.osrsClient.seqTypeLoader, getClientCycle() | 0);
+                    world.uploadMapTextures(mapData.loadedTextures);
+                    doorBuilds.shownVersions.set(mapId, locVersion!);
+                }
+                if (doorBuilds.startedVersions.get(mapId) !== this.locUpdates.version(mapX, mapY)) {
+                    this.queueLocReload(mapX, mapY, this.locUpdates.pendingGroup(mapX, mapY));
+                }
+                return;
+            }
+            const locGroupStale = existing.refreshPartial(mapData, this.osrsClient.seqTypeLoader, getClientCycle() | 0);
             world.uploadMapTextures(mapData.loadedTextures);
             if (mapData.locOnly) {
                 this.ui?.registerMinimapData(mapData);
                 this.overlays?.onMapLocsRefreshed(mapX, mapY);
             }
+            if (locVersion !== undefined) doorBuilds.shownVersions.set(mapId, locVersion);
             this.locUpdates.applied(mapX, mapY);
+            // Ours (upstream issue #6240): the change was not the door group's alone after all.
+            if (locGroupStale === true) this.locUpdates.scheduleReload(mapX, mapY, "loc");
             return;
         }
-        if (queued.locVersion !== undefined) this.locUpdates.applied(mapX, mapY);
+        if (locVersion !== undefined) {
+            doorBuilds.shownVersions.set(mapId, locVersion);
+            this.locUpdates.applied(mapX, mapY);
+        }
         // Foreground groups publish together; per-upload fades would reveal squares separately.
         const timeLoaded = existing ? existing.timeLoaded : -1;
         if (existing) {

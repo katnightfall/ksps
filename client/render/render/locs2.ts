@@ -170,6 +170,7 @@ import { type MinimapIcon, SdMapData } from "../loader/SdMapData";
 import { SdMapDataLoader } from "../loader/SdMapDataLoader";
 import { SdMapLoaderInput } from "../loader/SdMapLoaderInput";
 import { isDoorLoc } from "../loc/SceneLocs";
+import { isChangingCacheLoc, isChangingTile, isDoorGroupAddedLoc } from "../loc/DoorGroupLocs";
 import {
     DynamicNpcAnimLoader,
     DynamicNpcFrameGeometry,
@@ -241,7 +242,13 @@ export function onLocDel(host: WebGLOsrsRendererHost, tile: { x: number; y: numb
                     : deletedLoc && (deletedLoc.id | 0) >= 0
                       ? host.osrsClient.locTypeLoader.load(deletedLoc.id | 0)
                       : undefined;
-            const group = locType ? (isDoorLoc(locType, host.osrsClient.varManager, host.osrsClient.locTypeLoader) ? "door" : "loc") : "full";
+            // Ours (upstream issue #6240): a felled tree, a mined rock, an emptied stall and what
+            // the server put in its place are drawn and rebuilt with the doors (DoorGroupLocs.ts).
+            const loader = host.osrsClient.locTypeLoader;
+            const withDoors = wasAdded
+                ? isDoorGroupAddedLoc(loader, added.locId, shape, isChangingTile(host.locOverrides, loader, tile, level, [], shape))
+                : deletedLoc !== undefined && isChangingCacheLoc(loader, deletedLoc.id, shape);
+            const group = withDoors ? "door" : locType ? (isDoorLoc(locType, host.osrsClient.varManager, host.osrsClient.locTypeLoader) ? "door" : "loc") : "full";
             if (host.instanceActive) host.scheduleInstanceLocUpdate(group);
             else host.scheduleLocGeometryUpdate(mapX, mapY, group);
         } catch (err) {

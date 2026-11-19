@@ -21,6 +21,7 @@ import { applyGamemodeWorldLocs } from "../render/streaming";
 import { RENDER_CONSTANTS } from "../render/constants";
 import { LocModelType } from "../../rs/config/loctype/LocModelType";
 import { isDoorLoc } from "../loc/SceneLocs";
+import { isChangingCacheLoc, isChangingTile, isDoorGroupAddedLoc, isDoorGroupChange } from "../loc/DoorGroupLocs";
 import { matchingLocSlotIds, shapeSlotOverride, suppressShapeSlotAt } from "../loc/LocSlots";
 import { getMapSquareId } from "../../rs/map/MapFileIndex";
 import { LOC_OVERRIDE_KEEP_ID, LOC_OVERRIDE_REMOVED, locOverrideIdFromChange } from "../../rs/scene/LocOverride";
@@ -77,6 +78,11 @@ export class LocUpdates {
         this.dirty.delete(getMapSquareId(mapX, mapY));
     }
 
+    /** What a square changed since a current build of it was shown needs rebuilt. */
+    pendingGroup(mapX: number, mapY: number): LocReloadGroup {
+        return this.dirty.get(getMapSquareId(mapX, mapY)) ?? "full";
+    }
+
     /** "door"/"loc" when every id is known and in that group, else "full" (locs.ts onLocChange). */
     private groupOf(...ids: number[]): LocReloadGroup {
         let doors = 0;
@@ -92,6 +98,17 @@ export class LocUpdates {
         if (doors > 0 && locs === 0) return "door";
         if (locs > 0 && doors === 0) return "loc";
         return "full";
+    }
+
+    /**
+     * Ours (upstream issue #6240): the group for a loc the server added or is taking away again.
+     * A still object on a tile where the cache has a tree, rock or stall (its stump, itself grown
+     * back) is drawn with the doors, so only that small group is rebuilt (DoorGroupLocs.ts).
+     */
+    private addedGroup(locId: number, tile: Tile, level: number, shape: number, rotation: number): LocReloadGroup {
+        const loader = this.r.osrsClient.locTypeLoader;
+        const changingTile = isChangingTile(this.r.locOverrides, loader, tile, level, this.locSlotIdsAt(tile, level, shape, rotation), shape);
+        return isDoorGroupAddedLoc(loader, locId, shape, changingTile) ? "door" : this.groupOf(locId);
     }
 
     /** The tile's cache locs in the slot this shape/rotation addresses (locs2.ts onLocDel). */
@@ -153,7 +170,8 @@ export class LocUpdates {
         }
 
         // A moving loc can cross a map-square edge (e.g. a gate): reload both squares.
-        const group = this.groupOf(oldId, newId);
+        const group = !isSpawnedLoc && !newTile && isDoorGroupChange(this.r.osrsClient.locTypeLoader, oldId, newId)
+            ? "door" : this.groupOf(oldId, newId);
         this.reloadTile(oldTile, group);
         if (newTile) this.reloadTile(newTile, group);
     }
@@ -171,7 +189,7 @@ export class LocUpdates {
             (existing.rotation & 0x3) === (rotation & 0x3)
         ) {
             if (this.reconcileAdded(existing, locId, tile, level, shape, rotation)) {
-                this.reloadTile(tile, this.groupOf(locId));
+                this.reloadTile(tile, this.addedGroup(locId, tile, level, shape, rotation));
             }
             return;
         }
@@ -189,7 +207,7 @@ export class LocUpdates {
         } else {
             for (const id of replaced) this.suppressLocAt(tile, level, id);
         }
-        this.reloadTile(tile, this.groupOf(locId));
+        this.reloadTile(tile, this.addedGroup(locId, tile, level, shape, rotation));
     }
 
     /**
@@ -244,14 +262,15 @@ export class LocUpdates {
                 if ((id | 0) === (added.locId | 0)) continue;
                 this.r.locOverrides.delete(`${tile.x | 0},${tile.y | 0},${level | 0},${id}`);
             }
-            this.reloadTile(tile, this.groupOf(added.locId));
+            this.reloadTile(tile, this.addedGroup(added.locId, tile, level, shape, rotation));
             return;
         }
         // A cache object was removed: suppress that one loc so it disappears (e.g. a chopped tree).
         const deleted = this.locSlotIdsAt(tile, level, shape, rotation).filter((id) => this.r.locOverrides.get(`${tile.x},${tile.y},${level},${id}`)?.newId !== LOC_OVERRIDE_REMOVED);
         if (deleted.length > 0) {
             for (const id of deleted) this.suppressLocAt(tile, level, id);
-            this.reloadTile(tile, this.groupOf(deleted[0]));
+            const loader = this.r.osrsClient.locTypeLoader;
+            this.reloadTile(tile, deleted.every((id) => isChangingCacheLoc(loader, id, shape)) ? "door" : this.groupOf(deleted[0]));
             return;
         }
         // No id to key on: remove this tile's slot only, never every loc of the shape.
