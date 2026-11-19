@@ -58,7 +58,46 @@ function serverEntry(server: any): ServerListEntry {
         worldId: typeof server?.worldId === "string" ? server.worldId : undefined,
         ownerUsername: typeof server?.ownerUsername === "string" ? server.ownerUsername : undefined,
         iceServers: Array.isArray(server?.iceServers) ? server.iceServers : [],
+        // Ours: what our own list (deploy/worlds.mjs) adds for the World Switcher. A list without
+        // them (an older master, somebody else's list) leaves them out, and so do we.
+        ...(typeof server?.id === "string" && /^[a-z0-9-]{1,40}$/.test(server.id) ? { id: server.id } : {}),
+        ...(Number.isInteger(server?.number) && server.number > 0 ? { number: server.number } : {}),
+        ...(validPublicText(server?.location, 40) ? { location: server.location } : {}),
     };
+}
+
+/**
+ * Ours. The master's /worlds.json (deploy/worlds.mjs) says who is on each world: for the worlds
+ * of the list that came with an id, the count the probe cannot give, and whether the world
+ * itself answers (the master takes the probe's connection for a world it carries either way).
+ */
+export function applyWorldBoard(servers: ServerListEntry[], board: unknown): void {
+    const worlds = (board as { worlds?: unknown })?.worlds;
+    if (!Array.isArray(worlds)) return;
+    for (const server of servers) {
+        const world = server.id ? worlds.find((entry: any) => entry?.id === server.id) : undefined;
+        if (!world) continue;
+        if (world.online === false) server.playerCount = null;
+        else if (world.online === true) {
+            server.playerCount = Number.isInteger(world.players) && world.players >= 0 && world.players <= 2047 ? world.players : -1;
+        }
+    }
+}
+
+/** Where the world board is: beside the list, when the list is our own /servers.json. */
+function worldBoardUrl(): string | undefined {
+    return /(^|\/)servers\.json$/.test(SERVER_LIST_URL) ? SERVER_LIST_URL.replace(/servers\.json$/, "worlds.json") : undefined;
+}
+
+async function fetchWorldBoard(servers: ServerListEntry[]): Promise<void> {
+    const url = worldBoardUrl();
+    if (!url || !servers.some((server) => server.id)) return;
+    try {
+        const response = await fetch(url, { signal: AbortSignal.timeout(8000), headers: { Accept: "application/json" } });
+        if (response.ok) applyWorldBoard(servers, await response.json());
+    } catch {
+        // No board: the probe's "online" stands.
+    }
 }
 
 function validPublicText(value: unknown, maxLength: number): value is string {
@@ -209,9 +248,13 @@ export async function fetchServerList(host: LoginRendererHost): Promise<void> {
     
 }
 
-export function refreshServerList(host: LoginRendererHost) {
+/** Ours: the refresh under way for each list, so a second asker can wait for the same answers. */
+const refreshing = new WeakMap<LoginRendererHost, Promise<void>>();
 
-        if (host.probing) return;
+/** Asks every listed world how it is. Resolves when the answers are in (it never rejects). */
+export function refreshServerList(host: LoginRendererHost): Promise<void> {
+
+        if (host.probing) return refreshing.get(host) ?? Promise.resolve();
         host.probed = false;
         host.probing = true;
 
@@ -238,11 +281,15 @@ export function refreshServerList(host: LoginRendererHost) {
             server.playerCount = alive ? -1 : null;
         });
 
-        Promise.all([Promise.all(promises), discoverRelayWorlds()]).then(([, discovered]) => {
+        // The board after the probes: it knows more than they do, so its word is the last.
+        const probes = Promise.all(promises).then(() => fetchWorldBoard(visibleServers));
+        const done = Promise.all([probes, discoverRelayWorlds()]).then(([, discovered]) => {
             host.serverList = replaceRelayWorlds(visibleServers, discovered);
-        }).finally(() => {
+        }).catch(() => {}).finally(() => {
             host.probing = false;
             host.probed = true;
         });
-    
+        refreshing.set(host, done);
+        return done;
+
 }

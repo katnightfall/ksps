@@ -19,6 +19,9 @@
  *            address (what deploy/front.mjs gives a world)
  *   secure   true for https/wss. A page on https cannot open a game connection to a world
  *            without it, so such a world is left out of an https page's world picker.
+ *   location where the world is hosted, in words ("Dallas, US", "United Kingdom"; for a world
+ *            made on the admin page, its node's name). Optional. The game's World Switcher
+ *            picks the world's flag from it.
  */
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -44,7 +47,8 @@ export function cleanWorld(entry) {
     const id = text(entry.id, 40).toLowerCase().replace(/[^a-z0-9-]+/g, "-") || address.replace(/[^a-z0-9]+/g, "-");
     return { id, name, world: text(entry.world, 40) || name, address, secure: entry.secure !== false, here: false, description: text(entry.description, 160),
         // A world with no website of its own (made on the master's admin page): played on the master's site.
-        ...(entry.headless === true ? { headless: true } : {}) };
+        ...(entry.headless === true ? { headless: true } : {}),
+        ...(text(entry.location, 40) ? { location: text(entry.location, 40) } : {}) };
 }
 
 /** The worlds in `file`, or [] when there is no file or it cannot be read as a list. */
@@ -94,11 +98,19 @@ export function masterRoute(url) {
  * /servers.json: the list as the game's world picker reads it (client/game/login/renderer/serverList.ts).
  * `site`, on the master: { host, secure } of the page asking; worlds played through the master
  * are then listed at its own address.
+ *
+ * For the game's World Switcher each entry also says which world it is: its id (the one
+ * /worlds.json counts players under), its number (its place on the whole list, from 1, which
+ * `numberOf` gives when `worlds` is only part of the list) and its location when it has one. A
+ * client from before these were added does not read them.
  */
-export function serverList(worlds, site = null) {
-    return worlds.map((world) => (site && throughMaster(world)
-        ? { name: world.name, address: `${site.host}${masterPath(world.id)}`, secure: site.secure, maxPlayers: 2047 }
-        : { name: world.name, address: world.address, secure: world.secure, maxPlayers: 2047 }));
+export function serverList(worlds, site = null, numberOf = (world) => worlds.indexOf(world) + 1) {
+    return worlds.map((world) => ({
+        ...(site && throughMaster(world)
+            ? { name: world.name, address: `${site.host}${masterPath(world.id)}`, secure: site.secure, maxPlayers: 2047 }
+            : { name: world.name, address: world.address, secure: world.secure, maxPlayers: 2047 }),
+        id: world.id, number: numberOf(world), ...(world.location ? { location: world.location } : {}),
+    }));
 }
 
 /**
@@ -188,6 +200,7 @@ export function createStatusBoard(ask, now = () => Date.now(), masterUrl = undef
                     name: world.name || reportedName || "World",
                     description: world.description || reportedDescription || "",
                     here: world.here,
+                    ...(world.location ? { location: world.location } : {}),
                     ...worldUrls(world, masterUrl),
                     ...status,
                 };
