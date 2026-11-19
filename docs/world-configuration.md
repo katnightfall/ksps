@@ -375,6 +375,7 @@ After changing a plugin's `description` or `config`, run `yarn --cwd server worl
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
+| `CustomShops:players` | boolean | `true` | **Custom shops for every player.** On, as on the original project's PvP worlds: every player may browse and buy from the ::shops panel's shops (custom-shops.json, the PK shops among them). Off, for a world where items are earned: only owners and developers may open them, by ::shops or any other way (an NPC bound to one, for example); other players are told they are not available. |
 | `GrandExchange:maxTradeDelay` | number (integer, >= 5000, <= 2147483647) | `3600000` | **Longest offer wait (ms).** Upper limit, in milliseconds, on how long an offer takes to complete. Applies to newly placed offers. |
 | `SetSkillLevel:adminsOnly` | boolean | `false` | **Setting skill levels is for administrators only.** Off: on a world with PvP presets any player may set their combat levels by clicking a stat on the Skills tab. On: that click opens the skill guide; an administrator (or higher) is asked whether to view the guide or set the level, and may set any skill. |
 | `SkillLevelUp:interruptActions` | boolean | `true` | **Level-ups interrupt actions.** Follows each player's pop-up preference. Turn off to keep skilling and fighting through level-ups: the blocking pop-ups are skipped, chat messages, sounds and graphics stay. |
@@ -621,7 +622,7 @@ This table lists bundled plugins that have a description. The world config page 
 | `CloseButtons` | CloseButtons | interface | yes | Makes cache Close buttons that have no client script, such as the book and minigame panels, close their interface. |
 | `Commands` | Commands | interface | yes | A searchable in-game list of the commands available to the player, opened with ::commands. |
 | `CustomCharacterSummary` | CustomCharacterSummary | interface | no | Our own Character Summary tab for the side journal. Off unless the world turns it on; needs SideJournalDefaults. |
-| `CustomShops` | CustomShops | interface | yes | A ::shops interface for browsing this server's custom shops, loaded from custom-shops.json. |
+| `CustomShops` | CustomShops | interface | yes | A ::shops interface for browsing this server's custom shops, loaded from custom-shops.json. A world may keep these shops, by every road, for owners and developers (CustomShops:players). |
 | `DestroyItem` | DestroyItem | interface | yes | The destroy-item confirmation and its 1/Y and 2/N keys, with the destroy sound and each item's own warning; other options (Uncharge, Dismantle) can ask on it too. |
 | `DuelStaking` | DuelStaking | interface | yes | Adds the staking interface and item stakes to duels. The Duel Arena itself is a separate plugin. |
 | `Emotes` | Emotes | interface | yes | Emotes tab: plays the emote animations, locks emotes until earned, and restores unlocked emotes at login. |

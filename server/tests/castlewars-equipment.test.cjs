@@ -388,6 +388,10 @@ test('native Castle Wars supplies work with production plugin ordering and the c
       return { ...config, plugins: { ...config.plugins, [routeScenario.replace('-disabled', '')]: false } };
     });
   } else if (routeScenario === 'custom') {
+    // Ours: a custom shop opens for every player only where CustomShops:players is on (its default); our world.json
+    // keeps custom shops for owners and developers.
+    const config = PluginManager.getPluginConfig;
+    t.mock.method(PluginManager, 'getPluginConfig', (key, fallback) => key === 'CustomShops:players' ? true : config.call(PluginManager, key, fallback));
     const read = fs.readFileSync;
     t.mock.method(fs, 'readFileSync', function (file, ...args) {
       const content = read.call(this, file, ...args);

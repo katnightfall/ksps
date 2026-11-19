@@ -30,6 +30,50 @@ const selectedShopIds = new WeakMap();
 
 let CombatFactory;
 let ItemDefinition;
+let pluginApi = null;
+
+/**
+ * Ours: world setting "CustomShops:players". The original project's worlds are PvP-spawn worlds where every player
+ * shops here. Ours are levelling worlds, and these shops sold high-value tradeable items at store value (a 3rd Age axe
+ * for 55,000 coins, worth about 2.1 billion on the Grand Exchange) and, without PvP mode, the PK shops' gear for coins
+ * at item value (a Twisted bow for 4,000,000). With the setting off the shops in custom-shops.json are for owners and
+ * developers only: ::shops is their command (its rank), and any other road to one of these shops (an NPC bound to it,
+ * a dialogue, another plugin, a click on the panel's buttons) is refused with one line.
+ */
+const PLAYERS_CONFIG = "CustomShops:players";
+const NOT_ON_THIS_WORLD = "That is not available on this world.";
+const CUSTOM_SHOPS_FILE = () => path.join(GameConstants.DEFINITIONS_DIRECTORY, "custom-shops.json");
+let customShopIds = { mtimeMs: null, ids: new Set() };
+
+function playersMayShop() {
+  return pluginApi?.getPluginConfig?.(PLAYERS_CONFIG, true) !== false;
+}
+
+function mayUseCustomShops(player) {
+  return playersMayShop() || Number(player?.getRights?.()?.getId?.() ?? 0) >= pluginApi.core.PlayerRights.OWNER.getId();
+}
+
+/** The rank ::shops needs: anyone's, unless the world keeps these shops for owners and developers. */
+function shopsCommandRank() {
+  return playersMayShop() ? undefined : pluginApi.core.PlayerRights.OWNER;
+}
+
+/** Whether `shopId` is one of custom-shops.json's; the file is read again only when it changes (the host editor). */
+function isCustomShop(shopId) {
+  const { mtimeMs } = fs.statSync(CUSTOM_SHOPS_FILE());
+  if (customShopIds.mtimeMs !== mtimeMs) {
+    const raw = JSON.parse(fs.readFileSync(CUSTOM_SHOPS_FILE(), "utf8"));
+    customShopIds = { mtimeMs, ids: new Set((Array.isArray(raw) ? raw : []).map((entry) => Number(entry?.id))) };
+  }
+  return customShopIds.ids.has(shopId);
+}
+
+/** onCanShop: every road to a custom shop asks this (ShopManager.open), so none of them opens one for such a player. */
+function refuseClosedShop(event) {
+  if (event.shopId == null || mayUseCustomShops(event.player) || !isCustomShop(event.shopId)) return;
+  event.allow = false;
+  event.player.sendMessage(NOT_ON_THIS_WORLD);
+}
 
 function customShops() {
   const file = path.join(GameConstants.DEFINITIONS_DIRECTORY, "custom-shops.json");
@@ -52,6 +96,10 @@ function selectedShop(player, shops) {
 }
 
 function canUseShops(player) {
+  if (!mayUseCustomShops(player)) {
+    player.sendMessage(NOT_ON_THIS_WORLD);
+    return false;
+  }
   if (Wilderness.isIn(player)) {
     player.sendMessage("You cannot open shops in the Wilderness.");
     return false;
@@ -198,14 +246,22 @@ function initialize(api) {
 
 module.exports = {
   name: "CustomShops",
-  description: "A ::shops interface for browsing this server's custom shops, loaded from custom-shops.json.",
+  description: "A ::shops interface for browsing this server's custom shops, loaded from custom-shops.json. A world may keep these shops, by every road, for owners and developers (CustomShops:players).",
+  config: {
+    [PLAYERS_CONFIG]: {
+      type: "boolean", label: "Custom shops for every player", default: true,
+      help: "On, as on the original project's PvP worlds: every player may browse and buy from the ::shops panel's shops (custom-shops.json, the PK shops among them). Off, for a world where items are earned: only owners and developers may open them, by ::shops or any other way (an NPC bound to one, for example); other players are told they are not available.",
+    },
+  },
   register(api) {
+    pluginApi = api;
     api.onServerStartup(initialize.bind(null, api));
     api.persistAttribute(BUY_NOTED_ATTRIBUTE, false);
     api.registerCustomInterface(INTERFACE_DEFINITION);
-    api.registerCommand("shops", openShops, undefined, "Browse custom shops");
+    api.registerCommand("shops", openShops, shopsCommandRank(), "Browse custom shops");
     api.onInterfaceActionButton(LEFT_ROW_UIDS, selectShopButton);
     api.onInterfaceActionButton(uid(COMPONENT.NOTED_TOGGLE), toggleNoted);
     api.onCustomEvent("shop:delivery", deliverNoted);
+    api.onCanShop(refuseClosedShop);
   },
 };

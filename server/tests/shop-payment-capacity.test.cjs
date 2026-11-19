@@ -681,6 +681,10 @@ test('Culinaromancer chest selects persisted tiers and charges canonical full-st
 
 test('Pk Supplies sells normal stackable Purple sweets at its authored coin and blood-money prices',async t=>{
   const shopId=27,normal=core.ItemIdentifiers.PURPLE_SWEETS_2,obsolete=core.ItemIdentifiers.PURPLE_SWEETS;
+  // Ours: Pk Supplies is a custom shop (custom-shops.json), which our world.json keeps for owners and developers
+  // (CustomShops:players off); this is the original project's shop, open to every player.
+  const config=PM.getPluginConfig;
+  t.mock.method(PM,'getPluginConfig',(key,fallback)=>key==='CustomShops:players'?true:config.call(PM,key,fallback));
   const priorPresetPrices=core.ShopDefinition.forId(shopId).getCurrency()==='BLOOD_MONEY';
   try {
     for(const presets of [false,true]){

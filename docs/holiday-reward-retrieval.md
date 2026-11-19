@@ -210,7 +210,8 @@ Not yet covered, and why:
 Seasonal rares get no in-game source here. In OSRS, the discontinued rares (partyhats,
 Halloween masks, Santa hat and the rest) are not obtainable in game. This server's only
 source is the custom `::shops` panel, which a world can switch off with
-`"CustomShops": false` in world.json.
+`"CustomShops": false` in world.json, or keep for owners and developers with the
+`CustomShops:players` setting (our world.json does).
 
 ## Placed items and proximity options
 
