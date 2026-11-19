@@ -61,6 +61,7 @@ const BOT_KEY = /^sitebot\d+$/;
 const nameKey = (name) => String(name ?? "").replace(/_/g, " ").trim().replace(/\s+/g, " ").toLowerCase();
 
 const UNREACHABLE = "The account server can't be reached. Please try again in a moment.";
+const PLAYED_ELSEWHERE = "Your character has been played on another world since you logged in. Please log in again.";
 
 /** A reset id as it is compared (deploy/master/characters.mjs resetKey): a world's copy has no "|" in it. */
 const resetKey = (id) => String(id ?? "").replace(/[^A-Za-z0-9:._-]/g, "");
@@ -101,7 +102,11 @@ function httpCaller({ master, key }) {
  * an account out.
  */
 function createMasterSync({ persistence, call, world, reset = "", stateFile = null, offlineLogins = () => false, online = () => new Set(), localKeys = () => [], kick = () => {}, log = () => {}, now = () => Date.now() }) {
-  /** name (lower case) -> the login it belongs to: { names, keys, online, releasing, at }. */
+  /**
+   * name (lower case) -> the login it belongs to: { names, keys, base, online, releasing, at }.
+   * `base` is, for each of its saves, the master's version of the copy the login read: what it
+   * plays is handed in as coming after that one, whatever this world has copied since.
+   */
   const sessions = new Map();
   /** save key -> its login. Only these saves are handed in. */
   const tracked = new Map();
@@ -195,15 +200,18 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
       persist();
       return "dropped";
     }
+    const session = tracked.get(key);
     let result;
     try {
-      result = await call("POST", "/sync/save", { world, reset, key, json, base: versions.get(key) ?? 0, release: entry.release === true });
+      result = await call("POST", "/sync/save", { world, reset, key, json, base: session?.base.get(key) ?? versions.get(key) ?? 0, release: entry.release === true });
     } catch {
       return "retry";
     }
     const { status, answer } = result;
     if (status === 200 && Number.isInteger(answer.version)) {
       versions.set(key, answer.version);
+      // Taken as coming after the copy the login read: what it plays next comes after this one.
+      if (session && tracked.get(key) === session) session.base.set(key, answer.version);
       // Saved again while this one was on its way: that one is still to go.
       if (dirty.get(key)?.mark === entry.mark) dirty.delete(key);
       persist();
@@ -218,10 +226,9 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
       log("save_not_taken", { key, lost: answer.lost ?? null, conflict: answer.conflict ?? null });
       dirty.delete(key);
       persist();
-      if (answer.lost) {
-        const session = tracked.get(key);
-        if (session?.online) kick(session.names, `Your account has logged in on ${answer.lost}.`);
-      }
+      // Whoever is still playing that character here is put out: no save of theirs will be
+      // taken until they log in again, so playing on would only lose more.
+      putOut(tracked.get(key), answer.lost ? `Your account has logged in on ${answer.lost}.` : PLAYED_ELSEWHERE);
       return "dropped";
     }
     // Neither taken nor refused by the master (a proxy's "forbidden" or "too many requests", a
@@ -229,6 +236,41 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
     // it was dropped, and the master's older copy replaced it at the player's next login.
     if (status < 500 && status !== 401 && status !== 403) unexpected("save", status);
     return "retry";
+  }
+
+  /** Puts a login's player out of the world, once. */
+  function putOut(session, message) {
+    if (!session?.online || session.putOut) return;
+    session.putOut = true;
+    kick(session.names, message);
+  }
+
+  /**
+   * A login has entered the world: is the copy it read still the master's newest? An accepted
+   * login may wait minutes before it enters (the character picker), nothing is held for it
+   * while it waits, and the account may have been played on another world meanwhile. Entering
+   * with the old copy undid that play, and brought back whatever was given away there. Such a
+   * login is put out at once, to log in again from the newest copy.
+   */
+  async function confirm(session) {
+    if (isStale() || !session.online) return;
+    const keys = [...session.keys];
+    // This world's own writes for the login (its remembered logins) go first: they are no change.
+    await pushAll(keys);
+    let result;
+    try {
+      result = await call("POST", "/sync/checkout", { world, reset, keys });
+    } catch {
+      return;
+    }
+    if (result.status !== 200 || !Array.isArray(result.answer.rows) || !session.online) return;
+    const changed = result.answer.rows
+      .filter((row) => !dirty.has(row.key) && !pushing.has(row.key) && tracked.get(row.key) === session)
+      .filter((row) => (Number(row.version) || 0) !== (session.base.get(row.key) ?? 0))
+      .map((row) => row.key);
+    if (changed.length === 0) return;
+    log("login_out_of_date", { keys: changed });
+    putOut(session, PLAYED_ELSEWHERE);
   }
 
   async function pushAll(keys = [...dirty.keys()]) {
@@ -250,7 +292,8 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
 
   /** This world's record of a login: its saves are the ones handed in. */
   function begin(names, keys) {
-    const session = { names, keys: new Set(keys), online: false, releasing: false, finished: false, at: now() };
+    const session = { names, keys: new Set(keys), base: new Map(), online: false, releasing: false, finished: false, putOut: false, at: now() };
+    for (const key of keys) session.base.set(key, versions.get(key) ?? 0);
     for (const name of names) sessions.set(name, session);
     for (const key of keys) tracked.set(key, session);
     persist();
@@ -324,12 +367,13 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
 
     /** The account entered the world: the master is told at once, so no other world lets it in. */
     async entered(username) {
-      const session = sessions.get(nameKey(username));
-      if (!session) return;
+      // A login this world was not asked about should not be: it is known from here on all the same.
+      const session = sessions.get(nameKey(username)) ?? begin([nameKey(username)], keysFor([username]));
       session.online = true;
       session.releasing = false;
       session.finished = false;
       await this.heartbeat();
+      await confirm(session);
     },
 
     /** The account is leaving: its logout save, which follows, lets it go. */
@@ -441,7 +485,11 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
         }
         // Known to the master now, whichever copy it kept: never handed in this way again.
         versions.set(key, result.answer.kept ? 0 : Number(result.answer.version) || 0);
-        if (!result.answer.kept) taken++;
+        if (!result.answer.kept) {
+          taken++;
+          // Someone logging in with that character meanwhile read the copy the master now has.
+          tracked.get(key)?.base.set(key, versions.get(key));
+        }
       }
       persist();
       if (taken) log("seeded", { characters: taken });

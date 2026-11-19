@@ -267,3 +267,84 @@ test("a world told for a moment that it is on an old reset still hands in what w
   assert.equal(sync.state().stale, false);
   assert.deepEqual(JSON.parse(store.changes(0, clock.now).rows.find((row) => row.key === "kat").json), { at: "three hours later, logged out" }, "handed in once the master agreed again");
 });
+
+const PLAYED_ELSEWHERE = "Your character has been played on another world since you logged in. Please log in again.";
+
+test("a login that waited on the picker while the account was played elsewhere does not enter with the old copy", async (t) => {
+  const hub = await master(t);
+  const dallas = world(t, "1 - Dallas", hub);
+  const miami = world(t, "2 - Miami", hub);
+  await dallas.login("Kat");
+  await dallas.logout("Kat", "kat", { coins: 1000, at: "Dallas" });
+  // Dallas accepts a login and reads the save; the player stays on the character picker.
+  assert.equal(await dallas.accepted("Kat"), null);
+  const readOnDallas = JSON.parse(dallas.rows.get("kat"));
+  // Meanwhile (another tab) Miami lets the account in: asking for the saves holds nothing.
+  assert.equal(await miami.login("Kat"), null);
+  await miami.logout("Kat", "kat", { coins: 0, at: "Miami, the coins given away" });
+  await dallas.sync.mirror(); // Dallas copies what Miami handed in, as it does every minute
+  // Back on Dallas's picker, the player enters: the engine puts the save it read at login in the world.
+  await dallas.sync.entered("Kat");
+  assert.deepEqual(dallas.kicked, [{ names: ["kat"], message: PLAYED_ELSEWHERE }], "put out at once");
+  await dallas.logout("Kat", "kat", { ...readOnDallas, at: "Dallas, from the old copy" });
+  await dallas.sync.tick();
+  assert.deepEqual(hub.saved("kat"), { coins: 0, at: "Miami, the coins given away" }, "and the old copy never becomes the character again");
+  assert.equal(await dallas.login("Kat"), null);
+  assert.deepEqual(JSON.parse(dallas.rows.get("kat")), { coins: 0, at: "Miami, the coins given away" }, "the next login plays on from Miami's save");
+  assert.equal(dallas.kicked.length, 1, "and is left in peace");
+});
+
+test("a save the master refuses as played elsewhere puts its player out instead of letting them play on for nothing", async (t) => {
+  const hub = await master(t);
+  // The check at entry does not get through (the master busy for a moment): the first save decides.
+  let entering = false;
+  const dallas = world(t, "1 - Dallas", hub, {
+    wrapCall: (call) => async (method, target, body) => {
+      if (entering && target === "/sync/checkout") throw new Error("timed out");
+      return call(method, target, body);
+    },
+  });
+  const miami = world(t, "2 - Miami", hub);
+  await dallas.login("Kat");
+  await dallas.logout("Kat", "kat", { at: "Dallas" });
+  assert.equal(await dallas.accepted("Kat"), null);
+  assert.equal(await miami.login("Kat"), null);
+  await miami.logout("Kat", "kat", { at: "Miami" });
+  await dallas.sync.mirror();
+  entering = true;
+  await dallas.sync.entered("Kat");
+  entering = false;
+  assert.deepEqual(dallas.kicked, [], "not known yet");
+  await dallas.gameSaves("kat", { at: "Dallas, from the old copy" });
+  await dallas.sync.tick();
+  assert.deepEqual(hub.saved("kat"), { at: "Miami" }, "the master keeps the newer play");
+  assert.deepEqual(dallas.kicked, [{ names: ["kat"], message: PLAYED_ELSEWHERE }], "and the player is told, once");
+  await dallas.gameSaves("kat", { at: "Dallas, from the old copy, again" });
+  await dallas.sync.tick();
+  assert.equal(dallas.kicked.length, 1);
+  assert.deepEqual(hub.saved("kat"), { at: "Miami" });
+});
+
+test("an ordinary login is not put out: the world's own writes while it waits are no change", async (t) => {
+  const hub = await master(t);
+  const dallas = world(t, "1 - Dallas", hub);
+  const miami = world(t, "2 - Miami", hub);
+  await miami.login("Kat");
+  await miami.logout("Kat", "kat", { at: "Miami" });
+  assert.equal(await dallas.accepted("Kat"), null);
+  // The engine writes the account's remembered logins as it accepts the login (NetworkBuilder saveLoginTokens).
+  await dallas.gameSaves("kat", { at: "Miami", tokens: 1 });
+  await dallas.sync.mirror();
+  await dallas.sync.entered("Kat");
+  assert.deepEqual(dallas.kicked, []);
+  await dallas.logout("Kat", "kat", { at: "Dallas", tokens: 1 });
+  assert.deepEqual(hub.saved("kat"), { at: "Dallas", tokens: 1 });
+  assert.deepEqual(dallas.kicked, []);
+  // A new name, never saved anywhere, on its first evening.
+  assert.equal(await dallas.login("New Player"), null);
+  await dallas.gameSaves("new_player", { at: "tutorial" });
+  await dallas.sync.tick();
+  await dallas.logout("New Player", "new_player", { at: "Lumbridge" });
+  assert.deepEqual(dallas.kicked, []);
+  assert.deepEqual(hub.saved("new_player"), { at: "Lumbridge" });
+});
