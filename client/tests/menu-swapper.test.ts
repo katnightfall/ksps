@@ -37,6 +37,8 @@ const worldMenu = (): SimpleMenuEntry[] => [
 const config = (overrides: Partial<MenuSwapperPluginConfig> = {}): MenuSwapperPluginConfig => ({
     enabled: true,
     presets: { bank: false, trade: false, pickpocket: false, shiftDrop: false },
+    shopBuy: 0,
+    shopSell: 0,
     swaps: {},
     shiftSwaps: {},
     ...overrides,

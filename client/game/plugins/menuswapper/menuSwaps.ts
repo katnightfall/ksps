@@ -1,6 +1,7 @@
 import { MenuTargetType } from "../../../rs/MenuEntry";
 import type { SimpleMenuEntry } from "../../../ui/menu/MenuEngine";
 import type { MenuTransformContext } from "../../../ui/menu/menuTransforms";
+import { SHOPMAIN, SHOPSIDE } from "../../../runelite/api/gameval/InterfaceID";
 import type { MenuSwapKind, MenuSwapperPluginConfig, MenuSwapperPresets } from "./types";
 
 export type SwapContext = MenuTransformContext & {
@@ -184,5 +185,45 @@ export function applyMenuSwaps(
         }
         out.splice(after + 1, 0, ...submenus);
     }
+    return out;
+}
+
+/** "Buy 50", "Sell 5" (a script-set op may carry colour tags; some interfaces write "Buy-50"). */
+function shopAmountOption(option: unknown): { verb: "buy" | "sell"; amount: number } | undefined {
+    const match = /^(buy|sell)[ -](\d+)$/.exec(
+        String(option ?? "").replace(/<[^>]*>/g, "").trim().toLowerCase(),
+    );
+    return match ? { verb: match[1] as "buy" | "sell", amount: Number(match[2]) } : undefined;
+}
+
+/**
+ * RuneLite's "Shop buy shift-click" and "Shop sell shift-click" (upstream issue #6256): while
+ * Shift is held, the chosen "Buy N" of an item in a shop's stock, or "Sell N" of one of the
+ * player's items beside it, changes places with the item's first option ("Value", unless the
+ * shop's own quantity buttons put another there) and so becomes the left-click, the hover text
+ * and the top of the right-click menu. Off (0), Shift not held, another interface, or an item
+ * without that option (the infinite-stock shops have no "Buy 50"): the menu is returned as it is.
+ */
+export function applyShopSwaps(
+    entries: SimpleMenuEntry[],
+    context: SwapContext,
+    config: MenuSwapperPluginConfig,
+): SimpleMenuEntry[] {
+    if (!config.enabled || !context.isShiftHeld || context.surface !== "widget") return entries;
+    const group = context.widgetId >>> 16;
+    const verb = group === SHOPMAIN ? "buy" : group === SHOPSIDE ? "sell" : undefined;
+    const amount = verb === "buy" ? config.shopBuy : verb === "sell" ? config.shopSell : 0;
+    if (!verb || !(amount > 0)) return entries;
+    const at = entries.findIndex((entry) => {
+        const named = shopAmountOption(entry.option);
+        return named?.verb === verb && named.amount === amount;
+    });
+    // Not offered, or first already (the shop's quantity buttons chose the same amount).
+    if (at <= 0) return entries;
+    const out = entries.slice();
+    out[at] = entries[0];
+    // Pinned, as a shift-click swap of an inventory item is: it is the left-click whatever else
+    // would decide it.
+    out[0] = { ...entries[at], deprioritized: false, swapPinned: true };
     return out;
 }

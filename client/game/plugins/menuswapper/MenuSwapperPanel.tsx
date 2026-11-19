@@ -3,13 +3,20 @@ import { useCallback, useSyncExternalStore, type JSX } from "react";
 import { NavigationButton } from "@runelite/client/ui/NavigationButton";
 import { imageIcon, runeliteImage } from "@runelite/client/ui/runeliteImages";
 import type { MenuSwapperPlugin } from "./MenuSwapperPlugin";
-import type { MenuSwap, MenuSwapKind, MenuSwapperPresets } from "./types";
+import { SHOP_SWAP_AMOUNTS } from "./types";
+import type { MenuSwap, MenuSwapKind, MenuSwapperPresets, ShopSwapAmount } from "./types";
 
 const PRESET_LABELS: ReadonlyArray<[keyof MenuSwapperPresets, string]> = [
     ["bank", "Bank: bankers and bank booths"],
     ["trade", "Trade: shopkeepers"],
     ["pickpocket", "Pickpocket"],
     ["shiftDrop", "Shift-click drop, every item"],
+];
+
+/** RuneLite's two shop settings: the option a Shift-click gives in place of "Value". */
+const SHOP_SWAPS: ReadonlyArray<["shopBuy" | "shopSell", string, string]> = [
+    ["shopBuy", "Shop buy shift-click", "Buy"],
+    ["shopSell", "Shop sell shift-click", "Sell"],
 ];
 
 type SwapRow = { kind: MenuSwapKind; key: string; swap: MenuSwap };
@@ -46,6 +53,24 @@ export function MenuSwapperPanel({ plugin }: { plugin: MenuSwapperPlugin }): JSX
                         }
                     />
                     <span>{label}</span>
+                </label>
+            ))}
+
+            {SHOP_SWAPS.map(([setting, label, verb]) => (
+                <label key={setting} className="rl-sidebar-field">
+                    <span>{label}</span>
+                    <select
+                        value={config[setting]}
+                        onChange={(event) =>
+                            plugin.setConfig({ [setting]: Number(event.target.value) as ShopSwapAmount })
+                        }
+                    >
+                        {SHOP_SWAP_AMOUNTS.map((amount) => (
+                            <option key={amount} value={amount}>
+                                {amount === 0 ? "Off" : `${verb} ${amount}`}
+                            </option>
+                        ))}
+                    </select>
                 </label>
             ))}
 

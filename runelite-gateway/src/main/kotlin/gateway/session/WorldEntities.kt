@@ -54,6 +54,9 @@ class WorldEntities(private val world: EntityWorld) {
     /** The boats as the client has them listed; WORLDENTITY_INFO's updates come in this order. */
     private var order = ArrayList<Int>()
 
+    /** Told the session's world id of a boat tsps has taken away: the id may go to another boat next. */
+    var onGone: (worldId: Int) -> Unit = {}
+
     /** By tsps's index. */
     fun deck(index: Int): Deck? = decks[index]
 
@@ -107,7 +110,7 @@ class WorldEntities(private val world: EntityWorld) {
             if (type == GONE) {
                 boats.remove(index)?.let { world.releaseWorldEntity(it.avatar) }
                 decks.remove(index)
-                worldIds.remove(index)
+                worldIds.remove(index)?.let(onGone)
                 continue
             }
             kept += index
@@ -155,6 +158,7 @@ class WorldEntities(private val world: EntityWorld) {
         boats.values.forEach { world.releaseWorldEntity(it.avatar) }
         boats.clear()
         decks.clear()
+        worldIds.values.toList().forEach(onGone)
         worldIds.clear()
         order.clear()
     }

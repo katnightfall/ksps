@@ -31,6 +31,17 @@ function lineText(text) {
   return GROUP_LINE_MARK + text;
 }
 
+/**
+ * What was said, from the text a client sent. The cache's chat_send (script 5517) puts the bar in
+ * front of a group line itself before it sends it (and capitalises the first letter), so a line
+ * from the browser client or from RuneLite arrives as "|Hello": that one bar is the mark, not part
+ * of what was said, and is taken off here so the line does not go out with two.
+ */
+function saidText(text) {
+  const sent = String(text ?? "");
+  return sent.startsWith(GROUP_LINE_MARK) ? sent.slice(GROUP_LINE_MARK.length) : sent;
+}
+
 /** onSocialPacket: a line said on clan type 1 goes to the speaker's group. */
 function chat(event) {
   const { player, packet } = event;
@@ -41,7 +52,7 @@ function chat(event) {
     player.getPacketSender().sendMessage(MESSAGE.NOT_IN_GROUP);
     return;
   }
-  const text = FriendsChatManager.cleanMessage(packet.text, MAX_MESSAGE_LENGTH);
+  const text = FriendsChatManager.cleanMessage(saidText(packet.text), MAX_MESSAGE_LENGTH);
   if (!text || !FriendsChatManager.allowChat(player, text)) return;
   const line = Common.api.core.encodeChatMessage("clan", lineText(text), player.getUsername(), channelName(group), player.getIndex(), CLAN_CHAT_TYPE);
   for (const member of group.members) {
@@ -51,4 +62,4 @@ function chat(event) {
   }
 }
 
-module.exports = { GIM_CLAN, CLAN_CHAT_TYPE, MESSAGE, channelName, lineText, chat };
+module.exports = { GIM_CLAN, CLAN_CHAT_TYPE, MESSAGE, channelName, lineText, saidText, chat };

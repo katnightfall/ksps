@@ -139,8 +139,16 @@ class Upstream(
             is MessagePublic ->
                 when {
                     // tsps's clan chat has no colour or effect.
+                    // Ours (upstream issue #5203): a Group Ironman group's chat is clan type 1, the bar
+                    // that marks a group line already in front of the text (the client's chat_send puts
+                    // it there). tsps takes it as the browser sends it; it was dropped here from before
+                    // tsps had groups, so nothing typed in RuneLite's Group tab reached anyone.
                     message.type == CLAN_CHAT_TYPE ->
-                        if (message.clanType == OWN_CLAN) send(TspsClientPacket.clanChat(OWN_CLAN, message.message)) else DropCounter.up(message)
+                        if (message.clanType == OWN_CLAN || message.clanType == GIM_CLAN) {
+                            send(TspsClientPacket.clanChat(message.clanType, message.message))
+                        } else {
+                            DropCounter.up(message)
+                        }
                     message.type == GUEST_CLAN_CHAT_TYPE -> send(TspsClientPacket.clanChat(GUEST_CLAN, message.message))
                     else ->
                         PUBLIC_CHAT_KINDS[message.type]?.let {
@@ -306,6 +314,7 @@ class Upstream(
         const val CLAN_CHAT_TYPE = 3
         const val GUEST_CLAN_CHAT_TYPE = 4
         const val OWN_CLAN = 0
+        const val GIM_CLAN = 1
         const val GUEST_CLAN = -1
 
         // CLAN_CHANNEL_ACTION's action codes.

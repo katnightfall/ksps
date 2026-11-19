@@ -1,6 +1,6 @@
 import type { MenuTargetType } from "../../rs/MenuEntry";
 import type { SimpleMenuEntry } from "./MenuEngine";
-import { BANKMAIN, CA_TASKS, STATS } from "../../runelite/api/gameval/InterfaceID";
+import { BANKMAIN, CA_TASKS, SHOPMAIN, SHOPSIDE, STATS } from "../../runelite/api/gameval/InterfaceID";
 import { buildPluginMenu, preparePluginMenu } from "./menuEvents";
 
 /**
@@ -44,11 +44,14 @@ export function setManagedMenus(next: MenuTransform | undefined): void {
  * RuneLite's MenuOpened does, and the opened menu of a skill on the stats tab, a combat
  * achievement task or anything in the bank (RuneLite's MenuEntryAdded, which Bank Tags uses for
  * the deposit buttons and its tag tabs, and Wiki for its skill and task options). Other widget
- * menus, and their left-click/hover order, stay with the widget layer.
+ * menus, and their left-click/hover order, stay with the widget layer, except an item's in a
+ * shop's stock or in the inventory beside it: Menu Entry Swapper's Shift-click Buy and Sell
+ * amounts change the left-click there (upstream issue #6256).
  */
 function reachesPlugins(context: MenuTransformContext): boolean {
     if (context.surface !== "widget") return true;
     const group = context.widgetId >>> 16;
+    if (context.itemId > 0 && (group === SHOPMAIN || group === SHOPSIDE)) return true;
     return context.menu && (context.itemId > 0 || group === STATS || group === CA_TASKS || group === BANKMAIN);
 }
 

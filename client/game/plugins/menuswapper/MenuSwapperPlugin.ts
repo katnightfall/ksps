@@ -7,8 +7,10 @@ import { ClientState } from "../../ClientState";
 import type { SimpleMenuEntry } from "../../../ui/menu/MenuEngine";
 import type { MenuTransformContext } from "../../../ui/menu/menuTransforms";
 import { createBrowserMenuSwapperPluginPersistence } from "./BrowserMenuSwapperPersistence";
-import { applyMenuSwaps } from "./menuSwaps";
+import { applyMenuSwaps, applyShopSwaps } from "./menuSwaps";
+import { SHOP_SWAP_AMOUNTS } from "./types";
 import type {
+    ShopSwapAmount,
     MenuSwapKind,
     MenuSwapperPluginConfig,
     MenuSwapperPluginPersistence,
@@ -20,9 +22,16 @@ type MenuSwapperPluginListener = () => void;
 const DEFAULT_CONFIG: MenuSwapperPluginConfig = Object.freeze({
     enabled: true,
     presets: { bank: false, trade: false, pickpocket: false, shiftDrop: false },
+    shopBuy: 0,
+    shopSell: 0,
     swaps: {},
     shiftSwaps: {},
 });
+
+/** A saved amount, if it is one a shop offers; otherwise off. */
+function shopAmount(saved: unknown): ShopSwapAmount {
+    return SHOP_SWAP_AMOUNTS.find((amount) => amount === saved) ?? 0;
+}
 
 function withDefaults(
     saved: Partial<MenuSwapperPluginConfig> | undefined,
@@ -30,6 +39,8 @@ function withDefaults(
     return {
         enabled: saved?.enabled ?? DEFAULT_CONFIG.enabled,
         presets: { ...DEFAULT_CONFIG.presets, ...saved?.presets },
+        shopBuy: shopAmount(saved?.shopBuy),
+        shopSell: shopAmount(saved?.shopSell),
         swaps: { ...saved?.swaps },
         shiftSwaps: { ...saved?.shiftSwaps },
     };
@@ -37,7 +48,8 @@ function withDefaults(
 
 /**
  * RuneLite-style menu entry swapper: Ctrl or Shift + right-click a target for "Swap left click" /
- * "Swap shift click", plus a few built-in presets. Swaps are saved per NPC, object or item id.
+ * "Swap shift click", plus a few built-in presets and the Shift-click Buy and Sell amounts in
+ * shops. Swaps are saved per NPC, object or item id.
  */
 export class MenuSwapperPlugin extends Plugin {
     static descriptor: PluginDescriptor = {
@@ -109,13 +121,16 @@ export class MenuSwapperPlugin extends Plugin {
         entries: SimpleMenuEntry[],
         context: MenuTransformContext,
     ): SimpleMenuEntry[] {
+        const held = { isShiftHeld: ClientState.isShiftPressed(), isCtrlHeld: ClientState.isCtrlPressed() };
+        const config = { ...this.config, enabled: this.isEnabled() };
         // Swaps are keyed per world target and inventory item; other interfaces' item menus
-        // (worn equipment, bank side...) keep their own order.
-        if (context.surface === "widget") return entries;
+        // (worn equipment, bank side...) keep their own order, but for a shop's Buy and Sell
+        // amounts on a Shift-click.
+        if (context.surface === "widget") return applyShopSwaps(entries, { ...context, ...held }, config);
         return applyMenuSwaps(
             entries,
-            { ...context, isShiftHeld: ClientState.isShiftPressed(), isCtrlHeld: ClientState.isCtrlPressed() },
-            { ...this.config, enabled: this.isEnabled() },
+            { ...context, ...held },
+            config,
             (kind, key, option, name) => this.setSwap(kind, key, option, name),
         );
     }

@@ -58,6 +58,39 @@ class WorldEntitiesTest {
         assertNull(boats.deck(BOAT))
     }
 
+    /**
+     * Upstream issue #5202: the client can lose a boat's world without tsps taking the boat away.
+     * rsprot removes it when the boat is outside the scene the client was last sent, and adds it
+     * again, as new, once a rebuild has moved that scene over it. The deck's scene (the hull) is
+     * sent on every "added"; the deck's locs have to go with it each time (World.replayDeck).
+     */
+    @Test
+    fun `a boat the client's scene leaves behind is taken away and comes back as new, with tsps saying nothing`() {
+        val gone = ArrayList<Int>()
+        boats.onGone = { gone += it }
+        boats.onRebuild(TspsPacket(TspsServerPacket.REBUILD_WORLDENTITY, rebuild()))
+        boats.onInfo(TspsPacket(TspsServerPacket.WORLDENTITY_INFO, spawn()), 0)
+        assertEquals(WORLD to true, tick().activeWorlds.single().let { it.worldId to it.added })
+        assertEquals(WORLD to false, tick().activeWorlds.single().let { it.worldId to it.added })
+
+        // The scene moves off the boat (a rebuild centred far to the east).
+        self.updateRootBuildAreaCenteredOnPlayer(DOCK_X + FAR, DOCK_Z)
+        val lost = tick()
+        assertEquals(listOf(WORLD), lost.removedWorldIndices)
+        assertTrue(lost.activeWorlds.isEmpty())
+        // tsps never took the boat away: the gateway still has its deck and its world id.
+        assertEquals(WORLD, boats.sessionWorld(BOAT))
+        assertTrue(boats.deck(BOAT) != null && gone.isEmpty())
+
+        // And back over it: the same world, new to the client again.
+        self.updateRootBuildAreaCenteredOnPlayer(DOCK_X, DOCK_Z)
+        assertEquals(WORLD to true, tick().activeWorlds.single().let { it.worldId to it.added })
+
+        // Only tsps's own "gone" frees the world id (and with it what the gateway remembers of the deck).
+        boats.onInfo(TspsPacket(TspsServerPacket.WORLDENTITY_INFO, TspsWriter().u8(1).u8(GONE).body()), 0)
+        assertEquals(listOf(WORLD), gone)
+    }
+
     private fun tick(): net.rsprot.protocol.game.outgoing.info.InfoPackets {
         world.update()
         val packets = self.getPackets()
@@ -160,5 +193,6 @@ class WorldEntitiesTest {
         const val SCENE_ZONES = 13
         const val SCENE_CENTRE = 6
         const val RENDER_DISTANCE = 40
+        const val FAR = 400
     }
 }
