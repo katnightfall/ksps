@@ -23,7 +23,11 @@
  * answer against the drawn question's text and answers the count conditions by their ids. Curpile's 3-damage punch (the
  * refusal option) is applied by its action step.
  * Per-player bridge rungs live in a persisted attribute mirrored to varbits
- * 176-178/3928; the world clipping is not edited.
+ * 176-178/3928; the world clipping is not edited. The bridge's pieces block walking in
+ * the map (floor decorations with blockwalk 1), so every move along it is made by the
+ * pieces' own options: Repair steps onto the rung, Cross walks to the piece clicked, and
+ * once all three rungs are in, the trees' option becomes Cross-bridge (loc 5003 shows
+ * 50788 while varbit 3928 is 7), which takes the player over to the far bank.
  */
 module.exports = function registerInSearchOfTheMyrequeQuest(api) {
   const { Skill, ItemIdentifiers, NpcIdentifiers, ObjectIdentifiers } = api.core;
@@ -158,6 +162,9 @@ module.exports = function registerInSearchOfTheMyrequeQuest(api) {
   const NORTH_TREE_Y = 3431;
   const BRIDGE_LANDING_Y = 3427;
   const BRIDGE_TOP_Y = 3430;
+  /** The bridge's column in the cache map: the intact piece (5002) at y 3427, then the rungs 26245-26247 at 3428-3430. */
+  const BRIDGE_X = 3502;
+  const FIRST_RUNG_Y = 3428; // rung 26245, varbit 176; the next two follow northwards
   const NORTH_BANK = { x: 3503, y: 3431 };
   const SOUTH_BANK = { x: 3502, y: 3425 };
   const TAVERN_LADDER_ID = ObjectIdentifiers.LADDER_54; // 5054
@@ -779,6 +786,15 @@ module.exports = function registerInSearchOfTheMyrequeQuest(api) {
     }
     const y = player.getLocation().getY();
     const up = north ? y >= tree.y : y <= tree.y;
+    // Ours (upstream issue #6264): with all three rungs in, the tree's option is Cross-bridge (see above), and from the
+    // bank it takes the player over the bridge to the far bank. It used to be answered as a climb, which left the player
+    // standing on the bridge with no way on: the pieces block walking, and from the north end nothing answered at all.
+    // How live shows the crossing (a walk over the planks, its timing) has no capture, so the player is placed.
+    if (up && bridgeRepaired(player)) {
+      const far = north ? SOUTH_BANK : NORTH_BANK;
+      player.moveTo(new api.core.Location(far.x, far.y, tree.z ?? 0));
+      return;
+    }
     let landing;
     if (north) landing = up ? { x: tree.x, y: BRIDGE_TOP_Y } : NORTH_BANK;
     else landing = up ? { x: tree.x, y: BRIDGE_LANDING_Y } : SOUTH_BANK;
@@ -786,6 +802,23 @@ module.exports = function registerInSearchOfTheMyrequeQuest(api) {
     player.moveTo(new api.core.Location(landing.x, landing.y, tree.z ?? 0));
   }
 
+  function standsOnBridge(location) {
+    return location.getX() === BRIDGE_X && location.getY() >= BRIDGE_LANDING_Y && location.getY() <= BRIDGE_TOP_Y
+      && location.getZ() === 0;
+  }
+
+  /** Whether the bridge piece at `y` can be stood on: the southern piece always, a rung once it is repaired. */
+  function pieceIntact(player, y) {
+    return y === BRIDGE_LANDING_Y || rungRepaired(player, 176 + (y - FIRST_RUNG_Y));
+  }
+
+  /**
+   * Cross on an intact piece of the bridge (the southern piece, or a repaired rung, which shows as the same Rope
+   * bridge). Ours (upstream issue #6264), no capture: the piece clicked is walked to, over intact pieces only, so a
+   * player on the bridge can go back and forth and reach either tree (before this a player who ran out of planks
+   * part-way could not get back to the south tree). Cross on the piece the player stands on keeps what it did before:
+   * with the whole bridge repaired it takes them over to the far bank.
+   */
   function crossBridge(event) {
     const { player, location } = event;
     const stage = quest.getStage(player);
@@ -794,12 +827,60 @@ module.exports = function registerInSearchOfTheMyrequeQuest(api) {
       player.sendMessage("You have no reason to cross here.");
       return;
     }
-    if (!bridgeRepaired(player)) {
-      player.sendMessage("This bridge looks pretty old. The wooden boards break apart beneath your feet.");
+    const here = player.getLocation();
+    if (!standsOnBridge(here)) return;
+    const targetY = location?.y ?? here.getY();
+    if (targetY === here.getY()) {
+      if (!bridgeRepaired(player)) {
+        player.sendMessage("This bridge looks pretty old. The wooden boards break apart beneath your feet.");
+        return;
+      }
+      const north = here.getY() >= BRIDGE_TOP_Y;
+      player.moveTo(new api.core.Location(north ? SOUTH_BANK.x : NORTH_BANK.x, north ? SOUTH_BANK.y : NORTH_BANK.y, here.getZ()));
       return;
     }
-    const north = player.getLocation().getY() >= 3430;
-    player.moveTo(new api.core.Location(north ? 3502 : 3503, north ? 3425 : 3431, location?.z ?? 0));
+    if (targetY < BRIDGE_LANDING_Y || targetY > BRIDGE_TOP_Y) return;
+    const step = Math.sign(targetY - here.getY());
+    for (let y = here.getY() + step; y !== targetY + step; y += step) {
+      if (!pieceIntact(player, y)) {
+        player.sendMessage("This bridge looks pretty old. The wooden boards break apart beneath your feet.");
+        return;
+      }
+    }
+    walkOnBridge(player, targetY);
+  }
+
+  /**
+   * Walks the player along the bridge to the piece at `y`. The pieces keep their blocking in the server's map (the
+   * repaired look is the client's varbit multiloc), so the walk ignores clipping for as long as it takes: a tick a
+   * tile, and one more because tasks run before movement in a tick. Only the latest walk clears the flag.
+   */
+  function walkOnBridge(player, y) {
+    const here = player.getLocation();
+    const steps = Math.abs(y - here.getY());
+    if (steps === 0) return;
+    const pass = {};
+    rungSteps.set(player, pass);
+    player.setFlag(IGNORE_CLIPPING_FLAG, true);
+    player.getMovementQueue().addSteps(new api.core.Location(BRIDGE_X, y, here.getZ()));
+    api.core.TaskManager.submit(new api.core.CountdownTask(pass, steps + 1, () => {
+      if (rungSteps.get(player) !== pass) return;
+      rungSteps.delete(player);
+      player.removeFlag(IGNORE_CLIPPING_FLAG);
+    }));
+  }
+
+  /**
+   * A Cross clicked from on the bridge is answered where the player stands: the pieces block walking, so the engine's
+   * own route to a piece further along ends in "I can't reach that!". crossBridge then does the walking.
+   */
+  function routeBridgeCross(event) {
+    const { objectId } = event;
+    if (objectId !== ROPE_BRIDGE_ID && BRIDGE_RUNG_VARBITS[objectId] === undefined) return;
+    if (event.definition?.id !== ROPE_BRIDGE_ID) return; // a broken rung (Repair) keeps the engine's reach
+    const here = event.player.getLocation();
+    if (!standsOnBridge(here) || event.object?.getLocation?.().getX() !== BRIDGE_X) return;
+    event.destination = { x: here.getX(), y: here.getY(), z: here.getZ() };
   }
 
   /**
@@ -935,7 +1016,9 @@ module.exports = function registerInSearchOfTheMyrequeQuest(api) {
       return;
     }
     if (BROKEN_BRIDGE_IDS.has(objectId)) {
-      repairBridgeRung(event);
+      // A repaired rung shows as the Rope bridge, whose option is Cross.
+      if (event.option === "cross") crossBridge(event);
+      else repairBridgeRung(event);
       return;
     }
     if (objectId === STALAGMITE_ID) {
@@ -1071,6 +1154,7 @@ module.exports = function registerInSearchOfTheMyrequeQuest(api) {
   api.onCustomEvent("npc-dialogue:line", handleLine);
   api.onNpcDeath(handleNpcDeath);
   api.onObjectInteraction(handleObjectInteraction);
+  api.onObjectRoute(routeBridgeCross);
   api.onPlayerLogin(handleLogin);
   api.onPlayerLogout(handleLogout);
 };
