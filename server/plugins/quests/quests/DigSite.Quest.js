@@ -19,18 +19,22 @@
  * their exam answer, as the Wiki describes ("you will need to talk to each person twice").
  * The skull comes from the Digsite workman's Steal-from table and the cup from panning mud.
  *
- * Gaps (no dump/index support): the three exams are multi-question quizzes in
- * OSRS; here a student signs each certificate instead. The level 1 certificate
- * waits until all three lost items are back; the purple student signs level 2 and the
- * orange student level 3 (the level 3 opal request is not built). The digging/talisman/explosive
- * minigames (winch, powder, tinderbox) are not simulated; Terry's progress and the
- * temple discovery are driven by the exam certificates and the chemical compound
- * message steps.
+ * The three exams (ours, upstream issue #6215) are the transcript's own quizzes: three questions each, the
+ * right answer offered only once the student who knows it has told the player (the transcript's option
+ * conditions), the examiner's count of right answers, and on three out of three the certificate (with a trowel
+ * after the first) and the next stage. For the first exam a student tells their answer once their lost item is
+ * back; for the second all three simply tell; for the third the student in purple wants an opal first (Wiki: "an
+ * uncut opal or opal"). A student used to sign each certificate instead, whatever the examiner had just said.
+ *
+ * Gaps (not built): the "Making a discovery" half of the quest. Digging up the talisman, the invitation letter,
+ * the winches and shafts, Doug Deeping, the chest and barrel, mixing the compound, the bricks and the stone
+ * tablet are not simulated. In their place Terry Balando hands over the chemical compound, then the ancient
+ * talisman, then ends the quest, one step per conversation; the journal says which step is next.
  */
 module.exports = function registerDigSiteQuest(api) {
-  const { Animation, DialogueChainBuilder, Item, ItemIdentifiers, ItemStatementDialogue,
-    NpcDialogue, NpcIdentifiers, ObjectIdentifiers, PlayerDialogue, Skill, Task, TaskManager } = api.core;
-  const { registerQuest, refreshQuestList, startTranscript, giveReward } = require("../QuestRuntime");
+  const { Animation, DialogueChainBuilder, GameObject, Item, ItemIdentifiers, ItemStatementDialogue, MapObjects,
+    NpcDialogue, NpcIdentifiers, ObjectIdentifiers, ObjectManager, PlayerDialogue, Skill, Task, TaskManager } = api.core;
+  const { registerQuest, refreshQuestList, startTranscript, giveReward, loadTranscripts } = require("../QuestRuntime");
 
   const EXAMINER_NPC_IDS = new Set([
     NpcIdentifiers.EXAMINER,
@@ -57,6 +61,9 @@ module.exports = function registerDigSiteQuest(api) {
       missing: "the-first-exam-the-student-in-the-green-top-returning-to-the-student-without-the-skull",
       give: "the-first-exam-the-student-in-the-green-top-returning-the-skull",
       again: "the-first-exam-the-student-in-the-green-top-talking-to-the-student-again",
+      index: 0,
+      second: "the-second-exam-the-student-in-the-green-top",
+      third: "the-third-exam-the-student-in-the-green-top",
     }],
     [STUDENT_PURPLE_NPC_ID, {
       itemId: ItemIdentifiers.TEDDY,
@@ -65,6 +72,10 @@ module.exports = function registerDigSiteQuest(api) {
       missing: "the-first-exam-the-student-in-the-purple-skirt-returning-to-the-student-without-the-teddy-bear",
       give: "the-first-exam-the-student-in-the-purple-skirt-returning-the-teddy-bear",
       again: "the-first-exam-the-student-in-the-purple-skirt-talking-to-the-student-again",
+      index: 1,
+      second: "the-second-exam-the-student-in-the-purple-skirt",
+      // Her third answer costs an opal: see OPAL_* below.
+      third: "the-third-exam-the-student-in-the-purple-skirt-talking-to-the-student-again",
     }],
     [STUDENT_ORANGE_NPC_ID, {
       itemId: ItemIdentifiers.SPECIAL_CUP,
@@ -73,6 +84,9 @@ module.exports = function registerDigSiteQuest(api) {
       missing: "the-first-exam-the-student-in-the-orange-shirt-returning-to-the-student-without-the-cup",
       give: "the-first-exam-the-student-in-the-orange-shirt-returning-the-cup",
       again: "the-first-exam-the-student-in-the-orange-shirt-talking-to-the-student-again",
+      index: 2,
+      second: "the-second-exam-the-student-in-the-orange-shirt",
+      third: "the-third-exam-the-student-in-the-orange-shirt",
     }],
   ]);
   const RESEARCHER_NPC_ID = NpcIdentifiers.RESEARCHER;
@@ -138,14 +152,44 @@ module.exports = function registerDigSiteQuest(api) {
   /** Terry's "turning in the stone tablet" action ends the quest. */
   const COMPLETE_ACTION_ID = "NwSdYK";
 
-  const CERTIFICATE_FOR_STAGE = new Map([
-    [STAGE_STARTED, LEVEL_1_CERTIFICATE_ITEM_ID],
-    [STAGE_STARTED + 1, LEVEL_2_CERTIFICATE_ITEM_ID],
-    [STAGE_STARTED + 2, LEVEL_3_CERTIFICATE_ITEM_ID],
+  // ---- The three exams (stage 1, 2 and 3 are the first, second and third exam still to pass) ----
+  const EXAM_VARIANTS = ["the-first-exam-taking-the-exam", "the-second-exam", "the-third-exam"];
+  const EXAM_RETRY_VARIANT = "the-first-exam-taking-the-exam-repeating-the-exam";
+  const EXAMS_DONE_VARIANT = "the-third-exam-talking-to-the-examiner-again";
+  const EXAM_CERTIFICATES = [LEVEL_1_CERTIFICATE_ITEM_ID, LEVEL_2_CERTIFICATE_ITEM_ID, LEVEL_3_CERTIFICATE_ITEM_ID];
+  /**
+   * Which student (STUDENT_LOST_ITEM's index: 0 green, 1 purple, 2 orange) knows each exam's questions, in the order
+   * the examiner asks them. From the transcript: the students' own lines name the question they answer (first exam:
+   * "The study of Earth Sciences is", "The people eligible to use the digsite are", "The proper health and safety
+   * points are"; second: sample transportation, finds handling, rock pick usage; third: sample preparation,
+   * specimen brush use, handling bones).
+   */
+  const EXAM_STUDENTS = [[0, 2, 1], [2, 1, 0], [1, 0, 2]];
+  /** Bits (exam - 1) * 3 + student: what the students have told the player for the second and third exams. */
+  const LEARNED_ATTRIBUTE = "quest.the_dig_site.learned";
+  /** The purple student's opal before the third exam: 0 not asked, 1 asked, 2 given. */
+  const OPAL_ATTRIBUTE = "quest.the_dig_site.student.opal";
+  const OPAL_ITEM_IDS = [ItemIdentifiers.UNCUT_OPAL, ItemIdentifiers.OPAL]; // Wiki: "an uncut opal or opal"
+  const OPAL_ASK_VARIANT = "the-third-exam-the-student-in-the-purple-skirt";
+  const OPAL_MISSING_VARIANT = "the-third-exam-the-student-in-the-purple-skirt-returning-without-an-opal";
+  const OPAL_GIVE_VARIANT = "the-third-exam-the-student-in-the-purple-skirt-giving-the-student-the-opal";
+  /** The exam centre's cupboards (cache map): the one on the south wall holds specimen jars, the other rock picks. */
+  const CUPBOARDS = new Map([
+    [ObjectIdentifiers.CUPBOARD_45, { open: ObjectIdentifiers.CUPBOARD_46 }], // 17302 at 3354,3332
+    [ObjectIdentifiers.CUPBOARD_43, { open: ObjectIdentifiers.CUPBOARD_44 }], // 17300 at 3355,3337
+  ]);
+  const OPEN_CUPBOARDS = new Map([
+    [ObjectIdentifiers.CUPBOARD_46, { closed: ObjectIdentifiers.CUPBOARD_45, itemId: ItemIdentifiers.SPECIMEN_JAR,
+      variant: "making-a-discovery-searching-the-south-cupboard" }],
+    [ObjectIdentifiers.CUPBOARD_44, { closed: ObjectIdentifiers.CUPBOARD_43, itemId: ItemIdentifiers.ROCK_PICK,
+      variant: "making-a-discovery-searching-the-north-cupboard" }],
   ]);
 
   let quest;
   const panning = new WeakSet();
+  /** player -> the questions (0-2) answered rightly in the exam being sat; a conversation's worth, never saved. */
+  const examScores = new WeakMap();
+  const examCache = [];
 
   const held = (player, itemId, amount = 1) =>
     player.getInventory().getAmount(itemId) >= amount;
@@ -158,9 +202,97 @@ module.exports = function registerDigSiteQuest(api) {
   const holdsLetter = (player) => held(player, UNSTAMPED_LETTER_ITEM_ID) || held(player, STAMPED_LETTER_ITEM_ID);
   /** Still waiting on the letter: started, and the examiner hasn't taken a stamped one. */
   const awaitingLetter = (player) => quest.getStage(player) === STAGE_STARTED && !delivered(player);
-  /** All three first-exam students have their lost item back. */
-  const allStudentsHelped = (player) => [...STUDENT_LOST_ITEM.values()]
-    .every(({ attribute }) => Number(player.getAttribute(attribute)) === STUDENT_HELPED);
+  /** The exam the player has still to pass (0-2), or null: before the letter is in, and once all three are passed. */
+  function pendingExam(player) {
+    const stage = quest.getStage(player);
+    if (stage < STAGE_STARTED || stage >= STAGE_EXAMS_DONE || awaitingLetter(player)) return null;
+    return stage - STAGE_STARTED;
+  }
+
+  /**
+   * An exam as the transcript has it: its steps, and for each of its three questions the option that is right (shown
+   * once "the player has asked the students for answers") and the wrong one shown in its place until then; then the
+   * four "answered N correctly" conditions in order. Read from the record, so a re-export keeps working.
+   */
+  function examData(exam) {
+    if (examCache[exam] !== undefined) return examCache[exam];
+    const steps = loadTranscripts(api)?.[PAGE]?.variants?.[EXAM_VARIANTS[exam]] ?? [];
+    // The first exam is the conversation itself; the later two sit under their "I am ready for the ... exam" option.
+    const direct = steps.filter((step) => step?.type === "choice").length >= 3;
+    const body = direct ? steps : steps.find((step) => step?.type === "choice")?.options?.[0]?.steps ?? [];
+    const questions = body.filter((step) => step?.type === "choice").map((choice) => ({
+      right: choice.options.find((option) => /has asked/i.test(option.condition ?? ""))?.id,
+      decoy: choice.options.find((option) => /has not asked/i.test(option.condition ?? ""))?.id,
+    }));
+    const results = body.filter((step) => step?.type === "condition").map((step) => step.id);
+    const usable = questions.length === 3 && questions.every((question) => question.right && question.decoy) && results.length === 4;
+    if (!usable) console.warn(`[DigSite] the transcript's ${EXAM_VARIANTS[exam]} is not the three-question exam expected; it cannot be passed`);
+    return examCache[exam] = { body, questions: usable ? questions : [], results: usable ? results : [] };
+  }
+
+  /** Whether the student who knows an exam's question has told the player. */
+  function knowsAnswer(player, exam, question) {
+    const index = EXAM_STUDENTS[exam][question];
+    if (exam === 0) {
+      const student = [...STUDENT_LOST_ITEM.values()].find((entry) => entry.index === index);
+      return Number(player.getAttribute(student.attribute)) === STUDENT_HELPED;
+    }
+    return ((Number(player.getAttribute(LEARNED_ATTRIBUTE)) || 0) & (1 << ((exam - 1) * 3 + index))) !== 0;
+  }
+
+  function learnAnswer(player, exam, index) {
+    const learned = Number(player.getAttribute(LEARNED_ATTRIBUTE)) || 0;
+    player.setAttribute(LEARNED_ATTRIBUTE, learned | (1 << ((exam - 1) * 3 + index)));
+  }
+
+  /** Passing an exam: its certificate (and after the first, the trowel), and the next stage. What does not fit drops. */
+  function passExam(player, exam) {
+    examScores.delete(player);
+    giveReward(player, EXAM_CERTIFICATES[exam], 1);
+    if (exam === 0 && !held(player, TROWEL_ITEM_ID)) giveReward(player, TROWEL_ITEM_ID, 1);
+    quest.setStage(player, STAGE_STARTED + exam + 1);
+  }
+
+  /**
+   * "Hello again. Are you ready for another shot at the exam?" / "Yes, I certainly am." ends in a jump back to the
+   * exam that the record has no target for, so the conversation stopped there. The first exam's own steps, from the
+   * examiner's "Okay, we will start with the first exam" on, are put in its place.
+   */
+  function spliceExamRetry(steps) {
+    const first = loadTranscripts(api)?.[PAGE]?.variants?.[EXAM_VARIANTS[0]] ?? [];
+    const start = first.findIndex((step) => String(step?.text ?? "").startsWith("Okay, we will start with the first exam"));
+    if (start < 0) return steps;
+    return steps.map((step) => step?.type !== "choice" ? step : {
+      ...step,
+      options: step.options.map((option) => !(option.steps ?? []).some((entry) => entry?.type === "jump") ? option : {
+        ...option,
+        steps: [{ player: option.text }, ...first.slice(start)],
+      }),
+    });
+  }
+
+  /** The lost-trowel answer alone, for a player who has passed every exam and lost the trowel since. */
+  function lostTrowelSteps(steps) {
+    const option = steps.find((step) => step?.type === "choice")?.options?.find((entry) => /lost my trowel/i.test(entry.text ?? ""));
+    return option?.steps ?? [];
+  }
+
+  /** Talk-to an examiner where the plain variant is not enough: the first exam again, and a lost trowel afterwards. */
+  function talkToExaminer(event) {
+    const { player, npc, npcId } = event;
+    if (!EXAMINER_NPC_IDS.has(npcId)) return false;
+    if (pendingExam(player) === 0) {
+      examScores.delete(player);
+      const request = { player, npc, npcId, variant: EXAM_RETRY_VARIANT, exact: true, select: spliceExamRetry };
+      api.emitCustomEvent("npc-dialogue:start", request);
+      return request.handled === true;
+    }
+    const stage = quest.getStage(player);
+    if (stage >= STAGE_EXAMS_DONE && !quest.isComplete(player) && !owned(player, TROWEL_ITEM_ID)) {
+      return startTranscript(api, player, npcId, PAGE, EXAM_VARIANTS[2], lostTrowelSteps, npc ?? null);
+    }
+    return false;
+  }
 
   function giveLetter(player, itemId) {
     if (player.getInventory().getFreeSlots() < 1) {
@@ -194,7 +326,9 @@ module.exports = function registerDigSiteQuest(api) {
     if (objectId !== ObjectIdentifiers.BUSH_10) return false;
     player.performAnimation(new Animation(SEARCH_ANIMATION));
     player.sendMessage("You search the bush...");
-    if (quest.getStage(player) >= STAGE_EXAMS_DONE || owned(player, ItemIdentifiers.TEDDY)) {
+    // Ours (upstream issue #6215): nor once the student has her teddy back (it is hers again, not the bush's).
+    const returned = Number(player.getAttribute(STUDENT_LOST_ITEM.get(STUDENT_PURPLE_NPC_ID).attribute)) === STUDENT_HELPED;
+    if (quest.getStage(player) >= STAGE_EXAMS_DONE || returned || owned(player, ItemIdentifiers.TEDDY)) {
       player.sendMessage("You find nothing of interest.");
     } else if (player.getInventory().getFreeSlots() === 0) {
       player.getInventory().full();
@@ -312,8 +446,17 @@ module.exports = function registerDigSiteQuest(api) {
     }
     if (stage >= STAGE_HAS_TALISMAN) {
       return [
-        "Terry Balando has asked me to investigate the dig shafts.",
-        "I should bring the <col=800000>ancient talisman</col> to the museum curator.",
+        "<str>I passed the three examinations.</str>",
+        "<str>Terry Balando gave me a chemical compound.</str>",
+        "I have found an <col=800000>ancient talisman</col>. I should show it to",
+        "<col=800000>Terry Balando</col> at the Exam Centre.",
+      ];
+    }
+    if (stage >= STAGE_HAS_COMPOUND) {
+      return [
+        "<str>I passed the three examinations.</str>",
+        "Terry Balando gave me a <col=800000>chemical compound</col>. I should speak to",
+        "<col=800000>Terry Balando</col> again about what it uncovers.",
       ];
     }
     if (stage >= STAGE_EXAMS_DONE) {
@@ -328,9 +471,11 @@ module.exports = function registerDigSiteQuest(api) {
         : ["The examiner gave me a letter of recommendation.", "I should get it stamped by the <col=800000>Curator</col> of Varrock's museum."];
     }
     if (stage >= STAGE_STARTED) {
+      const exam = ["first", "second", "third"][stage - STAGE_STARTED];
       return [
-        "The examiner wants proof that I studied the Dig Site.",
-        "I should interview all <col=800000>three students</col>.",
+        ...["first", "second", "third"].slice(0, stage - STAGE_STARTED).map((passed) => `<str>I passed the ${passed} Earth Sciences exam.</str>`),
+        `I need to pass the ${exam} Earth Sciences exam with the <col=800000>Examiner</col>.`,
+        "The <col=800000>three students</col> on the Digsite know the answers.",
       ];
     }
     return ["I can start this quest by talking to an <col=800000>Examiner</col> in the <col=800000>Exam Centre</col> south of the <col=800000>Digsite</col>."];
@@ -364,54 +509,54 @@ module.exports = function registerDigSiteQuest(api) {
       if (awaitingLetter(player)) {
         if (!held(player, STAMPED_LETTER_ITEM_ID)) return "starting-the-quest-talking-to-an-examiner-again";
         deliverLetter(player);
-        return "the-first-exam-taking-the-exam";
+        examScores.delete(player);
+        return EXAM_VARIANTS[0];
       }
-      if (stage === STAGE_STARTED) return "the-first-exam-taking-the-exam-repeating-the-exam";
-      if (stage < STAGE_EXAMS_DONE) return "the-first-exam-taking-the-exam";
-      if (stage < STAGE_HAS_COMPOUND) return "the-second-exam";
-      if (stage < STAGE_HAS_TALISMAN) return "the-third-exam";
-      return "the-third-exam-talking-to-the-examiner-again";
+      // Each stage sits its own exam (the first exam's page used to play through all three, and the second and third
+      // only after they were already passed). A new conversation is a new sitting.
+      examScores.delete(player);
+      if (stage === STAGE_STARTED) return EXAM_RETRY_VARIANT;
+      if (stage < STAGE_EXAMS_DONE) return EXAM_VARIANTS[stage - STAGE_STARTED];
+      return EXAMS_DONE_VARIANT;
     }
     const student = STUDENT_LOST_ITEM.get(npcId);
     if (student) {
+      // Second exam: each student tells what they have learned since (no errand).
+      if (stage === STAGE_STARTED + 1) {
+        learnAnswer(player, 1, student.index);
+        return student.second;
+      }
+      // Third exam, and afterwards: the same, but the student in purple wants an opal for hers first.
+      if (stage >= STAGE_STARTED + 2) {
+        if (npcId === STUDENT_PURPLE_NPC_ID) {
+          const opal = Number(player.getAttribute(OPAL_ATTRIBUTE)) || 0;
+          if (opal === 0) {
+            player.setAttribute(OPAL_ATTRIBUTE, 1);
+            return OPAL_ASK_VARIANT;
+          }
+          if (opal === 1) {
+            const itemId = OPAL_ITEM_IDS.find((id) => held(player, id));
+            if (itemId === undefined) return OPAL_MISSING_VARIANT;
+            player.getInventory().deleteNumber(itemId, 1);
+            player.setAttribute(OPAL_ATTRIBUTE, 2);
+            learnAnswer(player, 2, student.index);
+            return OPAL_GIVE_VARIANT;
+          }
+        }
+        learnAnswer(player, 2, student.index);
+        return student.third;
+      }
+      // First exam (and before it): the lost item, then the answer.
       const state = Number(player.getAttribute(student.attribute)) || 0;
-      let variant;
-      if (state === STUDENT_HELPED) {
-        variant = student.again;
-      } else if (state === STUDENT_ASKED) {
-        if (held(player, student.itemId)) {
-          player.getInventory().deleteNumber(student.itemId, 1);
-          player.setAttribute(student.attribute, STUDENT_HELPED);
-          variant = student.give;
-        } else {
-          variant = student.missing;
-        }
-      } else {
-        player.setAttribute(student.attribute, STUDENT_ASKED);
-        variant = student.ask;
+      if (state === STUDENT_HELPED) return student.again;
+      if (state === STUDENT_ASKED) {
+        if (!held(player, student.itemId)) return student.missing;
+        player.getInventory().deleteNumber(student.itemId, 1);
+        player.setAttribute(student.attribute, STUDENT_HELPED);
+        return student.give;
       }
-      // Each certificate stands in for passing that exam. The first needs the answers of all
-      // three students, so their lost items must all be back (Wiki: "after helping out all three
-      // students"); any student then signs it. The later two are signed by the purple and the
-      // orange student. The check runs on every talk, so an early request to a later student, or
-      // a full inventory, never takes the certificate opportunity away.
-      const certificate = CERTIFICATE_FOR_STAGE.get(stage);
-      const isRightStudent =
-        (stage === STAGE_STARTED && allStudentsHelped(player)) ||
-        (npcId === STUDENT_PURPLE_NPC_ID && stage === STAGE_STARTED + 1) ||
-        (npcId === STUDENT_ORANGE_NPC_ID && stage === STAGE_STARTED + 2);
-      // The first exam only begins once the examiner has the stamped letter.
-      if (isRightStudent && certificate !== undefined && !awaitingLetter(player)) {
-        if (player.getInventory().getFreeSlots() < 1) {
-          // The exam isn't passed yet, so it waits. No capture of this: the wording is ours.
-          player.sendMessage("You don't have enough inventory space for the certificate.");
-        } else {
-          player.getInventory().adds(certificate, 1);
-          player.sendMessage("The student signs your certificate.");
-          quest.setStage(player, stage + 1);
-        }
-      }
-      return variant;
+      player.setAttribute(student.attribute, STUDENT_ASKED);
+      return student.ask;
     }
     if (npcId === RESEARCHER_NPC_ID) {
       if (stage < STAGE_EXAMS_DONE) {
@@ -474,10 +619,20 @@ module.exports = function registerDigSiteQuest(api) {
   }
 
   /** Answer the page's prose conditions for this plugin's own NPCs. */
-  function answerCondition({ player, npcId, text }) {
+  function answerCondition({ player, npcId, text, stepId }) {
     if (!DIALOGUE_NPC_IDS.has(npcId)) return null;
     const value = String(text).toLowerCase();
     const has = (itemId, amount = 1) => held(player, itemId, amount);
+    const exam = EXAMINER_NPC_IDS.has(npcId) && stepId ? pendingExam(player) : null;
+    if (exam !== null) {
+      const { questions, results } = examData(exam);
+      // A question's right answer is on offer once its student has told the player; until then a wrong one is.
+      const question = questions.findIndex((entry) => entry.right === stepId || entry.decoy === stepId);
+      if (question >= 0) return (questions[question].right === stepId) === knowsAnswer(player, exam, question);
+      // "If the player answered N questions correctly:"
+      const result = results.indexOf(stepId);
+      if (result >= 0) return (examScores.get(player)?.size ?? 0) === result;
+    }
     if (value.includes("does not have a trowel")) return !has(TROWEL_ITEM_ID);
     if (value.includes("has a trowel")) return has(TROWEL_ITEM_ID);
     if (value.includes("doesn't have the key")) return true;
@@ -515,6 +670,74 @@ module.exports = function registerDigSiteQuest(api) {
     if (value.includes("shield of arrav hasn't been completed")) return !isQuestComplete(player, "shield_of_arrav");
     if (value.includes("shield of arrav has been completed")) return isQuestComplete(player, "shield_of_arrav");
     return null;
+  }
+
+  /** An exam answer: the right option of one of the exam's questions counts once. */
+  function handleChoice({ player, npcId, stepId }) {
+    if (!player || !stepId || !EXAMINER_NPC_IDS.has(npcId)) return;
+    const exam = pendingExam(player);
+    if (exam === null) return;
+    const question = examData(exam).questions.findIndex((entry) => entry.right === stepId);
+    if (question < 0) return;
+    if (!examScores.has(player)) examScores.set(player, new Set());
+    examScores.get(player).add(question);
+  }
+
+  /** The branch the examiner takes: three right answers pass the exam; "Here you go..." hands over a new trowel. */
+  function handleCondition({ player, npcId, stepId, text }) {
+    if (!player || !EXAMINER_NPC_IDS.has(npcId)) return;
+    if (String(text).toLowerCase().includes("does not have a trowel")) {
+      if (quest.getStage(player) > STAGE_STARTED && !owned(player, TROWEL_ITEM_ID)) giveReward(player, TROWEL_ITEM_ID, 1);
+      return;
+    }
+    const exam = pendingExam(player);
+    if (exam === null) return;
+    const { results } = examData(exam);
+    if (results.length === 4 && stepId === results[3] && (examScores.get(player)?.size ?? 0) === 3) passExam(player, exam);
+  }
+
+  /** The object standing where `object` stands, if it is still the one clicked. */
+  function swapObject(object, id) {
+    const location = object.getLocation();
+    const current = MapObjects.get(object.getId(), location, object.getPrivateArea?.() ?? null);
+    if (!current) return;
+    ObjectManager.deregister(current, true);
+    ObjectManager.register(new GameObject(id, location.clone(), current.getType(), current.getFace(), current.getPrivateArea?.() ?? null), true);
+  }
+
+  /**
+   * The exam centre's two cupboards (ours, upstream issue #6215: nothing answered them, so the specimen jar could
+   * not be had). Open and Close swap the cache's shut and open cupboards; Search hands over the cupboard's tool with
+   * the transcript's line ("You find a specimen jar." / "You find a rock pick."), one at a time.
+   */
+  function openCupboard(event) {
+    const cupboard = CUPBOARDS.get(event.objectId);
+    if (!cupboard || !event.object) return false;
+    swapObject(event.object, cupboard.open);
+    return true;
+  }
+
+  function closeCupboard(event) {
+    const cupboard = OPEN_CUPBOARDS.get(event.objectId);
+    if (!cupboard || !event.object) return false;
+    swapObject(event.object, cupboard.closed);
+    return true;
+  }
+
+  function searchCupboard(event) {
+    const cupboard = OPEN_CUPBOARDS.get(event.objectId);
+    if (!cupboard) return false;
+    const { player } = event;
+    if (held(player, cupboard.itemId)) {
+      // No capture of a second search: the wording is ours.
+      player.sendMessage("You find nothing more of use in the cupboard.");
+    } else if (player.getInventory().getFreeSlots() === 0) {
+      player.getInventory().full();
+    } else {
+      player.getInventory().adds(cupboard.itemId, 1);
+      startTranscript(api, player, TERRY_BALANDO_NPC_ID, PAGE, cupboard.variant);
+    }
+    return true;
   }
 
   /** Wiki: 25 Thieving, 10 Herblore and 10 Agility. */
@@ -617,6 +840,8 @@ module.exports = function registerDigSiteQuest(api) {
   api.persistAttribute(DELIVERED_ATTRIBUTE, false);
   api.persistAttribute(PANNING_PERMISSION, false);
   for (const student of STUDENT_LOST_ITEM.values()) api.persistAttribute(student.attribute, 0);
+  api.persistAttribute(LEARNED_ATTRIBUTE, 0);
+  api.persistAttribute(OPAL_ATTRIBUTE, 0);
   quest = registerQuest(api, {
     key: "the_dig_site",
     name: "The Dig Site",
@@ -628,15 +853,20 @@ module.exports = function registerDigSiteQuest(api) {
       { skillId: Skill.MINING.getIndex(), amount: 15300, label: "Mining" },
       { skillId: Skill.HERBLORE.getIndex(), amount: 2000, label: "Herblore" },
     ],
-    rewardItemId: ItemIdentifiers.ANCIENT_TALISMAN,
-    rewardItemLabel: "Ancient talisman",
+    // Ours (upstream issue #6215): the talisman is the scroll's picture only. As rewardItemId it was handed over
+    // again on completion, a second one beside the one the player already carried (Wiki, Rewards: no talisman).
+    scrollItemId: ItemIdentifiers.ANCIENT_TALISMAN,
     otherRewards: ["2 gold bars", "Access to the Dig Site's deeper dig shafts"],
     buildJournal,
     onReward: grantReward,
   });
 
   api.onNpcDialogueVariant(selectVariant);
+  api.onNpcInteraction("Examiner", { "Talk-to": talkToExaminer });
   api.onNpcDialogueCondition(answerCondition);
+  api.onCustomEvent("npc-dialogue:choice", handleChoice);
+  api.onCustomEvent("npc-dialogue:condition", handleCondition);
+  api.onObjectInteraction("Cupboard", { Open: openCupboard, Close: closeCupboard, Search: searchCupboard });
   api.onObjectInteraction("Bush", { Search: searchTeddyBush });
   api.onObjectInteraction("Panning point", { Pan: pan });
   api.onItemAction("Panning tray", { Search: searchTray });

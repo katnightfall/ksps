@@ -318,17 +318,27 @@ const studentsHelped = (f) => {
   return f;
 };
 
-test("Dig Site: the first student signs after a reload following letter delivery", async (t) => {
+// Upstream issue #6215: the exams are the examiner's own quizzes. A student used to sign each certificate whatever
+// the examiner had just said, the first exam's questions played through all three stages, and the answers the
+// students gave were never offered.
+const EXAM_1_RIGHT = ["The study of the earth", "All that have passed", "Gloves and boots"];
+const EXAM_1_WRONG = ["The study of gardening", "Magic users", "Heat-resistant"];
+
+test("Dig Site: handing in the stamped letter sits the first exam, and the students' answers pass it", async (t) => {
   const started = studentsHelped(actor(t, DIG, 1));
   put(started, I.UNSTAMPED_LETTER, 0);
   await talk(t, started, N.CURATOR_HAIG_HALEN);
   assert.equal(started.inv.getAmount(I.SEALED_LETTER), 1);
-  await talk(t, started, N.EXAMINER);
-  assert.equal(started.inv.getAmount(I.SEALED_LETTER), 0);
+  await talk(t, started, N.EXAMINER, EXAM_1_RIGHT);
+  assert.equal(started.inv.getAmount(I.SEALED_LETTER), 0, "the examiner takes the letter");
+  assert.equal(started.inv.getAmount(I.LEVEL_1_CERTIFICATE), 1, "three right answers: the certificate");
+  assert.equal(started.inv.getAmount(I.TROWEL), 1, "and a trowel");
+  assert.equal(stageOf(started, DIG), 2);
 
   const restored = await reloadDigSite(t, started);
+  assert.equal(stageOf(restored, DIG), 2, "the pass survives a reload");
   await talk(t, restored, N.STUDENT);
-  assert.equal(restored.inv.getAmount(I.LEVEL_1_CERTIFICATE), 1);
+  assert.equal(restored.inv.getAmount(I.LEVEL_2_CERTIFICATE), 0, "no student signs a certificate");
   assert.equal(stageOf(restored, DIG), 2);
 });
 
@@ -340,24 +350,83 @@ test("Dig Site: a legacy save after the first exam still points to the students"
   }
 });
 
-test("Dig Site: the student refuses a full bag and the exam waits; with room he signs", async (t) => {
-  // The students only take part once the examiner has the curator's stamped letter (stage 1).
+test("Dig Site: the first exam is failed without the students' answers, and can be sat again", async (t) => {
   const letterDelivered = (f) => { f.p.setAttribute("quest.the_dig_site.letter_delivered", true); return f; };
-  const control = studentsHelped(letterDelivered(actor(t, DIG, 1)));
-  await talk(t, control, N.STUDENT);
-  assert.equal(control.inv.getAmount(I.LEVEL_1_CERTIFICATE), 1, "control: the certificate");
-  assert.equal(stageOf(control, DIG), 2, "control: and the stage");
+  const f = letterDelivered(actor(t, DIG, 1));
+  // No student has been helped: the right answers are not on offer, so they cannot even be picked.
+  await talk(t, f, N.EXAMINER, ["Yes, I certainly am", ...EXAM_1_RIGHT]);
+  assert.equal(stageOf(f, DIG), 1, "the right answers are not offered to a player who has not been told them");
+  await talk(t, f, N.EXAMINER, ["Yes, I certainly am", ...EXAM_1_WRONG]);
+  assert.equal(stageOf(f, DIG), 1, "three wrong answers");
+  assert.equal(f.inv.getAmount(I.LEVEL_1_CERTIFICATE), 0, "a failed exam gives no certificate");
 
-  const f = studentsHelped(letterDelivered(actor(t, DIG, 1)));
-  fill(f);
+  // Two of three students helped: two right answers are not a pass, and no student hands out a certificate.
+  f.p.setAttribute("quest.the_dig_site.student.animal-skull", 2);
+  f.p.setAttribute("quest.the_dig_site.student.special-cup", 2);
   await talk(t, f, N.STUDENT);
-  assert.equal(stageOf(f, DIG), 1, "the exam waits");
-  assert.ok(anyRoomMessage(f), JSON.stringify(f.messages));
-  assert.equal(f.messages.includes("The student signs your certificate."), false, "and isn't signed");
-  freeSlot(f);
-  await talk(t, f, N.STUDENT);
-  assert.equal(f.inv.getAmount(I.LEVEL_1_CERTIFICATE), 1, "with room he signs");
+  await talk(t, f, N.EXAMINER, ["Yes, I certainly am", EXAM_1_RIGHT[0], EXAM_1_RIGHT[1], EXAM_1_WRONG[2]]);
+  assert.equal(stageOf(f, DIG), 1, "two out of three");
+  assert.equal(f.inv.getAmount(I.LEVEL_1_CERTIFICATE), 0);
+
+  // The third student helped: the retry passes ("Yes, I certainly am." used to end the conversation).
+  studentsHelped(f);
+  await talk(t, f, N.EXAMINER, ["Yes, I certainly am", ...EXAM_1_RIGHT]);
   assert.equal(stageOf(f, DIG), 2);
+  assert.equal(f.inv.getAmount(I.LEVEL_1_CERTIFICATE), 1);
+  assert.equal(f.inv.getAmount(I.TROWEL), 1);
+});
+
+test("Dig Site: the second exam is the second exam, passed with what the students tell at that stage", async (t) => {
+  const answers = ["I am ready for the next exam", "Samples taken in rough form", "Finds must be carefully handled", "Always handle with care"];
+  const f = actor(t, DIG, 2);
+  await talk(t, f, N.EXAMINER, answers);
+  assert.equal(stageOf(f, DIG), 2, "not yet told: the right answers are not on offer");
+  for (const student of [N.STUDENT, N.STUDENT_2, N.STUDENT_3]) await talk(t, f, student);
+  assert.equal(f.inv.getAmount(I.LEVEL_2_CERTIFICATE), 0, "the students only tell");
+  await talk(t, f, N.EXAMINER, answers);
+  assert.equal(stageOf(f, DIG), 3);
+  assert.equal(f.inv.getAmount(I.LEVEL_2_CERTIFICATE), 1);
+});
+
+test("Dig Site: the third exam needs the purple student's opal, then passes", async (t) => {
+  const answers = ["I am ready for the last exam", "Samples cleaned", "Brush carefully", "Handle bones very carefully"];
+  const f = actor(t, DIG, 3);
+  await talk(t, f, N.STUDENT);
+  await talk(t, f, N.STUDENT_3);
+  await talk(t, f, N.STUDENT_2); // she asks for an opal
+  await talk(t, f, N.STUDENT_2); // none carried
+  await talk(t, f, N.EXAMINER, answers);
+  assert.equal(stageOf(f, DIG), 3, "two of three answers known: not a pass");
+  put(f, I.UNCUT_OPAL, 5);
+  await talk(t, f, N.STUDENT_2);
+  assert.equal(f.inv.getAmount(I.UNCUT_OPAL), 0, "she takes the opal (Wiki: an uncut opal or opal)");
+  await talk(t, f, N.EXAMINER, answers);
+  assert.equal(stageOf(f, DIG), 4);
+  assert.equal(f.inv.getAmount(I.LEVEL_3_CERTIFICATE), 1);
+});
+
+test("Dig Site: the examiner replaces a lost trowel, during the exams and after them", async (t) => {
+  const during = actor(t, DIG, 2);
+  await talk(t, during, N.EXAMINER, ["I have lost my trowel"]);
+  assert.equal(during.inv.getAmount(I.TROWEL), 1, "none carried: here you go");
+  await talk(t, during, N.EXAMINER, ["I have lost my trowel"]);
+  assert.equal(during.inv.getAmount(I.TROWEL), 1, "one carried: look in your backpack");
+
+  const after = actor(t, DIG, 4);
+  await talk(t, after, N.EXAMINER);
+  assert.equal(after.inv.getAmount(I.TROWEL), 1, "all exams passed and no trowel: he hands one over");
+  await talk(t, after, N.EXAMINER);
+  assert.equal(after.inv.getAmount(I.TROWEL), 1);
+  assert.equal(stageOf(after, DIG), 4);
+});
+
+test("Dig Site: finishing with Terry Balando leaves one ancient talisman, not two", async (t) => {
+  const f = actor(t, DIG, 8);
+  put(f, I.ANCIENT_TALISMAN, 0);
+  await talk(t, f, N.TERRY_BALANDO);
+  assert.equal(quest(DIG).isComplete(f.p), true);
+  assert.equal(f.inv.getAmount(I.ANCIENT_TALISMAN), 1);
+  assert.equal(f.inv.getAmount(I.GOLD_BAR), 2);
 });
 
 test("Dig Site: Terry doesn't need the certificates, and needs room for the compound", async (t) => {
