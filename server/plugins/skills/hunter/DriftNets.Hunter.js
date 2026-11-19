@@ -3,6 +3,9 @@
 const C = require("./Context.Hunter"), { H } = C;
 const ATTRIBUTE = "hunter.drift-nets";
 const bases = new Map(), sessions = new Map(), chasing = new Map();
+// Ours: the players online who have set a net (at login, from their save, or since). The tick
+// looks only at them for a net due its passive catch, not at every player online.
+const holders = new Set();
 // ponytail: no capture of the entrance; inside by the plant door, and beside the tunnel on Ceto's side.
 const INSIDE_TILE = [3737, 10299, 1], OUTSIDE_TILE = [3729, 10294, 1];
 let Area;
@@ -97,6 +100,7 @@ function login({ player }) {
     else player.moveTo(new H.core.Location(...OUTSIDE_TILE));
   }
   sync({ player });
+  if (Object.keys(state(player).nets).length > 0) holders.add(player);
 }
 
 function sync({ player }) {
@@ -128,6 +132,7 @@ function setup({ player, object }) {
     else if (!C.exchange(player, [[H.core.ItemIdentifiers.DRIFT_NET, 1]], [])) return;
     s.nets[id] = { count: 0, last: Date.now() };
     H.players.add(player);
+    holders.add(player);
     sync({ player });
   });
   return true;
@@ -340,16 +345,17 @@ function process() {
       chasing.delete(npc);
     }
   }
-  for (const player of H.players) {
+  for (const player of holders) {
     // Ours: read, not made. state() here gave every player online (every bot of the crowd) a
-    // drift net record, every tick, to find that it holds no net.
+    // drift net record, every tick, to find that it holds no net. A player who has logged out
+    // (the Hunter set has let them go) or no longer holds a net leaves the list.
     const nets = player.getAttribute(ATTRIBUTE)?.nets;
-    if (!nets) continue;
+    if (!H.players.has(player) || !nets || Object.keys(nets).length === 0) { holders.delete(player); continue; }
     for (const net of Object.values(nets)) {
       if (!net.rewards && net.count < 10 && Date.now() - net.last >= 60000) capture(player, net, false);
     }
   }
 }
 
-module.exports = { ATTRIBUTE, initialize, state, enter, levels, permitted, hasAccess, buyDay, buyPermanent, setup, chase, harvest, inspect, takeDown, use, exit,
+module.exports = { ATTRIBUTE, holders, initialize, state, enter, levels, permitted, hasAccess, buyDay, buyPermanent, setup, chase, harvest, inspect, takeDown, use, exit,
   cleanup, process, login, sync, experience, rewards, fossil, bases };
