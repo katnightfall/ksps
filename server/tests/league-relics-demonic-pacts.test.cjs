@@ -521,7 +521,8 @@ test("Bank Heist, Grimoire, Reloaded and Nature's Fairy mushroom answer for Demo
   assert.equal(emit("magic:spell-unlocked", { player: grimoire.relic, unlocked: false }).unlocked, true);
   const echoes = character("echoes-grimoire", "league", { 6: 2 }, 5);
   assert.equal(Common.hasRelic(echoes, "grimoire"), true);
-  assert.equal(bypass(echoes), false, "Raging Echoes' Grimoire leaves the prayers alone");
+  // Ours (upstream issue #5586): the Wiki gives Raging Echoes' Grimoire "all Prayers and spells regardless of area, quest and diary requirements" too.
+  assert.equal(bypass(echoes), true, "Raging Echoes' Grimoire unlocks every prayer as well");
   for (const player of others(grimoire)) assert.equal(bypass(player), false);
   // The cache proc arceuus_spellbook_unlocked counts Demonic Pacts' Grimoire (struct 1132) as speaking to Tyss.
   const arceuus = (player) => emit(core.SpellbookLocks.ARCEUUS_UNLOCK_QUERY_EVENT, { player, unlocked: false }).unlocked;

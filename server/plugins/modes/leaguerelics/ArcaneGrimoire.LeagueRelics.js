@@ -5,11 +5,13 @@
  * other books), Previous Spellbook (back to the book the last change left) and Check Previous. The
  * swap is the altars' (`MagicSpellbook.changeSpellbook`: Lunar's 40 Defence, autocast cleared, the
  * tab). Like the altars and the magic cape it opens only unlocked books (the Trailblazer Reloaded
- * relics page: "providing players have unlocked them"; core SpellbookLocks). Any league character
+ * relics page: "providing players have unlocked them"; core SpellbookLocks), except for a Raging
+ * Echoes character with the Grimoire relic, whose grimoire opens every book. Any league character
  * holding one can use it: the item is untradeable and only a relic grants it, so no relic check is
  * made. Its Book of the Dead role (the resurrection spells' requirement) is not covered.
  */
 const Common = require("./Common.LeagueRelics");
+const Grimoire = require("./Grimoire.LeagueRelics");
 
 /** The spellbook (its key in the data) the last grimoire change left; unset until one. */
 const PREVIOUS_SPELLBOOK_ATTRIBUTE = "league:grimoire-previous-spellbook";
@@ -43,7 +45,8 @@ function allowed(player) {
 
 /** The core swap; the book left is remembered for Previous Spellbook only when the book changed (not when refused, nor when already on it after an altar). */
 function swap(player, book) {
-  const locked = core.SpellbookLocks.spellbookLockedRefusal(player, core.MagicSpellbook[book.key]);
+  // Raging Echoes' Grimoire switches "between all spellbooks freely" (Wiki); the others open only unlocked books.
+  const locked = Grimoire.opensEveryBook(player) ? null : core.SpellbookLocks.spellbookLockedRefusal(player, core.MagicSpellbook[book.key]);
   if (locked) {
     player.sendMessage(locked);
     return;

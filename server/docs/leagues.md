@@ -899,9 +899,9 @@ These relics have their effects (`leaguerelics/*.LeagueRelics.js`, numbers in th
   Trailblazer Reloaded relics page says "providing players have unlocked them". The previous book
   is the attribute `league:grimoire-previous-spellbook`, remembered only when a swap went through.
   Holding the item is the only check (it is untradeable and only a relic grants it; a spawned one
-  works for any league character). Not covered: its Book of the Dead role (the resurrection
-  spells' requirement, checked in core), and Raging Echoes' Grimoire unlocking every prayer and
-  spell.
+  works for any league character). A Raging Echoes character with the Grimoire relic switches to
+  any book, whatever quest the book needs (the relic's `booksLeagues`; upstream issue #5586). Not
+  covered: its Book of the Dead role (the resurrection spells' requirement, checked in core).
 - **Archer's Embrace** (tier 4): ranged speed halved (`onAttackSpeed`: above 4 rounded down,
   below 3 rounded up, so 3, 4 and 5 all become 2 as the Wiki's notes say), ranged accuracy x2,
   on a landed ranged hit a 10% chance of an extra `PendingHit` at the same target with a roll of
@@ -1246,9 +1246,11 @@ open). Each item remembers its last destination. The menus' grouping and wording
   from any Wilderness level and sets the three back; Check-memories says what is kept (ours). Not
   in an instance, nor underwater at Fossil Island. No cooldown; the memory outlasts death.
 - **Grimoire** (Raging Echoes tier 7): spells' area, quest and diary requirements are lifted
-  (`magic:spell-unlocked`; here the Mage Arena's god spells without their 100 casts); the Prayer
-  level still counts, and no prayer here is gated by a quest. The Arcane grimoire's spellbook
-  swap is the item's own plugin (above).
+  (`magic:spell-unlocked`; here the Mage Arena's god spells without their 100 casts), and every
+  prayer is unlocked whatever its quest or scroll (`prayer:unlocks-bypass`, the relic's
+  `prayersLeagues`; the Prayer level still counts), as the Wiki's relics page and the relic's own
+  page say (upstream issue #5586: it was Demonic Pacts' only). The Arcane grimoire's spellbook
+  swap is the item's own plugin (above), and for this relic opens every book.
 - **Reloaded** (Raging Echoes tier 4): one more relic of tiers 1-3, a different one from that
   tier's own pick, chosen with the same click on it (`league:relics-extra`; any item it hands out
   is given). The relic interface shows only each tier's own pick: ours.
