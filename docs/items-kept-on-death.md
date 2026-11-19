@@ -51,7 +51,7 @@ Before the items are dealt with, each one the death does not protect is offered 
 - **Charged items** (each item's own plugin, through `ChargedItemDeath.js`): the item is emptied and lost as its tradeable uncharged form, with what the Wiki says of its contents (Charged items, below).
 - **A bot's death in Bounty Hunter's arena is not a PvP death** for these rules: a crater bot leaves its killer what it did before (its tradeable kit), and its Nightmare staff, capes, defenders, (bh) pieces and imbued weapons stay as they are.
 - **The Items Kept on Death screen** marks an ornamented tradeable item, an imbued weapon made from a tradeable one, and a charged item whose uncharged form trades, lost on its PvP preview (`items:lost-to-pvp-killer`).
-- **Not covered:** the screen's guide risk value does not count a kit, the coins a piece holds or the contents of a charged item; the kit of a locked `(l)(or)` item; a death to a monster with a tentacle.
+- **Not covered:** a death to a monster with a tentacle; the screen's guide risk value does not yet use `deathComponents` (the Nightmare staffs). Kits, the coins a piece holds, a charged item's contents and a locked `(l)(or)` item's kit are counted through `items:pvp-death-parts-preview`.
 
 ## Charged items (Wiki: Items Kept on Death, Mechanics, and each item's page)
 
