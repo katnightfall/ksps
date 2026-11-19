@@ -147,6 +147,32 @@ http.createServer((request, response) => { if (request.url === "/stop-now") proc
   player.destroy();
 });
 
+test("a world listed at a port that does not exist is not a world: asking for it does not stop the front door", async () => {
+  const { cleanWorld } = await load("worlds.mjs");
+  const entry = (address) => cleanWorld({ name: "W", address });
+  assert.equal(entry("play.example.com:65535").address, "play.example.com:65535");
+  assert.equal(entry("play.example.com").address, "play.example.com");
+  for (const address of ["play.example.com:65536", "play.example.com:70000", "203.0.113.10:99999", "play.example.com:0"]) assert.equal(entry(address), null, address);
+
+  const tree = makeTree();
+  const world = await standIn("a world");
+  const site = await standIn("the website");
+  // As the admin page's file had it after a slip of the hand (deploy/master/registry.mjs keeps what it is given).
+  fs.writeFileSync(path.join(tree, "server", "data", "saves", "master", "master-worlds.json"), JSON.stringify({ default: "bad", worlds: [
+    { id: "bad", name: "Bad", world: "Bad", address: "127.0.0.1:70000", secure: false, listed: true },
+    { id: "good", name: "Good", world: "Good", address: `127.0.0.1:${world.port}`, secure: false, listed: true },
+  ] }));
+  const front = await startFront(tree, { MASTER_ADMIN: "1", MASTER_ONLY: "1", FRONT_STATIC_PORT: String(site.port), FRONT_MASTER_PORT: String(await freePort()) });
+  assert.equal((await ask(`${front.base}/w/bad/api/world-status`)).status, 404);
+  assert.equal(await raw(front.port, "GET /w/bad HTTP/1.1\r\nHost: x\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n"), "", "no game connection to it either");
+  // The default world it was is passed over for the first that is one.
+  assert.equal(await (await ask(`${front.base}/api/world-status`)).text(), "a world");
+  assert.equal(await (await ask(`${front.base}/w/good/api/world-status`)).text(), "a world");
+  assert.deepEqual((await (await ask(`${front.base}/world-list.json`)).json()).worlds.map((listed) => listed.id), ["good"]);
+  await wait(200);
+  assert.equal(front.exit, null, `the front door stopped: ${front.output}`);
+});
+
 test("a game connection carried to a world: the world hears who the visitor is from the master alone, and each side is closed with the other", async () => {
   const { verifyVisitor, VISITOR_HEADER } = await load("worlds.mjs");
   const tree = makeTree();
