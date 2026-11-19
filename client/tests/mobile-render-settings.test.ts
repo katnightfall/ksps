@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 import fs from "node:fs";
 
 // The GPU plugin's settings must be read before Low-end Device's fixed defaults.
@@ -9,7 +10,7 @@ const lowEnd = plugins.indexOf("    LowEndDevicePlugin,");
 assert.ok(gpu >= 0 && lowEnd >= 0 && gpu < lowEnd,
     "an enabled GPU plugin must outrank Low-end Device's gpuSettings()");
 
-const result = spawnSync(process.execPath, ["--import", require.resolve("tsx"), "-e", `
+const result = spawnSync(process.execPath, ["--import", pathToFileURL(require.resolve("tsx")).href, "-e", `
     const assert = require("node:assert/strict");
     Object.defineProperty(globalThis, "navigator", { configurable: true, value: {
         userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)",

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 
 const cases = [
     { name: "Android phone", agent: "Mozilla/5.0 (Linux; Android 14) Chrome/156.0 Mobile Safari/537.36", touch: 5, width: 390, enabled: true },
@@ -13,7 +14,7 @@ const cases = [
 
 // Device flags are resolved at startup, so each case needs a fresh module cache.
 for (const scenario of cases) {
-    const result = spawnSync(process.execPath, ["--import", require.resolve("tsx"), "-e", `
+    const result = spawnSync(process.execPath, ["--import", pathToFileURL(require.resolve("tsx")).href, "-e", `
         const assert = require("node:assert/strict");
         const scenario = ${JSON.stringify(scenario)};
         Object.defineProperty(globalThis, "navigator", { configurable: true, value: {
