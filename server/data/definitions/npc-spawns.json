@@ -3369,7 +3369,7 @@
   {"level":0,"name":"Mine cart","x":2785,"y":4456,"id":3620,"wanderRadius":0},
   {"level":0,"name":"Loading crane","x":2787,"y":4446,"id":3618,"wanderRadius":0},
   {"level":0,"name":"Loading crane","x":2787,"y":4451,"id":3618,"wanderRadius":0},
-  {"level":0,"name":"Innocent-looking key","x":2788,"y":4455,"id":3619},
+  {"level":0,"name":"Innocent-looking key","x":2788,"y":4455,"id":3619,"wanderRadius":0},
   {"level":0,"name":"Mine cart","x":2791,"y":4447,"id":3620,"wanderRadius":0,"direction":6},
   {"level":0,"name":"Mine cart","x":2791,"y":4456,"id":3620,"wanderRadius":0},
   {"level":0,"name":"Mine cart","x":2793,"y":4446,"id":3620,"wanderRadius":0},

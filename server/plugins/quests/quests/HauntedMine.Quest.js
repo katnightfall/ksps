@@ -1,4 +1,5 @@
 const { hasKey } = require("../../items/KeyAvailability");
+const { crossingFor } = require("../../objects/WallDoor.Doors");
 /**
  * Haunted Mine (members).
  *
@@ -58,7 +59,6 @@ module.exports = function registerHauntedMineQuest(api) {
     Skill,
     Sound,
     Sounds,
-    ObjectManager,
     RegionManager,
     TaskManager,
   } = api.core;
@@ -773,23 +773,27 @@ module.exports = function registerHauntedMineQuest(api) {
   /** Mirrors the player to the tile past a blocking object (the mine cart). */
   function stepPast(player, location) {
     const current = player.getLocation();
-    const dx = current.getX() - location.getX();
-    const dy = current.getY() - location.getY();
+    const dx = current.getX() - location.x;
+    const dy = current.getY() - location.y;
     const destination =
       Math.abs(dx) >= Math.abs(dy)
-        ? new Location(location.getX() - (dx >= 0 ? 1 : -1), location.getY(), current.getZ())
-        : new Location(location.getX(), location.getY() - (dy >= 0 ? 1 : -1), current.getZ());
+        ? new Location(location.x - (dx >= 0 ? 1 : -1), location.y, current.getZ())
+        : new Location(location.x, location.y - (dy >= 0 ? 1 : -1), current.getZ());
     player.moveTo(destination);
   }
 
   function climbOverCart(event) {
-    const { player, location } = event;
+    const { player } = event;
     event.handled = true;
     if (player.getSkillManager().getCurrentLevel(Skill.AGILITY) < AGILITY_CART_REQUIREMENT) {
       player.sendMessage("You need an Agility level of 15 to climb over this cart.");
       return;
     }
-    stepPast(player, location);
+    // Ours (upstream issue #6075): the cart's own tile, from the object. The click's `location` is a plain { x, y, z },
+    // not a Location, and reading it with getX() threw, so the cart could never be climbed over, before or after the
+    // quest.
+    const cart = event.object.getLocation();
+    stepPast(player, { x: cart.getX(), y: cart.getY() });
   }
 
   function pickFungus(event) {
@@ -833,7 +837,8 @@ module.exports = function registerHauntedMineQuest(api) {
     if (!quest.isStarted(player) || quest.isComplete(player) || quest.getStage(player) >= STAGE_LIFT_DOWN) return;
     event.handled = true;
     toggleLever(player, varbitId);
-    player.sendMessage("You pull the lever. The old points creak into place.");
+    // Ours (upstream issue #6075): the lever's line is the transcript's own message step ("You pull the lever. The old
+    // points creak into place."); it was also sent here by hand, so every pull printed it twice.
     tryMoveCart(player);
     startTranscript(api, player, ZEALOT_NPC_ID, PAGE, V_LEVER);
   }
@@ -1115,9 +1120,35 @@ module.exports = function registerHauntedMineQuest(api) {
   }
 
   /**
+   * Walks the player through the crane room's east door, which stays shut. Ours (upstream issue #6075): the door has
+   * no open variant in the cache and used to be removed from the world on its first Open, for everyone and for good.
+   * It is a straight wall on its tile's edge, so the step across ignores clipping for the tick it takes (tasks run
+   * before movement, hence 2). How live shows the pass (an opening door, a forced walk) has no capture.
+   */
+  const IGNORE_CLIPPING_FLAG = "movement:ignore-clipping";
+  const DOOR_STEP_TICKS = 2;
+  const doorSteps = new WeakMap();
+  function passBossDoor(player, object) {
+    const here = player.getLocation();
+    const crossing = crossingFor(object, { x: here.getX(), y: here.getY() });
+    if (!crossing) return;
+    const { x, y } = crossing.destination;
+    if (Math.max(Math.abs(x - here.getX()), Math.abs(y - here.getY())) !== 1) return;
+    const pass = {};
+    doorSteps.set(player, pass);
+    player.setFlag(IGNORE_CLIPPING_FLAG, true);
+    player.getMovementQueue().addSteps(new Location(x, y, here.getZ()));
+    TaskManager.submit(new CountdownTask(pass, DOOR_STEP_TICKS, () => {
+      if (doorSteps.get(player) !== pass) return;
+      doorSteps.delete(player);
+      player.removeFlag(IGNORE_CLIPPING_FLAG);
+    }));
+  }
+
+  /**
    * Quest state on shared doors: the crystal-mine key unlocks the large doors, and the
-   * boss room's east door has no open/close variant in the cache so it is swung out of
-   * the way here. Runs before the generic Doors plugin, which reads `handled`.
+   * boss room's east door has no open/close variant in the cache, so the player is walked
+   * through it here. Runs before the generic Doors plugin, which reads `handled`.
    */
   function handleDoorToggle(request) {
     if (request.handled) return;
@@ -1130,8 +1161,8 @@ module.exports = function registerHauntedMineQuest(api) {
     }
     if (objectId !== BOSS_DOOR_OBJECT_ID || !object) return;
     request.handled = true;
-    ObjectManager.deregister(object, true);
     Sounds.sendSound(player, Sound.DOOR_OPEN);
+    passBossDoor(player, object);
   }
 
   // ==========================================================================

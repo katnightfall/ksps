@@ -43,7 +43,9 @@ function showLevers({ player }) {
 function pullLever(event) {
   const lever = levers.find((entry) => (entry.down === event.objectId || entry.up === event.objectId)
     && event.location.x === entry.x && event.location.y === entry.y && event.location.z === 0);
-  if (!lever) return;
+  // Ours (upstream issue #6075): false, not undefined. A named handler that returns anything else claims the click, so
+  // this one took every other "Lever" Pull registered after it (Haunted Mine's track levers among them) and did nothing.
+  if (!lever) return false;
   event.handled = true;
   const bits = leverBits(event.player) ^ lever.bit;
   event.player.setAttribute(LEVERS_ATTRIBUTE, bits);
