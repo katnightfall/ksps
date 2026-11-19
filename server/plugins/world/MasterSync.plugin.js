@@ -272,7 +272,8 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
     if (result.status !== 200 || !Array.isArray(result.answer.rows) || !session.online) return;
     const changed = result.answer.rows
       .filter((row) => !dirty.has(row.key) && !pushing.has(row.key) && tracked.get(row.key) === session)
-      .filter((row) => (Number(row.version) || 0) !== (session.base.get(row.key) ?? 0))
+      // Newer at the master than the copy read (older would be this world's own hand-in, answered meanwhile).
+      .filter((row) => (Number(row.version) || 0) > (session.base.get(row.key) ?? 0))
       .map((row) => row.key);
     if (changed.length === 0) return;
     log("login_out_of_date", { keys: changed });

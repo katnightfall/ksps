@@ -500,3 +500,32 @@ test("a stopping world does not let go of a save it could not hand in, and hands
   assert.equal(await miami.login("Kat"), null);
   assert.deepEqual(JSON.parse(miami.rows.get("kat")), { at: "the shutdown save" });
 });
+
+test("the check at entry is not fooled by this world's own save handed in while the answer was on its way", async (t) => {
+  const hub = await master(t);
+  let entering = false;
+  let handedIn;
+  const saved = new Promise((resolve) => { handedIn = resolve; });
+  const dallas = world(t, "1 - Dallas", hub, {
+    wrapCall: (call) => async (method, target, body) => {
+      const answer = await call(method, target, body);
+      // The master has answered the entry check; the answer (the account's saves, large) is slow to arrive.
+      if (entering && target === "/sync/checkout") await saved;
+      return answer;
+    },
+  });
+  await dallas.login("Kat");
+  await dallas.logout("Kat", "kat", { at: "yesterday" });
+  assert.equal(await dallas.accepted("Kat"), null);
+  entering = true;
+  const entered = dallas.sync.entered("Kat");
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  entering = false;
+  // Meanwhile the game saves her (a login reward) and the save is handed in and answered.
+  await dallas.gameSaves("kat", { at: "today" });
+  await dallas.sync.tick();
+  handedIn();
+  await entered;
+  assert.deepEqual(dallas.kicked, [], "her own save is not somebody else's play");
+  assert.deepEqual(hub.saved("kat"), { at: "today" });
+});
