@@ -130,6 +130,33 @@ const PROJECT = {
   "docs/notes/two.md": "two\n",
 };
 
+test("what is restarted for what: nothing for a document or the admin page's HTML, each half for what it runs", { skip }, (t) => {
+  for (const [changed, expected] of [
+    [{ "README.md": "about B\n" }, []],
+    // Read from disk at every visit. A restart of the website for it disconnected every player the front door carries.
+    [{ "deploy/master/admin.html": "<html>admin page B</html>\n" }, []],
+    [{ "deploy/master/admin.mjs": "admin B\n" }, ["web"]],
+    [{ "deploy/front.mjs": "front door B\n" }, ["web"]],
+    // Loaded by the front door and the admin page: a change to it used to restart nothing.
+    [{ "deploy/reset-accounts.mjs": "reset B\n" }, ["web"]],
+    // The front door loads it and, on a master with no world of its own, the game service runs it.
+    [{ "deploy/quest-helper.mjs": "engine keeper B\n" }, ["game", "web"]],
+    [{ "server/plugins/Shop.js": "shop B\n" }, ["game"]],
+  ]) {
+    const s = server(t, PROJECT);
+    const done = s.run(["update", A], next(PROJECT, changed));
+    const file = Object.keys(changed)[0];
+    assert.equal(done.status, 0, `${file}: ${done.said}`);
+    assert.deepEqual(done.restarted, expected, file);
+    assert.equal(s.read(file), changed[file], file);
+    assert.equal(s.version(), B);
+  }
+  // Where a world runs on the server itself, the game service runs neither of the two: its players stay.
+  const own = { ...PROJECT, "deploy/settings.env": "MASTER_ONLY=0\n" };
+  const s = server(t, own);
+  assert.deepEqual(s.run(["update", A], next(own, { "deploy/quest-helper.mjs": "engine keeper B\n" })).restarted, ["web"]);
+});
+
 test("a build that fails changes nothing on the live server, and says why", { skip }, (t) => {
   const s = server(t, PROJECT);
   const before = s.live();

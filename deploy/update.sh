@@ -155,7 +155,12 @@ phase_stage() {   # <commit of the version the upload builds on> | full | rebuil
     || touched '^scripts/run-with-env\.mjs$'; then build_client=1; fi
   if [ "$build_server" = 1 ] || touched '^deploy/run\.sh$' \
     || touched_except '^server/' '^server/(tests|docs|scripts|deploy)/'; then restart_game=1; fi
-  if [ "$first" = 1 ] || touched '^(deploy/run\.sh|deploy/front\.mjs|deploy/worlds\.mjs|deploy/master/[^/]+|client/scripts/serve-build\.mjs)$'; then restart_web=1; fi
+  # On a master with no world of its own the game service runs the parked port and the keeper of
+  # Quest Helper's engine (deploy/run.sh): a change to either took effect at no restart at all.
+  if touched '^deploy/(quest-helper\.mjs|master/parked\.mjs)$' && grep -qsE '^MASTER_ONLY=1[[:space:]]*$' "$DEST/deploy/settings.env"; then restart_game=1; fi
+  # Everything the front door and the admin page load. Not deploy/master/admin.html: it is read
+  # at each visit, and a restart of the front door disconnects every player it carries.
+  if [ "$first" = 1 ] || touched '^(deploy/run\.sh|deploy/front\.mjs|deploy/worlds\.mjs|deploy/reset-accounts\.mjs|deploy/quest-helper\.mjs|deploy/master/[^/]+\.mjs|client/scripts/serve-build\.mjs)$'; then restart_web=1; fi
   # Our own settings file: the game reads it at start, the client build reads some of its lines.
   if touched '^deploy/settings\.env$'; then
     restart_game=1
