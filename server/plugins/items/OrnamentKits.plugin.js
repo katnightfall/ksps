@@ -324,6 +324,7 @@ module.exports = {
     api.onItemAction(revertItem);
     api.onCustomEvent("player-death:cosmetic", cosmeticOnDeath);
     api.onCustomEvent("player-death:pvp-item-parts", splitOnPvpDeath);
+    api.onCustomEvent("items:pvp-death-parts-preview", splitOnPvpDeath);
     api.onCustomEvent("items:lost-to-pvp-killer", answerLostToPvpKiller);
     api.log("registered", { pairs: byKitAndBase.size, variants: byResult.size });
   },

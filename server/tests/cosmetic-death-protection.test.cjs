@@ -66,8 +66,9 @@ function isCosmetic(id) {
 }
 
 const names = (items) => items.map((item) => item.getDefinition().getName());
-// Bandos godsword, berserker ring and Robin Hood hat outrank a rune defender (t) (an alchemy value
-// of 39,002) and a rune platebody (a Grand Exchange price of about 38,700).
+// Bandos godsword, berserker ring and Robin Hood hat outrank a rune defender (t) (ranked by its
+// defender kit, the part of it a PvP death leaves the killer) and a rune platebody (a Grand Exchange
+// price of about 38,700).
 const loadout = () => [I.BANDOS_GODSWORD, I.BERSERKER_RING, I.ROBIN_HOOD_HAT, RUNE_DEFENDER_T, I.RUNE_PLATEBODY, ARCEUUS_GRACEFUL_HOOD]
   .map((id) => new Item(id, 1));
 const TOP_THREE = ['Bandos godsword', 'Berserker ring', 'Robin Hood hat'];
@@ -87,9 +88,11 @@ test('a skulled PvM death still keeps the ornamented item', () => {
 });
 
 test('an ornamented item valuable enough takes a kept slot and adds none', () => {
+  // The Armadyl godsword (or) has no price of its own: it ranks as the godsword and its kit, what a PvP death leaves the
+  // killer (docs/items-kept-on-death.md, The kept items), which puts it above the berserker ring.
   const items = [I.BANDOS_GODSWORD, I.BERSERKER_RING, ARMADYL_GODSWORD_OR, I.RUNE_PLATEBODY].map((id) => new Item(id, 1));
   const { ranked, cosmetic } = PlayerDeathTask.getKeptItems(fakePlayer({ items }), 3, true);
-  assert.deepEqual(names(ranked), ['Bandos godsword', 'Berserker ring', 'Armadyl godsword (or)']);
+  assert.deepEqual(names(ranked), ['Bandos godsword', 'Armadyl godsword (or)', 'Berserker ring']);
   assert.deepEqual(cosmetic, []);
 });
 

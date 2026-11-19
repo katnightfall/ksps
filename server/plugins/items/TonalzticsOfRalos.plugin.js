@@ -54,6 +54,8 @@ function setCharges(api, player, item, value) {
   const clamped = Math.max(0, Math.min(MAX_CHARGES, Math.floor(value)));
   item.setMetaValue(CHARGES_META_KEY, clamped > 0 ? clamped : undefined);
   item.setId(clamped > 0 ? ids.TONALZTICS_OF_RALOS : ids.TONALZTICS_OF_RALOS_UNCHARGED_);
+  // No player: a preview of a death empties a copy of the weapon (ChargedItemDeath).
+  if (!player) return;
   player.getInventory().refreshItems();
   player.getEquipment().refreshItems();
   player.getUpdateFlag().flag(core.Flag.APPEARANCE);
@@ -353,6 +355,7 @@ module.exports = {
     api.onItemOnItem("Sunfire splinters", "Tonalztics of Ralos", chargeWithSplinters.bind(null, api), { noted: false });
     api.onCustomEvent(SHOT_EVENT, handleShot.bind(null, api));
     api.onCustomEvent("player-death:pvp-item-parts", unchargeOnPvpDeath.bind(null, api));
+    api.onCustomEvent("items:pvp-death-parts-preview", unchargeOnPvpDeath.bind(null, api));
     api.onCustomEvent("items:lost-to-pvp-killer", lostToPvpKiller.bind(null, api));
     api.onPlayerLogout(clearShot);
     api.registerWeaponProfile({

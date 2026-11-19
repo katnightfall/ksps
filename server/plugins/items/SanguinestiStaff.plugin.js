@@ -257,6 +257,7 @@ module.exports = {
     api.registerCombatMethodResolver(staff.resolver);
     api.onCustomEvent("item:fill-charges", staff.fillCharges);
     api.onCustomEvent("player-death:pvp-item-parts", unchargeOnPvpDeath);
+    api.onCustomEvent("items:pvp-death-parts-preview", unchargeOnPvpDeath);
     api.onCustomEvent("items:lost-to-pvp-killer", lostToPvpKiller);
   },
   _test: {

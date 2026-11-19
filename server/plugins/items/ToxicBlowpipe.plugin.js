@@ -977,6 +977,7 @@ module.exports = {
     api.onGroundItemPickup(pickupIntoBlowpipe);
     api.onCustomEvent("item:fill-charges", fillCharges);
     api.onCustomEvent("player-death:pvp-item-parts", unchargeOnPvpDeath);
+    api.onCustomEvent("items:pvp-death-parts-preview", unchargeOnPvpDeath);
     api.onCustomEvent("items:lost-to-pvp-killer", lostToPvpKiller);
     api.onItemAction("Drygore blowpipe", { Check: checkBlowpipe, Unload: unloadBlowpipe });
     api.onItemAction("Toxic blowpipe", {

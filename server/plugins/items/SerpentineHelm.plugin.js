@@ -246,6 +246,7 @@ function attach(api) {
   api.onCombatHitResolved(onHitResolved);
   api.onCustomEvent("serpentine-helm:protection", protectionQuery);
   api.onCustomEvent("player-death:pvp-item-parts", unchargeOnPvpDeath);
+  api.onCustomEvent("items:pvp-death-parts-preview", unchargeOnPvpDeath);
   api.onCustomEvent("items:lost-to-pvp-killer", lostToPvpKiller);
   api.onPlayerProcess(processPlayer);
 }

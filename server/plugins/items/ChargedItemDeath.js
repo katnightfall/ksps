@@ -18,13 +18,17 @@
 const { restricted } = require("./PoweredStaff");
 
 const PARTS_EVENT = "player-death:pvp-item-parts";
+/** Its read-only twin, asked with a copy of the item and `preview: true` (PlayerDeathTask.keepValue, Items Kept on Death). */
+const PREVIEW_EVENT = "items:pvp-death-parts-preview";
 
 /**
- * Answers `player-death:pvp-item-parts` { player, killer, item, parts } for one plugin's charged items.
+ * Answers `player-death:pvp-item-parts` { player, killer, item, parts } for one plugin's charged items, and its
+ * read-only twin `items:pvp-death-parts-preview` (the same, with `preview: true`), by which the death ranks the kept
+ * items by what an item is lost as.
  * - `uncharged(item)`: the id the item becomes when the plugin empties it, or null when it is not one of the plugin's
  *   charged items (or is one that a death leaves alone).
  * - `empty(item, player)`: empties the item where it is and returns what the death gives of its contents, as
- *   [itemId, amount] pairs.
+ *   [itemId, amount] pairs. In a preview it is handed no player: it changes the copy it is given and nothing else.
  *
  * Once emptied, the item is asked about again, as the uncharged item it now is: an ornamented one then loses its kit
  * by the ornament kits' own rule. OrnamentKits leaves a charged Holy scythe alone, because the charged scythe under the
@@ -40,11 +44,12 @@ function splitOnPvpDeath(core, query, uncharged, empty) {
   if (uncharged(item) == null) return;
   // An earlier answer that put another item in this one's place has dealt with it: emptying it too would make two.
   if (query.parts && !query.parts.includes(item)) return;
-  const contents = empty(item, query.player)
+  const preview = query.preview === true;
+  const contents = empty(item, preview ? null : query.player)
     .filter(([, amount]) => amount > 0)
     .map(([contentId, amount]) => new core.Item(contentId, amount));
-  const emptied = { player: query.player, killer: query.killer, item, parts: null };
-  core.PluginManager.emitCustomEvent(PARTS_EVENT, emptied);
+  const emptied = { player: query.player, killer: query.killer, item, parts: null, preview };
+  core.PluginManager.emitCustomEvent(preview ? PREVIEW_EVENT : PARTS_EVENT, emptied);
   // The item is listed once: by the second answer where there is one, which says what the emptied item becomes.
   query.parts = [
     ...(query.parts ?? []).filter((part) => part !== item),

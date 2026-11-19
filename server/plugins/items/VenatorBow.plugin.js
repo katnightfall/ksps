@@ -467,6 +467,7 @@ module.exports = {
     api.onItemOnItem("Ancient essence", "Echo venator bow (uncharged)", charge, { noted: false });
     api.onCustomEvent(core.Bank.ITEM_OP_EVENT, bankItemOp);
     api.onCustomEvent("player-death:pvp-item-parts", unchargeOnPvpDeath);
+    api.onCustomEvent("items:pvp-death-parts-preview", unchargeOnPvpDeath);
     api.onCustomEvent("items:lost-to-pvp-killer", lostToPvpKiller);
   },
   _test: {

@@ -128,7 +128,7 @@ module.exports=function registerRewards({api,stage,held,give,val,play,ATTRIBUTES
  }
  // `items:lost-to-pvp-killer`: the Items Kept on Death screen's PvP preview shows a synapse weapon lost.
  function lostToPvpKiller(q){if(q?.item&&q.item.isPresetItem?.()!==true&&recipes.some(r=>r.output===q.item.getId()))q.lost=true;}
- api.onCustomEvent('player-death:pvp-item-parts',synapseOnPvpDeath);api.onCustomEvent('items:lost-to-pvp-killer',lostToPvpKiller);
+ api.onCustomEvent('player-death:pvp-item-parts',synapseOnPvpDeath);api.onCustomEvent('items:pvp-death-parts-preview',synapseOnPvpDeath);api.onCustomEvent('items:lost-to-pvp-killer',lostToPvpKiller);
  api.onNpcInteraction('Kuradal',{'Talk-to':talk});api.onNpcDialogueCondition(condition);
  api.onCustomEvent('npc-dialogue:action',action);api.onItemAction(read);
  api.onItemOnItem(pair,{noted:false});api.onItemOnObject(anvil,{noted:false});

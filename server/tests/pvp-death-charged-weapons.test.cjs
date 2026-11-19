@@ -368,16 +368,17 @@ test("protected by the three-item rule, or skulled with Protect Item, each item 
   }
 });
 
-// A charged item has no Grand Exchange price, so the death ranks it by its own alchemy value (PlayerDeathTask.keepValue),
-// not by the uncharged item's price (docs/items-kept-on-death.md, Charged items, "Not covered"). The shadow ranks above
-// the staff both ways (alchemy 4.2m against 3m; uncharged, hundreds of millions against 13.7m).
+// A charged item has no Grand Exchange price, so the death ranks it by what a PvP death leaves the killer
+// (PlayerDeathTask.keepValue; death-keep-value.test.cjs): the shadow (683m uncharged, and its runes) above the staff (13.7m
+// and its blood runes).
 test("of two charged items with Protect Item and a skull, the more valuable is kept whole and the other is lost", (t) => {
   const victim = actor(t), killer = actor(t);
   const shadow = make(I.TUMEKENS_SHADOW, { "tumekens-shadow-charges": 1000 });
   const before = state(shadow);
   victim.getInventory().setItem(0, make(I.SANGUINESTI_STAFF, { "sanguinesti-staff-charges": 1234 }));
   victim.getInventory().setItem(1, shadow);
-  assert.ok(PlayerDeathTask.keepValue(shadow) > PlayerDeathTask.keepValue(make(I.SANGUINESTI_STAFF)), "the shadow ranks above the staff");
+  assert.ok(PlayerDeathTask.keepValue(shadow, victim) > PlayerDeathTask.keepValue(make(I.SANGUINESTI_STAFF, { "sanguinesti-staff-charges": 1234 }), victim),
+    "the shadow ranks above the staff");
   const result = die(t, victim, killer, WILDERNESS(), { skulled: true, protectItem: true });
   assert.deepEqual(result.kept, [shadow]);
   assert.equal(state(shadow), before);

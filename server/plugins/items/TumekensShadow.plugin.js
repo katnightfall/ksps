@@ -151,7 +151,8 @@ function soulRefund(item, charges = chargesOf(item)) {
 function setCharges(player, item, charges, aether = 0) {
   staff.setCharges(item, charges);
   item.setMetaValue(AETHER_KEY, charges > 0 && aether > 0 ? aether : undefined);
-  player.getInventory().refreshItems();
+  // No player: a preview of a death empties a copy of the staff (ChargedItemDeath).
+  player?.getInventory().refreshItems();
 }
 
 /**
@@ -288,6 +289,7 @@ module.exports = {
     pluginApi.registerCombatMethodResolver(staff.resolver);
     pluginApi.onCustomEvent("item:fill-charges", staff.fillCharges);
     pluginApi.onCustomEvent("player-death:pvp-item-parts", unchargeOnPvpDeath);
+    pluginApi.onCustomEvent("items:pvp-death-parts-preview", unchargeOnPvpDeath);
     pluginApi.onCustomEvent("items:lost-to-pvp-killer", lostToPvpKiller);
     pluginApi.registerBonusProvider({ apply: shadowBonuses });
     for (const rune of ["Soul rune", "Aether rune", "Chaos rune"]) {
