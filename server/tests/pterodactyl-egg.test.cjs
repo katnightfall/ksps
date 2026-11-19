@@ -260,3 +260,39 @@ test('a host that takes the connection and says nothing does not keep the world 
     try { fs.rmSync(copy, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 }); } catch {}
   }
 });
+
+test('world.local.json is written whole, and one that cannot be read is kept aside and said, not taken for empty', async () => {
+  const { writeWorld } = await load('launch.mjs');
+  const os = require('node:os');
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), 'egg-world-'));
+  const files = { state: path.join(base, '.egg-state.json'), world: path.join(base, 'world.json'), local: path.join(base, 'world.local.json') };
+  fs.writeFileSync(files.world, JSON.stringify(WORLD));
+  const env = { WORLD_NAME: 'Kat-Net New York', XP_RATE: '5' };
+  const said = [];
+  try {
+    // The owner's own setting beside the egg's keys, as the world's settings page writes it.
+    fs.writeFileSync(files.local, JSON.stringify({ name: 'An older name', pluginConfig: { 'AreaLoot:radius': 20 } }));
+    writeWorld(env, files, (line) => said.push(line));
+    assert.deepEqual(JSON.parse(fs.readFileSync(files.local, 'utf8')), { name: 'Kat-Net New York', pluginConfig: { 'AreaLoot:radius': 20 }, experienceMultiplier: 5 });
+    assert.deepEqual(JSON.parse(fs.readFileSync(files.state, 'utf8')).worldKeys, ['name', 'experienceMultiplier']);
+    assert.deepEqual(fs.readdirSync(base).sort(), ['.egg-state.json', 'world.json', 'world.local.json'], 'nothing left beside them');
+    assert.deepEqual(said, []);
+
+    // Cut short (a full disk, a stop in the middle of a write by anything else).
+    const half = fs.readFileSync(files.local, 'utf8').slice(0, 40);
+    fs.writeFileSync(files.local, half);
+    writeWorld(env, files, (line) => said.push(line));
+    assert.deepEqual(JSON.parse(fs.readFileSync(files.local, 'utf8')), { name: 'Kat-Net New York', experienceMultiplier: 5 }, 'the world starts, with the egg\'s settings');
+    assert.equal(fs.readFileSync(`${files.local}.unreadable`, 'utf8'), half, 'what was there is kept');
+    assert.equal(said.length, 1);
+    assert.match(said[0], /world\.local\.json could not be read as settings\. It is kept as world\.local\.json\.unreadable/);
+
+    // Not settings at all: the game refuses to start on anything but an object there.
+    fs.writeFileSync(files.local, '[]');
+    writeWorld(env, files, (line) => said.push(line));
+    assert.deepEqual(JSON.parse(fs.readFileSync(files.local, 'utf8')), { name: 'Kat-Net New York', experienceMultiplier: 5 });
+    assert.equal(said.length, 2);
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+});

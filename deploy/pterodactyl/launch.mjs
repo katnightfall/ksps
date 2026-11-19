@@ -213,6 +213,12 @@ function readJson(file, fallback) {
     try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return fallback; }
 }
 
+/** Writes `file` whole: beside it first, then in its place. A stop in the middle leaves the one that was there. */
+function writeWhole(file, text) {
+    fs.writeFileSync(`${file}.tmp`, text);
+    fs.renameSync(`${file}.tmp`, file);
+}
+
 function run(label, cwd, command, args, env = process.env) {
     say(`${label}...`);
     // npm is a .cmd file on Windows (a local try-out), which only a shell can start.
@@ -224,7 +230,7 @@ function prepare(env) {
     const state = readJson(STATE_FILE, {});
     const now = marks(env);
     const all = text(env.REBUILD) === "1";
-    const save = (key) => { state[key] = now[key]; fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2)); };
+    const save = (key) => { state[key] = now[key]; writeWhole(STATE_FILE, JSON.stringify(state, null, 2)); };
     const npm = process.platform === "win32" ? "npm.cmd" : "npm";
     // What a build may take: 70% of the server's memory, between 1 and 4 GB (4 GB on a server with no limit).
     const serverMb = Number(text(env.SERVER_MEMORY));
@@ -331,13 +337,28 @@ export function useDiskForTemporaryFiles(env, root = ROOT) {
     return folder;
 }
 
-function writeWorld(env) {
-    const state = readJson(STATE_FILE, {});
-    const { local, managed } = worldSettings(env, readJson(WORLD_FILE, {}), readJson(WORLD_LOCAL_FILE, {}), state.worldKeys ?? []);
-    if (Object.keys(local).length > 0) fs.writeFileSync(WORLD_LOCAL_FILE, `${JSON.stringify(local, null, 2)}\n`);
-    else fs.rmSync(WORLD_LOCAL_FILE, { force: true });
+/**
+ * Writes the egg's variables into world.local.json (`files`: where; the project's own unless a
+ * test says otherwise). A file that is there and cannot be read as settings (cut short by a full
+ * disk or a stop, a slip in a hand edit) is kept beside it and said so: it was taken for an empty
+ * one, and whatever the owner had set in it was gone without a word.
+ */
+export function writeWorld(env, files = { state: STATE_FILE, world: WORLD_FILE, local: WORLD_LOCAL_FILE }, log = say) {
+    const state = readJson(files.state, {});
+    let existing = {};
+    if (fs.existsSync(files.local)) {
+        existing = readJson(files.local, null);
+        if (!existing || typeof existing !== "object" || Array.isArray(existing)) {
+            existing = {};
+            fs.copyFileSync(files.local, `${files.local}.unreadable`);
+            log(`${path.basename(files.local)} could not be read as settings. It is kept as ${path.basename(files.local)}.unreadable, and written again from this server's variables alone: anything else that was set in it is in that copy.`);
+        }
+    }
+    const { local, managed } = worldSettings(env, readJson(files.world, {}), existing, state.worldKeys ?? []);
+    if (Object.keys(local).length > 0) writeWhole(files.local, `${JSON.stringify(local, null, 2)}\n`);
+    else fs.rmSync(files.local, { force: true });
     state.worldKeys = managed;
-    fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+    writeWhole(files.state, JSON.stringify(state, null, 2));
 }
 
 // ---- running ---------------------------------------------------------------------------------------
