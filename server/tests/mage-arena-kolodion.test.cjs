@@ -484,3 +484,39 @@ test("Mage Arena I: the sent charge lines carry one navy tag, not two", () => {
   ]);
   assert.ok(QuestRuntime.journalWidgets(arena, player)[1].staticChildren.every((child) => !child.text.includes("<col=000080><col=000080>")));
 });
+
+// Ours (upstream issue #3701): Mage Arena I and II completed for a character (as a league's auto-completion
+// completes quests: no XP, no scroll), with no cape ever taken from a statue.
+test("a character whose Mage Arena I and II were completed for it gets Kolodion's real talk and a symbol", () => {
+  const complete = (player, name) => QuestRuntime.questNamed(name).complete(player, { experience: false, scroll: false });
+
+  const both = makePlayer({ magic: 99, cape: false, casts: [0, 0, 0] });
+  complete(both, "Mage Arena I");
+  complete(both, "Mage Arena II");
+  assert.notEqual(both.getAttribute(Statues.CAPE_RECEIVED_ATTRIBUTE), true, "no cape came from a statue");
+  // The real Talk-to click: Mage Arena I's own talk (the duel) stands aside and his transcript plays.
+  const lines = talkInWorld(both, KOLODION, ["Thanks, bye."]);
+  assert.ok(lines, "Talk-to is answered");
+  assert.ok(!said(lines, /A wizard of your level/), "not the under-60-Magic talk");
+  assert.ok(said(lines, /take this enchanted symbol of the gods/), `he hands over a symbol: ${JSON.stringify(lines)}`);
+  assert.equal(both.getInventory().getAmount(Items.ENCHANTED_SYMBOL), 1);
+  assert.ok(said(lines, /If you would like me to imbue any more capes, just bring me the remains/));
+
+  // With the symbol the followers can be fought; a follower's remains then imbue its cape.
+  const follower = MageArenaII.getFollowers()[0];
+  both.getInventory().adds(follower.remainsId, 1);
+  both.getInventory().adds(follower.capeIds[0], 1);
+  const imbued = useOnKolodion(both, follower.capeIds[0], ["Yes."]);
+  assert.equal(imbued.handled, true);
+  assert.equal(both.getInventory().getAmount(follower.imbuedId), 1, `the cape is imbued: ${JSON.stringify(imbued.lines)}`);
+
+  // Mage Arena I alone completed for the character: Mage Arena II's start, with its spell progress.
+  const first = makePlayer({ magic: 99, cape: false, casts: [100, 100, 100] });
+  complete(first, "Mage Arena I");
+  const start = talk(first, [CHALLENGES, ACCEPT, "Thanks, bye."]);
+  assert.ok(!said(start, /A wizard of your level/));
+  assert.equal(MageArenaII.stageOf(first) >= MageArenaII.STAGE.STARTED, true, `Mage Arena II starts: ${JSON.stringify(start)}`);
+
+  // Nothing completed and no cape: still the fallback talk for a low level, as before.
+  assert.ok(said(talk(makePlayer({ magic: 59, cape: false })), /A wizard of your level\? Don't be absurd\./));
+});

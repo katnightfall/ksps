@@ -49,6 +49,11 @@ function canUseRewardChamber(player) {
   return stageOf(player) >= DUEL_WON;
 }
 
+/** Past the god cape choice: from a statue's cape, or with the miniquest completed for the character (a league's auto-completion). */
+function pastCapeChoice(player) {
+  return stageOf(player) >= CAPE_CHOSEN;
+}
+
 function recordCapeChoice(player) {
   if (stageOf(player) < CAPE_CHOSEN) quest.setStage(player, CAPE_CHOSEN);
 }
@@ -418,6 +423,6 @@ module.exports = function registerMageArenaI(pluginApi) {
 };
 
 Object.assign(module.exports, {
-  hasUnfinishedDuel, canUseArena, canUseRewardChamber, recordCapeChoice, refuseArena,
+  hasUnfinishedDuel, canUseArena, canUseRewardChamber, recordCapeChoice, pastCapeChoice, refuseArena,
   _test: { textWidth, JOURNAL_WIDTH },
 });

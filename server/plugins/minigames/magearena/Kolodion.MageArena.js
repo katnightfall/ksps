@@ -16,6 +16,7 @@
  */
 const Spells = require("./Spells.MageArena");
 const Statues = require("./Statues.MageArena");
+const MageArenaI = require("./MageArenaI.MageArena");
 const MageArenaII = require("./MageArenaII.MageArena");
 
 const NAME = "Kolodion";
@@ -114,7 +115,11 @@ function takeRemains(player, follower) {
 function pickVariant(event) {
   if (!isKolodion(event)) return null;
   const { player } = event;
-  if (player?.getAttribute(CAPE_RECEIVED_ATTRIBUTE) !== true) return null;
+  // Ours (upstream issue #3701): a character whose Mage Arena I (or II) was completed for it, without a
+  // cape ever coming from a statue, has no cape-received mark. Kolodion then fell back to his "A wizard
+  // of your level? Don't be absurd." talk whatever its Magic level, and no enchanted symbol could be had.
+  // Mage Arena I being past the cape choice counts as well.
+  if (player?.getAttribute(CAPE_RECEIVED_ATTRIBUTE) !== true && !MageArenaI.pastCapeChoice(player)) return null;
   const stage = MageArenaII.stageOf(player);
   if (stage === STAGE.NOT_STARTED) return VARIANT.start;
   if (stage === STAGE.STARTED) return VARIANT.again;
