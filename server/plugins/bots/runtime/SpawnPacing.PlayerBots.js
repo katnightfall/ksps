@@ -12,7 +12,10 @@ function runPaced(jobs, onDone = null) {
     const end = Math.min(cursor + SPAWNS_PER_BATCH, jobs.length);
     while (cursor < end) jobs[cursor++]();
     if (cursor < jobs.length) {
-      setTimeout(flush, SPAWN_BATCH_DELAY_MS);
+      // Ours: unref'd, so a queue of spawns does not by itself keep the process running. A game
+      // world has its sockets and tick timer; a test that ran the startup hooks used to sit for
+      // two and a half minutes after its last test while the world's 1,565 site bots spawned.
+      setTimeout(flush, SPAWN_BATCH_DELAY_MS).unref?.();
     } else {
       onDone?.();
     }
