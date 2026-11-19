@@ -970,9 +970,54 @@ let RegionManager;
 let PlayerPunishment;
 let pluginApi;
 
+/**
+ * Ours. ::bank opens the player's own bank where they stand. Owners and developers anywhere, as
+ * before; every other player while the world setting BankCommand:everyone is on (it is by
+ * default), and not where a bank at hand would undo the game's own rules:
+ *   - in the Wilderness, or in a fight (gear and supplies are what is at stake there);
+ *   - while busy (trading, a dialogue, a cutscene);
+ *   - where teleporting away is refused (minigames, boss rooms and other closed-off places
+ *     that limit what a player brings in);
+ *   - on Entrana and in its dungeon (the monks let no weapons or armour over).
+ * The bank's own rules still apply on top (an Ultimate Ironman has none, a bank PIN is asked for).
+ */
+const BANK_EVERYONE_CONFIG = "BankCommand:everyone";
+/** Map squares of Entrana (west and east halves) and of the dungeon under it. */
+const ENTRANA_REGIONS = new Set([11060, 11316, 11416]);
+
+function bankCommandRefusal(player) {
+  if (pluginApi.getPluginConfig?.(BANK_EVERYONE_CONFIG, true) === false) return "You do not have permission to use this command.";
+  if (player.busy?.()) return "You can't open your bank right now.";
+  if (Number(player.getWildernessLevel?.() ?? 0) > 0) return "You can't open your bank in the Wilderness.";
+  if (CombatFactory.inCombat(player)) return "You can't open your bank during combat.";
+  const at = player.getLocation();
+  if (ENTRANA_REGIONS.has(((at.getX() >> 6) << 8) | (at.getY() >> 6))) return "The monks of Entrana allow no banking here.";
+  const core = pluginApi.core;
+  if (!core.TeleportHandler.destinationAllowed(player, core.WorldDefinition.WORLD_SPAWN.clone())) return "You can't open your bank here.";
+  return null;
+}
+
+function bankCommand({ player }) {
+  if (!ownerOrDev(player)) {
+    const refusal = bankCommandRefusal(player);
+    if (refusal) {
+      player.sendMessage(refusal);
+      return true;
+    }
+  }
+  player.getBank(player.getCurrentBankTab()).open();
+  return true;
+}
+
 module.exports = {
   name: "AdminCommands",
   description: "Staff commands: teleporting, items and spawns, levels, kicks, mutes and bans, reloading data, and logging and debug tools.",
+  config: {
+    [BANK_EVERYONE_CONFIG]: {
+      type: "boolean", label: "::bank for every player", default: true,
+      help: "Every player may open their own bank with ::bank, except in the Wilderness, in a fight, on Entrana, and wherever teleporting away is refused (minigames, boss rooms). Off: only owners and developers.",
+    },
+  },
   register(api) {
     World = api.getWorld();
     SkillManager = api.getSkillManager();
@@ -1135,10 +1180,8 @@ module.exports = {
       return true;
     }, PlayerRights.OWNER, "Copy player bank");
 
-    api.registerCommand("bank", ({ player }) => {
-      player.getBank(player.getCurrentBankTab()).open();
-      return true;
-    }, PlayerRights.OWNER, "Open bank");
+    // Ours: ::bank is every player's while the world allows it (BankCommand:everyone); see bankCommand.
+    api.registerCommand("bank", bankCommand, PlayerRights.NONE, "Open your bank");
 
     api.registerCommand("runes", ({ player }) => {
       const inventory = player.getInventory();

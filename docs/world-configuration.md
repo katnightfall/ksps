@@ -360,6 +360,7 @@ After changing a plugin's `description` or `config`, run `yarn --cwd server worl
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
+| `BankCommand:everyone` | boolean | `true` | **::bank for every player.** Every player may open their own bank with ::bank, except in the Wilderness, in a fight, on Entrana, and wherever teleporting away is refused (minigames, boss rooms). Off: only owners and developers. |
 | `DisplayName:cooldownDays` | number (>= 0) | `28` | **Display name change cooldown (days).** Days a player waits between display name changes. 0 lets them change at any time. |
 | `DisplayName:holdDays` | number (>= 0) | `35` | **Old display name hold (days).** Days a name a player gave up stays held for its old owner. |
 | `DisplayName:sessionMinutes` | number (>= 1) | `10` | **Name changer session (minutes).** How long a Name Changer session lasts after Look up names, before it has to be started again. |
