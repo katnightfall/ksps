@@ -341,7 +341,11 @@ function process() {
     }
   }
   for (const player of H.players) {
-    for (const net of Object.values(state(player).nets)) {
+    // Ours: read, not made. state() here gave every player online (every bot of the crowd) a
+    // drift net record, every tick, to find that it holds no net.
+    const nets = player.getAttribute(ATTRIBUTE)?.nets;
+    if (!nets) continue;
+    for (const net of Object.values(nets)) {
       if (!net.rewards && net.count < 10 && Date.now() - net.last >= 60000) capture(player, net, false);
     }
   }
