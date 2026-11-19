@@ -60,6 +60,8 @@ const BOT_KEY = /^sitebot\d+$/;
 /** The key two spellings of a login name share: capitals, underscores and extra spaces don't count. */
 const nameKey = (name) => String(name ?? "").replace(/_/g, " ").trim().replace(/\s+/g, " ").toLowerCase();
 
+/** The save database's methods that write the save of an account that is not logged in (SqlitePlayerPersistence). */
+const OFFLINE_EDITS = ["saveOffline", "restoreSnapshot"];
 const UNREACHABLE = "The account server can't be reached. Please try again in a moment.";
 const PLAYED_ELSEWHERE = "Your character has been played on another world since you logged in. Please log in again.";
 
@@ -231,6 +233,8 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
       // Another world has the character now, or saved it since: its save is the one that counts.
       log("save_not_taken", { key, lost: answer.lost ?? null, conflict: answer.conflict ?? null });
       dirty.delete(key);
+      // What this world has of that save is not the master's any more, whatever version it had noted.
+      versions.set(key, -1);
       persist();
       // Whoever is still playing that character here is put out: no save of theirs will be
       // taken until they log in again, so playing on would only lose more.
@@ -407,10 +411,21 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
       return session;
     },
 
-    /** The game wrote a save (every write to the save database comes through here). */
-    rowWritten(key) {
+    /**
+     * The game wrote a save (every write to the save database comes through here). `offline`:
+     * it changed the save of someone who is not logged in (staff rolling a player back, a rank
+     * given on the world's admin page). That is handed in too, and taken by the master when this
+     * world's copy was its newest and the character is in no other world. Kept to this world, it
+     * was undone by the master's copy at the player's next login.
+     */
+    rowWritten(key, { offline = false } = {}) {
       if (applying) return null;
       const session = tracked.get(key);
+      if (!session && offline && !BOT_KEY.test(key)) {
+        dirty.set(key, { release: true, mark: ++marks });
+        persist();
+        return isStale() ? null : push(key);
+      }
       if (!session) return null;
       dirty.set(key, { release: false, mark: ++marks });
       persist();
@@ -636,11 +651,25 @@ module.exports = {
         log: (event, details) => console.info(`[master-sync] ${event} ${JSON.stringify(details ?? {})}`),
       });
       // Every write to the save database passes here: the game's own saves are handed in.
+      // The two ways the game changes the save of someone who is not logged in are marked as such.
+      let offlineEdits = 0;
+      for (const method of OFFLINE_EDITS) {
+        const original = persistence[method]?.bind(persistence);
+        if (!original) continue;
+        persistence[method] = (...args) => {
+          offlineEdits++;
+          try {
+            return original(...args);
+          } finally {
+            offlineEdits--;
+          }
+        };
+      }
       const enqueue = persistence.enqueue.bind(persistence);
       persistence.enqueue = (key, writes) => {
         const seq = enqueue(key, writes);
         if (Array.isArray(writes) && writes.some((write) => write?.kind === "row")) {
-          Promise.resolve(sync.rowWritten(key)).catch((error) => console.error("[master-sync] handing in a save failed", error));
+          Promise.resolve(sync.rowWritten(key, { offline: offlineEdits > 0 })).catch((error) => console.error("[master-sync] handing in a save failed", error));
         }
         return seq;
       };
@@ -664,5 +693,5 @@ module.exports = {
       sync.left(player.getUsername());
     });
   },
-  _test: { createMasterSync, settings, signRequest, worldResetId, SYNC_HEADER, PROFILES, PENDING_MS, flushThenHandIn },
+  _test: { createMasterSync, settings, signRequest, worldResetId, SYNC_HEADER, PROFILES, PENDING_MS, flushThenHandIn, OFFLINE_EDITS },
 };

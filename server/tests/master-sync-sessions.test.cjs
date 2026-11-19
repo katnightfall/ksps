@@ -529,3 +529,56 @@ test("the check at entry is not fooled by this world's own save handed in while 
   assert.deepEqual(dallas.kicked, [], "her own save is not somebody else's play");
   assert.deepEqual(hub.saved("kat"), { at: "today" });
 });
+
+test("a save changed while its player is offline (a rollback by staff) is the character on every world", async (t) => {
+  const { OFFLINE_EDITS } = MasterSync._test;
+  const hub = await master(t);
+  const dallas = world(t, "1 - Dallas", hub);
+  const miami = world(t, "2 - Miami", hub);
+  /** As the plugin reports a write made inside the save database's saveOffline or restoreSnapshot. */
+  const editsOffline = async (where, key, save) => { where.rows.set(key, JSON.stringify(save)); await where.sync.rowWritten(key, { offline: true }); };
+  await dallas.login("Kat");
+  await dallas.logout("Kat", "kat", { bank: "eaten by a bug" });
+  // Staff roll her back on Dallas while she is offline.
+  await editsOffline(dallas, "kat", { bank: "as it was yesterday" });
+  assert.deepEqual(hub.saved("kat"), { bank: "as it was yesterday" }, "handed in");
+  assert.equal(await miami.login("Kat"), null, "and it holds nothing");
+  assert.deepEqual(JSON.parse(miami.rows.get("kat")), { bank: "as it was yesterday" });
+  // While she plays in Miami, an edit made on Dallas is not taken: Miami's saves are the ones that count.
+  await editsOffline(dallas, "kat", { bank: "edited behind her back" });
+  await miami.logout("Kat", "kat", { bank: "played in Miami" });
+  assert.deepEqual(hub.saved("kat"), { bank: "played in Miami" });
+  // Nor one made from a copy Dallas has not yet replaced with Miami's (its copying runs every minute).
+  await editsOffline(dallas, "kat", { bank: "edited from the old copy" });
+  await dallas.sync.tick();
+  assert.deepEqual(hub.saved("kat"), { bank: "played in Miami" });
+  assert.deepEqual(dallas.sync.state().dirty, []);
+  // A bot's save, or any other write nobody logged in for, is still nobody's to hand in.
+  await dallas.gameSaves("playerbot7", { a: "bot" });
+  await dallas.sync.tick();
+  assert.equal(hub.saved("playerbot7"), null);
+  // The plugin marks the save database's two offline writers, and they are the SQLite backend's.
+  assert.deepEqual(OFFLINE_EDITS, ["saveOffline", "restoreSnapshot"]);
+  const { SqlitePlayerPersistence } = require("../plugins/persistence/SqlitePlayerPersistence.plugin");
+  for (const method of OFFLINE_EDITS) assert.equal(typeof SqlitePlayerPersistence.prototype[method], "function", method);
+});
+
+test("an old copy left on a world by a login that was put out is never handed in afterwards", async (t) => {
+  const hub = await master(t);
+  const dallas = world(t, "1 - Dallas", hub);
+  const miami = world(t, "2 - Miami", hub);
+  await dallas.login("Kat");
+  await dallas.logout("Kat", "kat", { at: "Dallas" });
+  assert.equal(await dallas.accepted("Kat"), null);
+  await miami.login("Kat");
+  await miami.logout("Kat", "kat", { at: "Miami" });
+  await dallas.sync.mirror();
+  await dallas.sync.entered("Kat"); // put out: the copy read at login is out of date
+  await dallas.logout("Kat", "kat", { at: "Dallas, from the old copy" });
+  assert.equal(dallas.kicked.length, 1);
+  // Dallas's own save database now holds the old copy. Staff give her a rank on Dallas's admin page.
+  dallas.rows.set("kat", JSON.stringify({ at: "Dallas, from the old copy", rank: 2 }));
+  await dallas.sync.rowWritten("kat", { offline: true });
+  await dallas.sync.tick();
+  assert.deepEqual(hub.saved("kat"), { at: "Miami" }, "Miami's play is not undone by it");
+});
