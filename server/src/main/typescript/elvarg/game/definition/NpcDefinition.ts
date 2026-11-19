@@ -6,6 +6,11 @@ import { Misc } from "../../util/Misc";
 
 /** Examine text by npc id from the Wiki's Infobox NPC pages (osrsreboxed-db `scripts.examines --kind npc`). */
 const EXAMINES_FILE = "data/definitions/npc-examines.json";
+/**
+ * Ours: examine text kept by hand, by npc id, over both of the generated sources: NPCs too new for the dump, and ids the
+ * cache gave to new NPCs while the dump still describes the retired ones (plugins/npcs/data/retired-npcs.json).
+ */
+const EXAMINE_OVERRIDES_FILE = "data/definitions/npc-examine-overrides.json";
 
 /** One max hit the Wiki infobox lists for an NPC (osrsreboxed-db docs/npc-max-hits.json). */
 export interface NpcMaxHit {
@@ -22,6 +27,7 @@ export type NpcProjectileArc = Readonly<{ startHeight?: number; endHeight?: numb
 
 export class NpcDefinition {
     private static npcExamines: Record<string, string> | null = null;
+    private static npcExamineOverrides: Record<string, string> | null = null;
     static definitions: Map<number, NpcDefinition> = new Map<number, NpcDefinition>();
     /**
      * Slot layout, populated by NpcDefinitionLoader from monsters-complete.json:
@@ -161,6 +167,10 @@ export class NpcDefinition {
      * bare name the examine packet used to echo back.
      */
     public getExamine(): string {
+        NpcDefinition.npcExamineOverrides ??= fs.existsSync(path.resolve(EXAMINE_OVERRIDES_FILE))
+            ? JSON.parse(fs.readFileSync(path.resolve(EXAMINE_OVERRIDES_FILE), "utf8")) : {};
+        const override = NpcDefinition.npcExamineOverrides![String(this.id)];
+        if (override) return override;
         if (this.examine) return this.examine;
         // Read on the first examine that needs it, not at boot.
         NpcDefinition.npcExamines ??= JSON.parse(fs.readFileSync(path.resolve(EXAMINES_FILE), "utf8"));

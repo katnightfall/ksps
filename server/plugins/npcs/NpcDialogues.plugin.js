@@ -37,6 +37,12 @@ const PREVIOUS_PAGE_OPTION = /^~\s*previous\s*~$/i;
 /** successor id -> the retired id whose transcript it plays until it has its own (data/retired-npcs.json). */
 const PREDECESSOR = new Map(Object.entries(require("./data/retired-npcs.json").successors)
   .map(([retired, successor]) => [successor.id, Number(retired)]));
+/**
+ * Ours: ids the 11 November 2026 cache gave to new NPCs (Farmer Bea, the bee dealer, the wasp swarms: The Birds and the
+ * Wasps) while npc-dialogue-index.json still lists the retired NPCs' transcripts under them. Such an entry is read for
+ * the retired NPC's successor (PREDECESSOR), never for the NPC that now has the id.
+ */
+const REASSIGNED = new Set(require("./data/retired-npcs.json").reassigned ?? []);
 const { GameConstants } = require("../../src/main/typescript/elvarg/game/GameConstants");
 const { Misc } = require("../../src/main/typescript/elvarg/util/Misc");
 const { Skill } = require("../../src/main/typescript/elvarg/game/model/Skill");
@@ -1577,7 +1583,7 @@ module.exports = {
       const npcId = event.npcId;
       // A transform the index doesn't know (Dr Harlow 16277) falls back to the spawned parent (3480),
       // and a successor of a retired NPC (Captain Harlan 16821) to the NPC it replaced (3216).
-      const entries = [npcId, event.npc?.getId?.(), PREDECESSOR.get(npcId)]
+      const entries = [npcId, event.npc?.getId?.()].filter((id) => !REASSIGNED.has(id)).concat(PREDECESSOR.get(npcId))
         .map((id) => index[String(id)]).find(Array.isArray) ?? [];
       const pages = entries
         .map((entry) => ({ page: String(entry.page ?? "").replace(/^Transcript:/, ""), variants: Array.isArray(entry.variants) ? entry.variants : [] }))

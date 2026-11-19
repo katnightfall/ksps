@@ -72,7 +72,8 @@ test("Hunter cache data, trap ownership, transactions, cancellation and persiste
   });
   require("../plugins/skills/Hunter.plugin").register(api);
   for (const startup of startups) startup();
-  assert.equal(H.data.creatures.length, 27);
+  // Ours: 27, and the two honey buzzards of Bea's farm (The Birds and the Wasps).
+  assert.equal(H.data.creatures.length, 29);
   assert.equal(H.data.implings.length, 12);
   assert.equal(Houses.bases.size, 4);
   assert.ok(hooks.some(hook => hook[0] === "onNpcRoute"));

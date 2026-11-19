@@ -7,6 +7,7 @@ function build(core) {
   // Trap stages by cache gameval: the loc while it is being set, the empty trap, the catch or miss
   // (shown two ticks before the full or failed loc) and the sounds they play (rsprox captures).
   const loc = name => core.CacheDefinitions.getLocId(name);
+  const npcNamed = name => core.CacheDefinitions.getNpcId(name);
   // Box traps look for prey every 3 ticks within 2 tiles (a 5x5 square), dismantle a catch with an area
   // sound at the trap, and Reset lays the new trap in 3 ticks where Lay takes 2.
   const BOX = { layTicks: 2, resetLayTicks: 3, lureTicks: 3, lureRange: 2, layMessage: "You begin setting up the trap.", laySound: 2636,
@@ -79,7 +80,17 @@ function build(core) {
     [N.MOONLIGHT_ANTELOPE, "pit", 91, 450, O.COLLAPSED_TRAP_9, 255, 255,
       [[I.BIG_BONES, 1], [I.MOONLIGHT_ANTELOPE_ANTLER, 1], [I.MOONLIGHT_ANTELOPE_FUR, 1], [I.RAW_MOONLIGHT_ANTELOPE, 1]]],
     [N.MANIACAL_MONKEY_3, "monkey", 60, 1000, O.LARGE_BOULDER_4, -79, 227, [[I.DAMAGED_MONKEY_TAIL, 1]]],
-  ].map(([npc, trap, level, xp, caught, low, high, loot]) => ({ npc, trap, level, xp, caught, low, high, loot }));
+    // Ours: Bea's farm (The Birds and the Wasps). Wiki (Honey Buzzard, Black Honey Buzzard, Bird snare) and the cache's skill
+    // guide rows 17324/17325: levels 1 and 17, 34 and 87.4 XP, bones and brown or black feathers. Both are multi NPCs the
+    // quest's varbit shows (baw 35-55 and 45-55); the black ones are caught only after the quest (Wiki). ponytail: no
+    // published catch chart, so the honey buzzard takes the crimson swift's (same level and XP) and the black one a level
+    // 17 point between the cerulean twitch's and the tropical wagtail's; the brown feathers are 10-24 as the black (the
+    // Wiki says only "Varies"), so the five birds Bea asks for always give her 50.
+    [npcNamed("baw_honey_buzzard"), "bird", 1, 34, loc("hunting_ojibway_trap_full_honey_buzzard"), 100, 420,
+      [[I.BONES, 1], [I.BROWN_FEATHER, 10, 24]]],
+    [npcNamed("baw_black_honey_buzzard"), "bird", 17, 87.4, loc("hunting_ojibway_trap_full_black_honey_buzzard"), 77, 372,
+      [[I.BONES, 1], [I.BLACK_FEATHER, 10, 24]], "the_birds_and_the_wasps"],
+  ].map(([npc, trap, level, xp, caught, low, high, loot, quest]) => ({ npc, trap, level, xp, caught, low, high, loot, quest }));
   // release: the graphic of a barehanded catch let go (cache spotanim gameval).
   const butterflies = [
     [N.RUBY_HARVEST, I.RUBY_HARVEST, 15, 24, 25, 44, core.Skill.ATTACK, "ruby"],
@@ -127,13 +138,24 @@ function build(core) {
     [N.TECU_SALAMANDER]: ["The salamander that pops out of the net doesn't look to be fully grown.", "You dismantle the trap."],
     [N.SABRE_TOOTHED_KYATT]: ["You dismantle the trap.", "You've caught a sabretoothed kyatt!"],
   };
-  const data = { traps, creatures, catchLines, butterflies, implings, falconry, birdhouses, aerialFish };
+  // Ours: The Birds and the Wasps' swarms at Bea's farm (Wiki: Swarm of wasps, Swarm of killer wasps; the cache's skill guide
+  // rows 17326/17327): caught with an insect net worn, one sting a catch, the XP alternating 1 and 2 (killer wasps 2 and 3).
+  // Each swarm is a multi NPC on its own varbit: 0 hidden, 1 the swarm (Catch), 2 furious (Spray), 3 hidden.
+  const swarm = (kind, n) => ({ npc: npcNamed(`baw_${kind}_${n}_multi`), varbit: core.CacheDefinitions.getVarbitId(`baw_${kind}_${n}_state`) });
+  const wasps = [
+    { key: "wasp", level: 1, xp: [1, 2], sting: I.WASP_STING, npc: npcNamed("baw_wasp_swarm"), furious: npcNamed("baw_wasp_swarm_furious"),
+      swarms: [1, 2, 3].map(n => swarm("wasp", n)) },
+    { key: "killer", level: 12, xp: [2, 3], sting: I.KILLER_WASP_STING, npc: npcNamed("baw_killer_wasp_swarm"),
+      furious: npcNamed("baw_killer_wasp_swarm_furious"), swarms: [1, 2, 3].map(n => swarm("killer_wasp", n)) },
+  ];
+  const data = { traps, creatures, catchLines, butterflies, implings, falconry, birdhouses, aerialFish, wasps };
   // Fail on a stale enum at startup instead of creating invalid items/objects in-game.
   const stages = ["idle", "fail", "failing", "setting", "tree", "idleTree"];
   for (const value of [...creatures.map(c => [c.npc, c.caught, ...c.loot.map(l => l[0])]),
     ...Object.values(traps).map(def => stages.filter(key => key in def).map(key => def[key])),
     ...butterflies.map(c => [c.npc, c.jar, core.CacheDefinitions.getSpotanimId(c.release)]), ...implings.map(c => [c.jar, ...c.npcs]),
-    ...falconry.map(c => [c.npc, c.fur, c.falcon, ...(c.meat === null ? [] : [c.meat])]), ...birdhouses.map(c => [c.item, c.logs]), ...aerialFish.map(c => [c.item])].flat()) {
+    ...falconry.map(c => [c.npc, c.fur, c.falcon, ...(c.meat === null ? [] : [c.meat])]), ...birdhouses.map(c => [c.item, c.logs]), ...aerialFish.map(c => [c.item]),
+    ...wasps.map(c => [c.sting, c.npc, c.furious, ...c.swarms.flatMap(s => [s.npc, s.varbit])])].flat()) {
     if (!Number.isInteger(value)) throw new Error("Hunter data references an unavailable cache identifier");
   }
   return data;

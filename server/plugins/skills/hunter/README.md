@@ -60,6 +60,14 @@ nets, rumours, pursuit charges) is persisted and restored on login.
   sound 2582 a tick later; holding three it says "You already have plenty of those." (rsprox.net
   recording 70, rev 227 Leagues V, ticks 2603-2627). Only the inventory counts, and the cap of three is
   the one recorded boundary (refused at 3, taken at 2); the full-inventory reply is not recorded.
+- **Bea's farm** (The Birds and the Wasps; `Wasps.Hunter.js`, `Data.Hunter.js`): the wasp and killer wasp swarms
+  (Hunter 1 and 12) are caught with an insect net wielded and a beekeeper's or bee hunter's hat worn, a sting a tick
+  and 1/2 (killer 2/3) XP in turn; now and then a swarm is enraged for its catcher (its varbit goes to 2, Spray) and
+  insect repellent calms it. Honey buzzards (1) and black honey buzzards (17, after the quest) go in bird snares. All
+  six swarms and both buzzards are multi NPCs on the quest's varbits: traps take a multi NPC as the form its owner
+  sees (`creatureFor`), and a creature with `quest` is prey only once that quest is done. Not documented, so ours:
+  the 1 in 20 chance of enraging per catch, the nets' swing as the animation, the buzzards' catch charts and their
+  brown feathers (10-24, as the black). See `plugins/quests/birdsandthewasps/`.
 - **Pets**: baby chinchompas, Herbi and Quetzin roll from `hunter:success`; spawns for the
   Varlamore creatures/moths, guild NPCs and tecu salamanders live in `npc-spawns.json`.
 

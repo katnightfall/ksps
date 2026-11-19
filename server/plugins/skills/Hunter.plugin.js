@@ -23,6 +23,7 @@ const Matthias = require("./hunter/Matthias.Hunter");
 const ImplingTracker = require("./hunter/ImplingTracker.Hunter");
 const Context = require("./hunter/Context.Hunter");
 const Supplies = require("./hunter/Supplies.Hunter");
+const Wasps = require("./hunter/Wasps.Hunter");
 
 // Ground traps are "Take" (op3) and "Lay"/"Activate" (op4) in the cache.
 const LAY_GROUND_OPTION = 4;
@@ -58,6 +59,8 @@ module.exports = {
     api.onNpcRoute(Runtime.npcRoute);
     api.onAnyNpcInteraction({ Catch: Runtime.catchNpc, Tease: Pitfalls.tease, Retrieve: Catching.retrieve });
     api.onNpcInteraction("Matthias", { "Quick-falcon": Catching.hire, Falconry: Catching.hire });
+    api.onNpcsInteraction(["Swarm of wasps (furious)", "Swarm of killer wasps (furious)"], { Spray: Wasps.spray });
+    api.onCustomEvent("quest:stage-changed", Wasps.stageChanged);
     api.onNpcInteraction("Alry the Angler", { "Get bird": Aerial.borrow, "Talk-to": Aerial.talk });
     api.onItemAction("Bird snare", { Lay: Traps.activate });
     api.onItemAction("Box trap", { Lay: Traps.activate });

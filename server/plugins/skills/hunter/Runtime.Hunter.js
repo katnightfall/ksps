@@ -16,6 +16,7 @@ const DriftNets = require("./DriftNets.Hunter");
 const Dungeon = require("./Dungeon.Hunter");
 const Broavs = require("./Broavs.Hunter");
 const Overworld = require("./Overworld.Hunter");
+const Wasps = require("./Wasps.Hunter");
 let task;
 // Bird house status only changes when a full house finishes, so a slow sweep is enough.
 const BIRDHOUSE_SYNC_TICKS = 50;
@@ -37,7 +38,7 @@ function tick() {
 }
 
 function cleanup(event) {
-  C.cancel(event.player); Traps.cleanup(event); Catching.cleanup(event); Tracking.clear(event); Pitfalls.clear(event); Aerial.cleanup(event); Herbiboar.clear(event); Crabs.cleanup(event); DriftNets.cleanup(event); Dungeon.cleanup(event); Broavs.cleanup(event);
+  C.cancel(event.player); Traps.cleanup(event); Catching.cleanup(event); Tracking.clear(event); Pitfalls.clear(event); Aerial.cleanup(event); Herbiboar.clear(event); Crabs.cleanup(event); DriftNets.cleanup(event); Dungeon.cleanup(event); Broavs.cleanup(event); Wasps.cleanup(event);
   H.players.delete(event.player);
 }
 
@@ -47,7 +48,7 @@ function shutdown() {
   for (const npc of H.hidden.keys()) C.reveal(npc);
 }
 
-function catchNpc(event) { return Aerial.fish(event) || Dungeon.catchBat(event) || Catching.catchNpc(event); }
+function catchNpc(event) { return Wasps.catchSwarm(event) || Aerial.fish(event) || Dungeon.catchBat(event) || Catching.catchNpc(event); }
 function npcRoute(event) {
   if (event.definition?.getActions()?.[event.clickType - 1] !== "Catch") return;
   if (event.npcId === H.core.NpcIdentifiers.FISHING_SPOT_12) event.range = 9;
@@ -60,11 +61,11 @@ function itemUse(event) {
   for (const handler of [Birdhouses.craft, Aerial.cut, Crabs.cut, MagicBoxes.use]) { handler(event); if (event.handled) return; }
 }
 function inspect(event) { return Herbiboar.inspect(event) || Tracking.inspect(event); }
-function npcUse(event) { Aerial.tench(event); if (!event.handled) Broavs.train(event); }
+function npcUse(event) { Aerial.tench(event); if (!event.handled) Broavs.train(event); if (!event.handled) Wasps.useRepellent(event); }
 function pitBuild(event) { return Broavs.build(event) || Pitfalls.build(event); }
 function dismantle(event) { return Broavs.dismantle(event) || Traps.dismantle(event); }
 function attack(event) { return Herbiboar.attack(event) || Tracking.catchPrey(event); }
-function login(event) { H.players.add(event.player); Birdhouses.login(event); Crabs.login(event); DriftNets.login(event); Catching.login(event); }
+function login(event) { H.players.add(event.player); Birdhouses.login(event); Crabs.login(event); DriftNets.login(event); Catching.login(event); Wasps.login(event); }
 function equipment(event) { Catching.equipment(event); Aerial.equipment(event); }
 
 /** The spam line for letting a caught creature go. Ours: red, black and adult tecu salamanders take the salamander line. */

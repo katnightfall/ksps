@@ -18,6 +18,7 @@ const QUESTS = [
   "AKingdomDivided", "AnimalMagnetism", "AnotherSliceOfHAM", "ARuffSituation", "AscentOfArceuus",
   "AtFirstLight", "BelowIceMountain", "BeneathCursedSands", "BetweenARock",
   "BigChompyBirdHunting", "Biohazard", "BlackKnightsFortress", "BoneVoyage",
+  "TheBirdsAndTheWasps",
   "CabinFever", "ChildrenOfTheSun", "ClientOfKourend", "ClockTower",
   "ColdWar", "Contact", "CooksAssistant", "CorsairCurse",
   "CrabQuest", "CreatureOfFenkenstrain", "CurrentAffairs", "CurseOfArrav", "CurseOfTheEmptyLord",
