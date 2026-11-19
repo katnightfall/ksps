@@ -43,7 +43,10 @@ function showLevers({ player }) {
 function pullLever(event) {
   const lever = levers.find((entry) => (entry.down === event.objectId || entry.up === event.objectId)
     && event.location.x === entry.x && event.location.y === entry.y && event.location.z === 0);
-  if (!lever) return;
+  // Ours (upstream issue #4834): `false`, not nothing. A named handler that returns nothing counts as having
+  // handled the click, so every other "Lever" registered after this one (Temple of Ikov's two, The Heart of
+  // Darkness, The Blood Moon Rises, the throne room) never saw its Pull.
+  if (!lever) return false;
   event.handled = true;
   const bits = leverBits(event.player) ^ lever.bit;
   event.player.setAttribute(LEVERS_ATTRIBUTE, bits);

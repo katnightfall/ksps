@@ -88,6 +88,9 @@ module.exports = function registerTempleOfIkovQuest(api) {
   // Rsprox rev 242 recording 912156: ikov_leverdown at t539, then at t543 a mesbox with this text.
   const LEVER_PULL_TEXT = "You hear the clunking of some hidden machinery.";
   const LEVER_PULL_TEXT_DELAY = 4;
+  // Transcript:Temple of Ikov (npc-dialogues.json), steps OJpSre and 1ILIvG.
+  const NO_LIGHT_TEXT = "It's a bit dark down here! You decide not to venture far.";
+  const SOUTH_GATE_LOCKED_TEXT = "The door won't open!";
   const ICE_GATE_IDS = new Set([api.core.ObjectIdentifiers.GATE_10, api.core.ObjectIdentifiers.GATE_11]);
   const ICE_GATE_UNLOCKED_ATTRIBUTE = "temple-of-ikov:ice-gate-unlocked";
   const TRAPPED_LEVER_ID = api.core.ObjectIdentifiers.LEVER_6;
@@ -1100,7 +1103,11 @@ module.exports = function registerTempleOfIkovQuest(api) {
   function guardBootsStairs(event) {
     if (event.objectId !== BOOTS_STAIRS_DOWN_ID
       || !sameTile(event.object?.getLocation(), BOOTS_STAIRS_DOWN_TILE)) return;
-    if (!require("../../world/Darkness.plugin.js").hasLightSource(event.player)) event.handled = true;
+    if (require("../../world/Darkness.plugin.js").hasLightSource(event.player)) return;
+    event.handled = true;
+    // Ours (upstream issue #4834): the refusal was silent, which read as "the stairs do not work".
+    // The line is the transcript's "Going downstairs without a light source".
+    event.player.sendMessage(NO_LIGHT_TEXT);
   }
 
   function removeBracket(player) {
@@ -1287,6 +1294,8 @@ module.exports = function registerTempleOfIkovQuest(api) {
       || (location.y !== 9803 && location.y !== 9802) || location.z !== 0) return;
     if (quest.isComplete(player) || player.getAttribute(ICE_GATE_UNLOCKED_ATTRIBUTE) === 1) return;
     event.handled = true;
+    // Ours (upstream issue #4834): said nothing; the transcript's "Opening the south gate while it's still locked".
+    player.sendMessage(SOUTH_GATE_LOCKED_TEXT);
   }
 
   function restorePulledBracket(player) {
