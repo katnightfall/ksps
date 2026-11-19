@@ -43,6 +43,7 @@ const SPLASH_HEIGHT = 124;
 const PROJECTILE = { START: 51, BASE: 46, PER_TILE: 10, START_HEIGHT: 23, END_HEIGHT: 15, ANGLE: 16, PROGRESS: 64 };
 
 const { definePoweredStaff, restricted, plainAmount, takePlain, PRESET_TEXT, ticksFor } = require("./PoweredStaff");
+const { splitOnPvpDeath, answerLostToPvpKiller } = require("./ChargedItemDeath");
 
 let core = null;
 let api = null;
@@ -190,6 +191,11 @@ function checkCharges({ player, item }) {
   return true;
 }
 
+/** The blood runes in the staff, which Uncharge gives back: two for each charge left. */
+function bloodRunesIn(item) {
+  return chargesOf(item) * BLOOD_RUNES_PER_CHARGE;
+}
+
 /** Wiki: uncharging returns every blood rune spent. */
 function uncharge({ player, item }) {
   const { Item } = core;
@@ -200,7 +206,7 @@ function uncharge({ player, item }) {
   }
   const inventory = player.getInventory();
   const runeId = ids().BLOOD_RUNE;
-  const refund = new Item(runeId, charges * BLOOD_RUNES_PER_CHARGE);
+  const refund = new Item(runeId, bloodRunesIn(item));
   if (inventory.getAddableAmount(refund) < refund.getAmount()) {
     player.sendMessage("Your inventory is too full to hold the blood runes.");
     return true;
@@ -211,6 +217,28 @@ function uncharge({ player, item }) {
     `You uncharge your Sanguinesti staff, regaining ${(charges * BLOOD_RUNES_PER_CHARGE).toLocaleString()} blood runes.`
   );
   return true;
+}
+
+/**
+ * `player-death:pvp-item-parts` (PlayerDeathTask). The Wiki's Sanguinesti staff page does not say what a PvP death
+ * does with the charges, so the rule is the one for every chargeable item (Wiki, Items Kept on Death, "Chargable
+ * items"): "Dropped to the PKer as the tradeable uncharged item, and drops the items that would result from uncharging
+ * the item to the PKer too." Uncharging gives "all of the blood runes back", so the killer gets the uncharged staff and
+ * the blood runes in it. A Holy sanguinesti staff is emptied the same way and then loses its kit by the ornament kits'
+ * own rule (ChargedItemDeath; Wiki: "the holy ornament kit will be placed in their gravestone").
+ */
+// Ours (upstream issue #6002): before this an unprotected charged staff came back whole from a PvP death.
+function unchargeOnPvpDeath(query) {
+  splitOnPvpDeath(core, query, (item) => staff.unchargedByCharged.get(item.getId()) ?? null, (item) => {
+    const runes = bloodRunesIn(item);
+    staff.setCharges(item, 0);
+    return [[ids().BLOOD_RUNE, runes]];
+  });
+}
+
+/** `items:lost-to-pvp-killer`: the Items Kept on Death screen's PvP preview shows a charged staff lost. */
+function lostToPvpKiller(query) {
+  answerLostToPvpKiller(core, query, (item) => (staff.isCharged(item.getId()) ? ids().SANGUINESTI_STAFF_UNCHARGED_ : null));
 }
 
 module.exports = {
@@ -228,6 +256,8 @@ module.exports = {
     api.onCombatHitResolved(onHitResolved);
     api.registerCombatMethodResolver(staff.resolver);
     api.onCustomEvent("item:fill-charges", staff.fillCharges);
+    api.onCustomEvent("player-death:pvp-item-parts", unchargeOnPvpDeath);
+    api.onCustomEvent("items:lost-to-pvp-killer", lostToPvpKiller);
   },
   _test: {
     chargesOf,

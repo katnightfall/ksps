@@ -17,6 +17,7 @@
  */
 const { plainAmount, takePlain, PRESET_TEXT } = require("./PoweredStaff");
 const { withHitVictim } = require("../../src/main/typescript/elvarg/game/content/combat/EquipmentEffects");
+const { splitOnPvpDeath, answerLostToPvpKiller } = require("./ChargedItemDeath");
 
 const MAX_CHARGES = 20000;
 const CHARGES_PER_VIAL = 100;
@@ -569,6 +570,26 @@ function uncharge({ player, item }) {
   return true;
 }
 
+/**
+ * `player-death:pvp-item-parts` (PlayerDeathTask). Wiki, Scythe of Vitur: "In the event of a PvP death, if the scythe
+ * is not protected, all charges will be lost and the player who gets the scythe will not receive any blood runes or
+ * vials of blood." The scythe is emptied as Uncharge away from the well empties it, and the uncharged scythe, a
+ * tradeable item, then drops for the killer. A Holy or Sanguine scythe is emptied the same way and then loses its kit
+ * by the ornament kits' own rule (ChargedItemDeath; Wiki: "the holy ornament kit will be placed in their gravestone").
+ */
+// Ours (upstream issue #6002): before this an unprotected charged scythe came back whole from a PvP death.
+function unchargeOnPvpDeath(query) {
+  splitOnPvpDeath(core, query, (item) => unchargedByCharged.get(item.getId()) ?? null, (item, player) => {
+    swapToUncharged(player, item);
+    return [];
+  });
+}
+
+/** `items:lost-to-pvp-killer`: the Items Kept on Death screen's PvP preview shows a charged scythe lost. */
+function lostToPvpKiller(query) {
+  answerLostToPvpKiller(core, query, (item) => (chargedIds.has(item.getId()) ? core.ItemIdentifiers.SCYTHE_OF_VITUR_UNCHARGED_ : null));
+}
+
 function initializeIds() {
   const I = core.ItemIdentifiers;
   bloodRuneId = I.BLOOD_RUNE;
@@ -598,6 +619,8 @@ module.exports = {
     api.onItemAction("Sanguine Scythe of Vitur", { Check: checkCharges, Uncharge: uncharge });
     api.onItemOnItem(chargeScythe, { noted: false });
     api.onCustomEvent("item:fill-charges", fillCharges);
+    api.onCustomEvent("player-death:pvp-item-parts", unchargeOnPvpDeath);
+    api.onCustomEvent("items:lost-to-pvp-killer", lostToPvpKiller);
     api.onItemOnObject(scytheOnWell);
     api.onObjectInteraction(WELL_OBJECT, {
       "Charge-at": chargeAtWell,
