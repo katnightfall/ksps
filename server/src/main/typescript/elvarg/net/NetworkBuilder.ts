@@ -544,6 +544,8 @@ export class ClientConnection {
     player.getPacketSender().replayVarps();
   }
 
+  /** Whether this connection's one "forget this login" request has been answered. */
+  private forgetAnswered = false;
   private pluginMessageWindow = 0;
   private pluginMessageCount = 0;
   private warnedUnresolvedInventoryAction = false;
@@ -1388,6 +1390,12 @@ export class ClientConnection {
           await this.login(packet.username, packet.password, packet.revision, packet.flags);
           continue;
         case "login_forget":
+          // Ours: the client sends one, on a socket of its own (client login.ts forgetRememberedLogin).
+          // Each one reads the named account's whole save, before any login, and a 64 KB message
+          // holds about 4,000: that held the server for over a second per message. A connection's
+          // first is answered; the rest are not.
+          if (this.forgetAnswered) continue;
+          this.forgetAnswered = true;
           await forgetLoginToken(packet.username, packet.token);
           continue;
         case "handshake":
