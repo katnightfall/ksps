@@ -76,9 +76,13 @@ function onTier(request) {
   const cap = Progress.teamCap(request.player);
   request.currentThresholdMet = Progress.points(request.player) >= Progress.thresholdFor(request.player, tier, cap);
   // Every task of the tier done (Group Ironman's storage unlocks ask this, not the points).
-  request.allTasksDone = [...Data.tasks().values()]
-    .filter((task) => task.tier === tier.tier && !Progress.excused(task, cap))
-    .every((task) => Progress.isComplete(request.player, task.id));
+  let allTasksDone = true;
+  for (const task of Data.tasks().values()) {
+    if (task.tier !== tier.tier || Progress.excused(task, cap) || Progress.isComplete(request.player, task.id)) continue;
+    allTasksDone = false;
+    break;
+  }
+  request.allTasksDone = allTasksDone;
 }
 
 /** What the character has done, in totals (the Leagues' tasks ask). */

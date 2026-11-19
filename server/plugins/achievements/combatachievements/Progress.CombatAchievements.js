@@ -31,17 +31,35 @@ function words(player) {
   return Data.TASK_VARPS.map((_, index) => (Array.isArray(stored) ? Number(stored[index]) | 0 : 0));
 }
 
+/** Task `id`'s bit in the 21 words. */
+function bit(all, id) {
+  return ((all[id >>> 5] >>> (id & 31)) & 1) === 1;
+}
+
+// Ours (upstream issue #6036): these three read the saved words once and build nothing per task.
+// isComplete made the whole 21-word array for every task asked about, so points() and
+// completedTasks() made one per task (about 640); every clue-nest, clue-bottle and Slayer roll asks
+// for a tier, and on a world of 1,590 bots that was a quarter of all the server's garbage.
 function isComplete(player, taskId) {
   const id = Number(taskId);
-  return ((words(player)[id >>> 5] >>> (id & 31)) & 1) === 1;
+  const stored = player.getAttribute(COMPLETED_ATTRIBUTE);
+  // As words() gives it: a word beyond the varps, or a save without the attribute, is 0.
+  const word = Array.isArray(stored) && (id >>> 5) < Data.TASK_VARPS.length ? Number(stored[id >>> 5]) | 0 : 0;
+  return ((word >>> (id & 31)) & 1) === 1;
 }
 
 function completedTasks(player) {
-  return [...Data.tasks().values()].filter((task) => isComplete(player, task.id));
+  const all = words(player);
+  const done = [];
+  for (const task of Data.tasks().values()) if (bit(all, Number(task.id))) done.push(task);
+  return done;
 }
 
 function points(player) {
-  return completedTasks(player).reduce((sum, task) => sum + task.points, 0);
+  const all = words(player);
+  let sum = 0;
+  for (const task of Data.tasks().values()) if (bit(all, Number(task.id))) sum += task.points;
+  return sum;
 }
 
 function claimedTiers(player) {

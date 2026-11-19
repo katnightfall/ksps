@@ -798,8 +798,20 @@ export class Misc {
     return null;
   }
 
+  // Ours (upstream issue #6036): the answers are remembered. A search of the players by name
+  // formats every player's name, and each formatting made two strings; with 1,590 players online
+  // that was 6% of all the server's garbage.
+  private static readonly protocolNames = new Map<string, string>();
+  private static readonly PROTOCOL_NAMES_KEPT = 8192;
+
   public static formatNameForProtocol(name: string): string {
-    return name.toLowerCase().replace(/ /g, "_");
+    let formatted = Misc.protocolNames.get(name);
+    if (formatted === undefined) {
+      formatted = name.toLowerCase().replace(/ /g, "_");
+      if (Misc.protocolNames.size >= Misc.PROTOCOL_NAMES_KEPT) Misc.protocolNames.clear();
+      Misc.protocolNames.set(name, formatted);
+    }
+    return formatted;
   }
 
   /** A typed login name as shown in game: capitals kept, underscores as spaces. */
