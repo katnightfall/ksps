@@ -4,6 +4,7 @@
 // said it was "already fixed", and a piece further along could not be reached at all: the bridge could only be crossed
 // northwards, by clicking the piece under the player. Real clicks through the object packet's own route; run after
 // `yarn build`.
+process.env.DISABLE_PLAYER_BOTS = '1'; // no bot population: the test needs the plugins, not the world's bots
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { before, after, test } = require('node:test');
