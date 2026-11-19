@@ -149,6 +149,14 @@
       "between": {"ends":[[3212,3137,0],[3214,3132,0]],"cross":[{"use":"hops","args":["object","to"]}]}
     },
     {
+      "name": "Stepping stone (A Shell of a Friend)",
+      "object": 33158,
+      "level": 1,
+      "unverified": "the movement (no capture; from the map): a hop onto the stone and one off, diagonally, as the other stepping stones hop",
+      "note": "OSRS Wiki Stepping stone (A Shell of a Friend): 'Cross', to and from the island west of fairy ring ALQ, no Agility level or experience. Object 33158 (snailquest_stepping_stone) at 3568,3488; the ends are the cache map's walkable shore and island tiles diagonal to it.",
+      "between": {"ends":[[3569,3487,0],[3567,3489,0]],"cross":[{"use":"hops","args":["object","to"]}]}
+    },
+    {
       "name": "Stepping stone (Lumbridge Swamp Caves)",
       "object": 5949,
       "level": 1,
