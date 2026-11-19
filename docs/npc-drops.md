@@ -55,6 +55,8 @@ Verification for this import: TypeScript build and 26 focused integration tests 
 | --- | --- | --- |
 | `removeNpcs` | NPC ids that drop nothing themselves | the Ents (6594, 7234, 9474): their trunk gives the loot |
 | `addNpcs` | NPC ids mapped to a table the dumper doesn't map them to, or given the extra tables it misses | 110 variants and versions (Phosani's Nightmare, the Nightmare, Ghast, Kalphite Guardian, Slagilith…), added by hand in September; the five Chaos Temple zombie pirates, whose page's `dropversion=Diary` table the dumper exports but does not map |
+| `addTables` | whole tables the dumper doesn't export, in the dump's shape (the dump's wins once it has one by that id) | the black dragons' Wilderness Slayer Cave table, from the Wiki page's second `dropversion` (upstream issue #6216) |
+| `replaceNpcTables` | NPC ids moved from the table the dump gives them (`from`) to the tables they should roll; applied only while the dump still maps them to `from` | the cave's black dragons (7861-7863), which the dump maps to the regular table |
 | `tables.<id>.addEntries` / `addTertiary` | entries added to a table | the Abyssal Sire's pet, the Abyssal orphan |
 | `tables.<id>.removeSections` | sections of a table left out of every roll | Yama's Contract section (what his contracts reward, not a normal kill) |
 | `subtables` | shared tables the dumper doesn't export | none: the uncommon seed table is in the dump since #1952 |

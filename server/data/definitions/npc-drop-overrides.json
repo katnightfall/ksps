@@ -15,6 +15,54 @@
   "13492": {"npc_id": 13492, "name": "Zombie pirate", "cache_name": "Zombie pirate", "wiki_page": "Zombie pirate", "tables": ["zombie_pirate_2", "zombie_pirate"]},
   "13493": {"npc_id": 13493, "name": "Zombie pirate", "cache_name": "Zombie pirate", "wiki_page": "Zombie pirate", "tables": ["zombie_pirate_2", "zombie_pirate"]}
  },
+ "addTables": {
+  "$comment": "Whole tables the dumper does not export, in the dump's own shape, transcribed from the Wiki page named in wiki_page. A table the dump has by the same id wins. Black dragon: the page's 'Wilderness Slayer Cave' dropversion (ids 7861-7863, the level 247 dragons), read 18 November 2026; the dump holds only the Regular one. The page's Monkey Madness II alternative for the javelin tips (10 rune knives) is not a row: no plugin answers that quest for drops yet, as on the Regular table.",
+  "black_dragon_wilderness_slayer_cave": {
+   "table_id": "black_dragon_wilderness_slayer_cave",
+   "label": "Wilderness Slayer Cave drops",
+   "table_name": "Black dragon Wilderness Slayer Cave drops",
+   "wiki_page": "Black dragon",
+   "main_max_roll": 128,
+   "entries": [
+    {"item_id": 536, "name": "Dragon bones", "quantity": [1, 1], "always": true, "rarity_raw": "Always", "section": "100%"},
+    {"item_id": 1747, "name": "Black dragonhide", "quantity": [1, 1], "always": true, "rarity_raw": "Always", "section": "100%"},
+    {"item_id": 1123, "name": "Adamant platebody", "quantity": [1, 1], "weight": 20, "out_of": 128, "rarity": 0.15625, "section": "Weapons and armour"},
+    {"item_id": 868, "name": "Rune knife", "quantity": [15, 15], "weight": 7, "out_of": 128, "rarity": 0.0546875, "section": "Weapons and armour"},
+    {"item_id": 1317, "name": "Adamant 2h sword", "quantity": [1, 1], "weight": 4, "out_of": 128, "rarity": 0.03125, "section": "Weapons and armour"},
+    {"item_id": 1371, "name": "Adamant battleaxe", "quantity": [1, 1], "weight": 3, "out_of": 128, "rarity": 0.0234375, "section": "Weapons and armour"},
+    {"item_id": 1359, "name": "Rune axe", "quantity": [1, 1], "weight": 3, "out_of": 128, "rarity": 0.0234375, "section": "Weapons and armour"},
+    {"item_id": 868, "name": "Rune knife", "quantity": [5, 5], "weight": 3, "out_of": 128, "rarity": 0.0234375, "section": "Weapons and armour"},
+    {"item_id": 1147, "name": "Rune med helm", "quantity": [1, 1], "weight": 1, "out_of": 128, "rarity": 0.0078125, "section": "Weapons and armour"},
+    {"item_id": 1201, "name": "Rune kiteshield", "quantity": [1, 1], "weight": 1, "out_of": 128, "rarity": 0.0078125, "section": "Weapons and armour"},
+    {"item_id": 1303, "name": "Rune longsword", "quantity": [1, 1], "weight": 1, "out_of": 128, "rarity": 0.0078125, "section": "Weapons and armour"},
+    {"item_id": 560, "name": "Death rune", "quantity": [10, 10], "weight": 8, "out_of": 128, "rarity": 0.0625, "section": "Runes"},
+    {"item_id": 563, "name": "Law rune", "quantity": [10, 10], "weight": 5, "out_of": 128, "rarity": 0.0390625, "section": "Runes"},
+    {"item_id": 565, "name": "Blood rune", "quantity": [10, 10], "weight": 3, "out_of": 128, "rarity": 0.0234375, "section": "Runes"},
+    {"item_id": 562, "name": "Chaos rune", "quantity": [25, 25], "weight": 1, "out_of": 128, "rarity": 0.0078125, "section": "Runes"},
+    {"item_id": 995, "name": "Coins", "quantity": [500, 999], "weight": 40, "out_of": 128, "rarity": 0.3125, "section": "Coins"},
+    {"item_id": 995, "name": "Coins", "quantity": [1000, 1999], "weight": 10, "out_of": 128, "rarity": 0.078125, "section": "Coins"},
+    {"item_id": 995, "name": "Coins", "quantity": [690, 690], "weight": 1, "out_of": 128, "rarity": 0.0078125, "section": "Coins"},
+    {"item_id": 19582, "name": "Dragon javelin tips", "quantity": [25, 25], "weight": 6, "out_of": 128, "rarity": 0.046875, "section": "Other", "notes": ["Only dropped after completion of Monkey Madness II. If players have not completed the quest, they will receive 10 rune knives instead.", "Quest requirement: WikiQuestDropRequirement(questKey=quest_monkeymadness2, mode=RequiresCompleted)"]},
+    {"item_id": 2361, "name": "Adamantite bar", "quantity": [1, 1], "weight": 3, "out_of": 128, "rarity": 0.0234375, "section": "Other", "noted": true},
+    {"item_id": 7946, "name": "Monkfish", "quantity": [2, 2], "weight": 3, "out_of": 128, "rarity": 0.0234375, "section": "Other"},
+    {"shared_table": "rareDrop", "weight": 2, "out_of": 128, "rarity": 0.015625, "section": "Rare drop table"},
+    {"shared_table": "gem", "weight": 3, "out_of": 128, "rarity": 0.0234375, "section": "Gem drop table"}
+   ],
+   "tertiary": [
+    {"item_id": 11941, "name": "Looting bag", "quantity": [1, 1], "weight": 1, "out_of": 3, "rarity": 0.3333333, "section": "Tertiary"},
+    {"item_id": 13511, "name": "Ensouled dragon head", "quantity": [1, 1], "weight": 1, "out_of": 35, "rarity": 0.0285714, "section": "Tertiary"},
+    {"item_id": 11286, "name": "Draconic visage", "quantity": [1, 1], "weight": 1, "out_of": 5000, "rarity": 0.0002, "section": "Tertiary"},
+    {"item_id": 2722, "name": "Clue scroll (hard)", "quantity": [1, 1], "weight": 1, "out_of": 128, "rarity": 0.0078125, "section": "Tertiary", "clue_scroll_box": true, "notes": ["The hard clue scroll rarity changes to 1/64 if a Ring of wealth (i) is worn.", "Clue scrolls will drop as scroll boxes after the completion of X Marks the Spot."]},
+    {"item_id": 12113, "name": "Clue scroll (elite)", "quantity": [1, 1], "weight": 1, "out_of": 500, "rarity": 0.002, "section": "Tertiary", "clue_scroll_box": true, "notes": ["The elite clue scroll rarity changes to 1/250 if a Ring of wealth (i) is worn.", "Clue scrolls will drop as scroll boxes after the completion of X Marks the Spot."]}
+   ]
+  }
+ },
+ "replaceNpcTables": {
+  "$comment": "NPC ids the dump maps to the wrong table of their page: `from` is what the dump gives them (the override applies only while it still does), `tables` what they roll.",
+  "7861": {"npc_id": 7861, "name": "Black dragon", "wiki_page": "Black dragon", "from": ["black_dragon"], "tables": ["black_dragon_wilderness_slayer_cave"]},
+  "7862": {"npc_id": 7862, "name": "Black dragon", "wiki_page": "Black dragon", "from": ["black_dragon"], "tables": ["black_dragon_wilderness_slayer_cave"]},
+  "7863": {"npc_id": 7863, "name": "Black dragon", "wiki_page": "Black dragon", "from": ["black_dragon"], "tables": ["black_dragon_wilderness_slayer_cave"]}
+ },
  "bossNpcs": {
   "$comment": "Bosses the cache does not mark with param 1361, so NpcDrops' boss rare multiplier would skip them. Yama is not in monsters-complete yet and its NPC carries no params; Araxxor and the Shellbane gryphon are Wiki bosses whose cache rows omit the param. Remove an id once the cache (or the dump) marks it.",
   "124": "Yama",
