@@ -8,7 +8,7 @@
 //   - what a visitor says about who they are is not passed on: only the master's signed word is.
 // Each front door here is the real one, started as a process, with stand-ins behind it.
 const assert = require("node:assert/strict");
-const { spawn } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const http = require("node:http");
 const net = require("node:net");
@@ -34,7 +34,7 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 /** A copy of the project's deploy folder and the website's server, with a one-page website to serve. */
 function makeTree(websiteScript = null) {
   const tree = fs.mkdtempSync(path.join(os.tmpdir(), "front-door-"));
-  cleanups.push(() => fs.rmSync(tree, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }));
+  cleanups.push(() => fs.rmSync(tree, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 }));
   fs.cpSync(path.join(project, "deploy"), path.join(tree, "deploy"), { recursive: true });
   fs.mkdirSync(path.join(tree, "client", "scripts"), { recursive: true });
   fs.mkdirSync(path.join(tree, "client", "build"), { recursive: true });
@@ -56,7 +56,14 @@ async function startFront(tree, env = {}) {
   const state = { front, port, base: `http://127.0.0.1:${port}`, exit: null, output: "" };
   front.stderr.on("data", (chunk) => { state.output += chunk; });
   front.on("exit", (code) => { state.exit = code ?? 1; });
-  cleanups.push(() => { front.kill(); });
+  // With the website it started: on Windows a stopped process leaves its own behind.
+  cleanups.push(async () => {
+    if (state.exit !== null) return;
+    const gone = new Promise((resolve) => front.once("exit", resolve));
+    if (process.platform === "win32") spawnSync("taskkill", ["/pid", String(front.pid), "/T", "/F"], { stdio: "ignore" });
+    else front.kill();
+    await gone;
+  });
   await new Promise((resolve, reject) => {
     const give = setTimeout(() => reject(new Error(`the front door did not start: ${state.output}`)), 20_000);
     front.stdout.on("data", (chunk) => { state.output += chunk; if (String(chunk).includes("[front] http")) { clearTimeout(give); resolve(); } });
