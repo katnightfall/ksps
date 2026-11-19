@@ -408,3 +408,118 @@ test("kept: the amulet of blood fury and the faceguard come through whole", (t) 
   keptCases(t, bloodFury);
   keptCases(t, () => plain(I.NEITIZNOT_FACEGUARD));
 });
+
+// --- Imbued items ----------------------------------------------------------------------------------------------------
+// Wiki, Magic shortbow (i): "On death, players who lose the magic shortbow (i) will drop a regular magic shortbow for
+// the person who killed them"; "there's no way to reclaim the scroll".
+
+test("lost: a magic shortbow (i) drops for the killer as a magic shortbow, and its scroll is nobody's", (t) => {
+  for (const at of [WILDERNESS(), CRATER()]) {
+    const result = lost(t, () => [plain(I.MAGIC_SHORTBOW_I_)], [plain(I.MAGIC_SHORTBOW)], [], at);
+    assert.ok(![...result.floor.map(({ item }) => item), ...result.kept].some((item) => item.getId() === I.MAGIC_SHORTBOW_SCROLL));
+  }
+  assert.equal(lostOnPreview(plain(I.MAGIC_SHORTBOW_I_)), true);
+});
+
+test("kept: a magic shortbow (i) comes through imbued", (t) => {
+  keptCases(t, () => plain(I.MAGIC_SHORTBOW_I_));
+});
+
+// Wiki, Berserker ring (i) and the other imbued rings: "If not protected, dying to another player will cause the
+// imbued ring to lose its imbued status, but the player will be reimbursed the Nightmare Zone points, Zeal Tokens or
+// Scroll of imbuing to re-imbue it via the aforementioned methods. Dying to a monster will not remove its imbued
+// effect."
+
+const RING_NAMES = ["seer_ring", "ranger_ring", "warrior_ring", "berzerker_ring", "heavy_ring", "sharp_ring", "rotg", "zenyte_ring_enchanted", "granite_ring"];
+const nmzPoints = (player) => require("../plugins/minigames/nightmarezone/Common.NightmareZone").points(player);
+const zealTokens = (player) => require("../plugins/minigames/soulwars/Common.SoulWars").getVarp(player, "zeal_tokens");
+
+test("lost: a Nightmare Zone imbued ring drops for the killer as the plain ring, and the victim gets the points back", (t) => {
+  const { imbuePrice } = require("../plugins/minigames/nightmarezone/Rewards.NightmareZone");
+  for (const name of RING_NAMES) {
+    const base = obj(name), imbued = obj(`nzone_${name}`);
+    assert.match(new core.Item(imbued, 1).getDefinition().getName(), /\(i\)$/);
+    const { victim, killer } = lost(t, () => [plain(imbued)], [plain(base)]);
+    const price = imbuePrice(base, victim);
+    assert.ok(price >= 500_000, `${name} has a price: ${price}`);
+    assert.equal(nmzPoints(victim), price, `${name}: the whole price back, once`);
+    assert.equal(zealTokens(victim), 0);
+    assert.equal(nmzPoints(killer), 0, "the killer gets none of it");
+    assert.equal(new core.Item(base, 1).isPlayerTradeable(), true);
+    assert.equal(lostOnPreview(plain(imbued)), true);
+  }
+  const { victim } = lost(t, () => [plain(I.BERSERKER_RING_I_), plain(I.RING_OF_SUFFERING_I_), plain(I.GRANITE_RING_I_)],
+    [plain(I.BERSERKER_RING), plain(I.RING_OF_SUFFERING), plain(I.GRANITE_RING)], [], CRATER());
+  assert.equal(nmzPoints(victim), 650_000 + 725_000 + 500_000);
+});
+
+test("lost: a Soul Wars imbued ring refunds its Zeal Tokens, an Emir's Arena one its scroll of imbuing", (t) => {
+  const costs = { seer_ring: 260, ranger_ring: 260, warrior_ring: 260, berzerker_ring: 260, heavy_ring: 260, sharp_ring: 260, rotg: 260, zenyte_ring_enchanted: 300, granite_ring: 200 };
+  for (const name of RING_NAMES) {
+    const base = obj(name);
+    const soulWars = lost(t, () => [plain(obj(`sw_${name}`))], [plain(base)]);
+    assert.equal(zealTokens(soulWars.victim), costs[name], `${name}: the Zeal Tokens back`);
+    assert.equal(nmzPoints(soulWars.victim), 0);
+    const arena = lost(t, () => [plain(obj(`pvpa_${name}`))], [plain(base)], [plain(I.SCROLL_OF_IMBUING)]);
+    assert.equal(zealTokens(arena.victim), 0);
+    assert.equal(nmzPoints(arena.victim), 0);
+    assert.equal(lostOnPreview(plain(obj(`sw_${name}`))), true);
+    assert.equal(lostOnPreview(plain(obj(`pvpa_${name}`))), true);
+  }
+  assert.equal(new core.Item(I.SCROLL_OF_IMBUING, 1).isPlayerTradeable(), false, "the scroll stays the victim's");
+});
+
+test("lost: points that would pass the Nightmare Zone's cap come back as a scroll of imbuing instead", (t) => {
+  const Nmz = require("../plugins/minigames/nightmarezone/Common.NightmareZone");
+  const victim = actor(t), killer = actor(t);
+  Nmz.addPoints(victim, Nmz.data.pointsCap);
+  const full = nmzPoints(victim);
+  victim.getInventory().setItem(0, plain(I.BERSERKER_RING_I_));
+  const result = die(t, victim, killer, WILDERNESS(), { skulled: true });
+  assert.deepEqual(exact(forKiller(result)), exact([plain(I.BERSERKER_RING)]));
+  assert.deepEqual(exact(result.kept), exact([plain(I.SCROLL_OF_IMBUING)]));
+  assert.equal(nmzPoints(victim), full);
+});
+
+// Wiki, Ring of suffering: "Charges are not lost upon death. While charged, the ring is untradeable."
+
+test("lost: a Ring of suffering (ri) loses its imbue, refunded, and stays with the victim as the (r) with its recoil charges", (t) => {
+  const charged = (id) => withMeta(id, "ring-of-suffering:charges", 4240);
+  const nmz = lost(t, () => [charged(I.RING_OF_SUFFERING_RI_)], [], [charged(I.RING_OF_SUFFERING_R_)]);
+  assert.equal(nmzPoints(nmz.victim), 725_000);
+  const soulWars = lost(t, () => [charged(obj("sw_zenyte_ring_enchanted_recoil"))], [], [charged(I.RING_OF_SUFFERING_R_)]);
+  assert.equal(zealTokens(soulWars.victim), 300);
+  lost(t, () => [charged(obj("pvpa_zenyte_ring_enchanted_recoil"))], [], [charged(I.RING_OF_SUFFERING_R_), plain(I.SCROLL_OF_IMBUING)]);
+  assert.equal(lostOnPreview(charged(I.RING_OF_SUFFERING_RI_)), false, "nothing of it goes to the killer");
+  // The plain recoil-charged ring is as it was before: an untradeable that stays.
+  lost(t, () => [charged(I.RING_OF_SUFFERING_R_)], [], [charged(I.RING_OF_SUFFERING_R_)]);
+});
+
+test("kept: an imbued ring comes through imbued, and nothing is refunded for it", (t) => {
+  const refunds = [];
+  const watch = (name) => PM.createApi("ChargedEquipmentTest").onCustomEvent(name, (request) => refunds.push([name, request.refunded]));
+  watch("nightmare-zone:refund-imbue");
+  watch("soul-wars:refund-imbue");
+  keptCases(t, () => plain(I.BERSERKER_RING_I_));
+  keptCases(t, () => plain(obj("sw_rotg")));
+  keptCases(t, () => plain(obj("pvpa_granite_ring")));
+  keptCases(t, () => withMeta(I.RING_OF_SUFFERING_RI_, "ring-of-suffering:charges", 4240));
+  assert.deepEqual(refunds, [], "no shop was asked for a refund");
+});
+
+// Wiki, Salve amulet(ei): "As the amulet is untradeable and does not break, it will always be kept on PvP death in the
+// Wilderness." The Salve amulet (i) page has no death rule, and its plain amulet is untradeable too.
+
+test("kept: an imbued Salve amulet stays with the victim on a PvP death, imbued, whichever shop imbued it", (t) => {
+  for (const name of ["nzone_salve_amulet", "nzone_salve_amulet_e", "sw_salve_amulet", "sw_salve_amulet_e", "pvpa_salve_amulet", "pvpa_salve_amulet_e"]) {
+    const id = obj(name);
+    assert.match(new core.Item(id, 1).getDefinition().getName(), /^Salve amulet\(e?i\)$/);
+    const { victim } = lost(t, () => [plain(id)], [], [plain(id)]);
+    assert.equal(nmzPoints(victim), 0);
+    assert.equal(zealTokens(victim), 0);
+    assert.equal(partsOf(plain(id), victim), null);
+    assert.equal(lostOnPreview(plain(id)), false);
+  }
+  assert.equal(new core.Item(I.SALVE_AMULET, 1).isPlayerTradeable(), false);
+  assert.equal(new core.Item(I.SALVE_AMULET_E_, 1).isPlayerTradeable(), false);
+});
