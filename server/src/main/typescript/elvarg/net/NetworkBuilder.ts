@@ -13,6 +13,7 @@ import { PlayerRights } from "../game/model/rights/PlayerRights";
 import { isMembersWorld } from "../game/definition/WorldDefinition";
 import { PluginManager } from "../plugins/PluginManager";
 import { NetworkConstants } from "./NetworkConstants";
+import { WIRE_PROTOCOL_VERSION } from "./protocol/WireProtocolVersion";
 import { Misc } from "../util/Misc";
 import { PlayerPunishment } from "../util/PlayerPunishment";
 import { BinaryChannel, HeadlessBinaryChannel, MAX_GAME_MESSAGE_BYTES, WebSocketBinaryChannel } from "./BinaryChannel";
@@ -580,6 +581,9 @@ export class ClientConnection {
       this.cleanup("socket_error");
     });
     channel.onClose(() => this.cleanup("socket_close"));
+    // Existing clients ignore unknown plugin channels. Keep the fixed welcome unchanged,
+    // and announce before extensions or welcome can release the client's queued credentials.
+    this.send(encodePluginMessage("protocol:version", { version: WIRE_PROTOCOL_VERSION }));
     try {
       this.loginExtension = PluginManager.createLoginExtension({
         send: (packet) => this.send(packet),
@@ -689,7 +693,9 @@ export class ClientConnection {
           // Wiki: Animation stall. A full stall does not let the player perform actions, so the
           // click is held rather than dropped and runs on the tick the animation ends. The last
           // one made during the lock is the one kept, as the client only ever has one queued.
-          this.stalledInput = packet;
+          // A content-held stall (an agility obstacle) drops it instead, as live does (rsprox
+          // 241/1001438 ticks 19815-19828).
+          if (!this.player.getCombat().isHeldStall()) this.stalledInput = packet;
           continue;
         }
         if (this.player.getStatus() === PlayerStatus.TRADING) continue;

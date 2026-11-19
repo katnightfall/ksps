@@ -82,6 +82,7 @@ const NAMELESS_DOOR_LEAF_IDS = Object.freeze({
   INVISWALL: 38848, // actionless collision blocker; captures 2951 and 740
   HAROLD_DOOR_OPEN: 1542, // inactiveposhdoor: Harold's door (3747) open, 233/03247.txt:4726; Temple of Ikov's trap-lever door (92), 242/912156.txt:26149
   CASTLE_DOOR_OPEN: 3744, // castledoor_inactive: the Death Plateau equipment room door (3743) open, 233/03252.txt:36063
+  SHERPA_DOOR_OPEN: 14975, // death_sherpa_opendoor: Tenzing's front (3745) and back (3746) doors open, rsprox local 1001800 ticks 24737, 25264
   MOURNER_CAGE_GATE_LEFT_OPEN: 2059, // mournerquaters_gatelopen; Biohazard capture tick 557
   MOURNER_CAGE_GATE_RIGHT_OPEN: 2061, // mournerquaters_gateropen
   // inactivepoordoor: Melzar's front door and the Mining Guild doors open onto it (Dragon Slayer I capture
@@ -126,6 +127,8 @@ function defineDoorData({ ObjectIdentifiers: O }) {
     O.GUILD_DOOR,
     // Harold's door and the equipment room door (Death Plateau) are pass-through gates, which take their clicks first.
     O.DOOR_287, O.DOOR_358, O.GATE_52, O.WALL_9, O.DOOR_115, O.LARGE_DOOR_23,
+    // Tenzing's front and back doors (Death Plateau) are pass-through doors too.
+    O.DOOR_113, O.DOOR_114,
     // The Blood Moon Rises crank-wheel house exit (61824) has no cache Close partner.
     O.DOOR_831,
     // The Vitur food-shop door (61838) also has no cache Close partner.
@@ -433,6 +436,55 @@ function defineDoorData({ ObjectIdentifiers: O }) {
   // across, from the low side to the high side or back, along their own row. crossDelay holds the
   // opener that many ticks after the opening sound before the gate opens and they cross.
   PASS_THROUGH_GATES = Object.freeze([
+    // Witchaven's puzzle doors keep their clipped threshold while each permitted
+    // player crosses. Explicit placements also identify a temporarily open leaf.
+    ...[
+      [O.DOOR_73, 2719, 9671, 1, null, 9672],
+      [O.DOOR_75, 2722, 9671, 1, null, 9672],
+      [O.DOOR_76, 2727, 9690, 2, 2728, null],
+      [O.DOOR_77, 2723, 9711, 3, null, 9711],
+    ].map(([id, x, y, face, crossX, crossY]) => {
+      const [dx, dy] = [[-1, 0], [0, 1], [1, 0], [0, -1]][face];
+      return Object.freeze({
+        closed: [[id, x, y, 0, face]],
+        opened: [
+          [NAMELESS_DOOR_LEAF_IDS.INVISWALL, x, y, 0, face],
+          [id, x + dx, y + dy, 0, (face + 1) & 3],
+        ],
+        crossX, crossY,
+        walkOver: true,
+        closeTicks: 2,
+        openSoundId: 62,
+      });
+    }),
+    // Zanaris market's eastbound and southbound entrances. Keep the wall clipped
+    // while the opener crosses so a second player cannot follow through unpaid.
+    Object.freeze({
+      closed: [[O.MAGIC_DOOR_2, 2469, 4438, 0, 2], [O.MAGIC_DOOR_4, 2469, 4437, 0, 2]],
+      opened: [
+        [NAMELESS_DOOR_LEAF_IDS.INVISWALL, 2469, 4438, 0, 2],
+        [NAMELESS_DOOR_LEAF_IDS.INVISWALL, 2469, 4437, 0, 2],
+        [O.MAGIC_DOOR_3, 2470, 4438, 0, 1],
+        [O.MAGIC_DOOR_5, 2470, 4437, 0, 3],
+      ],
+      crossX: 2470,
+      walkOver: true,
+      closeTicks: 2,
+      openSoundId: 62,
+    }),
+    Object.freeze({
+      closed: [[O.MAGIC_DOOR_2, 2466, 4434, 0, 3], [O.MAGIC_DOOR_4, 2465, 4434, 0, 3]],
+      opened: [
+        [NAMELESS_DOOR_LEAF_IDS.INVISWALL, 2466, 4434, 0, 3],
+        [NAMELESS_DOOR_LEAF_IDS.INVISWALL, 2465, 4434, 0, 3],
+        [O.MAGIC_DOOR_3, 2466, 4433, 0, 2],
+        [O.MAGIC_DOOR_5, 2465, 4433, 0, 0],
+      ],
+      crossY: 4434,
+      walkOver: true,
+      closeTicks: 2,
+      openSoundId: 62,
+    }),
     // Lucien's house: the maintainer's review5926064464 cites 242/912207 ticks13005–13007
     // and 232/03233 ticks944–946: a blocker stays at the entrance while the opener walks
     // across, and the closed door returns two ticks later (not an ordinary shared opening).
@@ -481,6 +533,32 @@ function defineDoorData({ ObjectIdentifiers: O }) {
       walkOver: true,
       closeTicks: 2,
       openSoundId: 81,
+    }),
+    // Tenzing's front door (death_sherpa_door), rsprox local 1001800 ticks 24737 and 25196: inviswall in the
+    // doorway, the open door the tile east and door_open (62); the player steps through and the door is back two
+    // ticks later. Before he has met the player, Death Plateau knocks first (door:toggle) and opens it through door:open.
+    Object.freeze({
+      closed: [[O.DOOR_113, 2822, 3555, 0, 2]],
+      opened: [
+        [NAMELESS_DOOR_LEAF_IDS.INVISWALL, 2822, 3555, 0, 2],
+        [NAMELESS_DOOR_LEAF_IDS.SHERPA_DOOR_OPEN, 2823, 3555, 0, 3],
+      ],
+      crossX: 2823,
+      walkOver: true,
+      closeTicks: 2,
+      openSoundId: 62,
+    }),
+    // Tenzing's back door (death_sherpa_backdoor), tick 25264: the same, the open door the tile north.
+    Object.freeze({
+      closed: [[O.DOOR_114, 2820, 3557, 0, 1]],
+      opened: [
+        [NAMELESS_DOOR_LEAF_IDS.INVISWALL, 2820, 3557, 0, 1],
+        [NAMELESS_DOOR_LEAF_IDS.SHERPA_DOOR_OPEN, 2820, 3558, 0, 2],
+      ],
+      crossY: 3558,
+      walkOver: true,
+      closeTicks: 2,
+      openSoundId: 62,
     }),
     // Grand Tree footage at 6:58 and 7:48 shows the player walking through the opened leaves.
     Object.freeze({

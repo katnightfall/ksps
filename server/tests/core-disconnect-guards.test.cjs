@@ -111,7 +111,7 @@ test('a walk click made during an animation stall runs when the stall releases',
     getAttribute: () => undefined,
     getStatus: () => PlayerStatus.NONE,
     getArea: () => null,
-    getCombat: () => ({ isAnimationStalled: () => stalled, reset() {} }),
+    getCombat: () => ({ isAnimationStalled: () => stalled, isHeldStall: () => false, reset() {} }),
     getMovementQueue: () => ({
       requestWalk: (destination) => walks.push(`${destination.getX()},${destination.getY()}`),
       getMobility: () => ({ canMove: () => true }),
@@ -224,6 +224,21 @@ test('a throwing removal hook cannot corrupt list size or leak its slot', () => 
   const next = stubMobile();
   assert.equal(list.add(next), true);
   assert.equal(next.getIndex(), 1, 'the freed slot is reused');
+});
+
+test('a list that holds freed slots gives them out again only after releaseHeldSlots (issue 6113)', () => {
+  const list = new MobileList(8, undefined, undefined, { holdFreedSlots: true });
+  const gone = stubMobile();
+  assert.equal(list.add(gone), true);
+  const index = gone.getIndex();
+  list.remove(gone);
+  const sameCycle = stubMobile();
+  assert.equal(list.add(sameCycle), true);
+  assert.notEqual(sameCycle.getIndex(), index, 'a slot freed this cycle is not handed to a new mobile');
+  list.releaseHeldSlots();
+  const nextCycle = stubMobile();
+  assert.equal(list.add(nextCycle), true);
+  assert.equal(nextCycle.getIndex(), index, 'released, the lowest free slot is reused');
 });
 
 for (const failureAt of ['onAdd', 'onAdded']) {

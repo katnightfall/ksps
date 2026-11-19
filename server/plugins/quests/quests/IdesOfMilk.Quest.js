@@ -151,7 +151,8 @@ module.exports = function registerIdesOfMilkQuest(api) {
 
   class BullArena extends PrivateArea {
     constructor(player) {
-      super([new Boundary(3240, 3268, 3265, 3301, 0)]);
+      // The southern fence is below the two troughs, with a walkable tile between them at 3259, 3255.
+      super([new Boundary(3240, 3268, 3255, 3301, 0)]);
       this.player = player;
       this.bull = null;
       this.demonic = false;
@@ -236,6 +237,7 @@ module.exports = function registerIdesOfMilkQuest(api) {
     start(npc, player) {
       const arena = npc.getArea();
       if (!(arena instanceof BullArena)) return super.start(npc, player);
+      api.emitCustomEvent("ides-of-milk:brutus-attack", { player });
       const at = npc.getLocation().clone();
       arena.special = this.nextAttack(npc, player);
       if (!arena.special) {
@@ -666,6 +668,9 @@ module.exports = function registerIdesOfMilkQuest(api) {
     // ponytail: timed from the bull entering; live may start it at the first hit.
     arena.startTick = World.getProcessCycle();
     arena.enter(npc);
+    if (quest.isComplete(arena.player)) {
+      api.emitCustomEvent("ides-of-milk:brutus-spawn", { player: arena.player });
+    }
     bullsByPlayer.set(arena.player, npc);
     npc.performAnimation(new Animation(ANIMATION.spawn));
   }

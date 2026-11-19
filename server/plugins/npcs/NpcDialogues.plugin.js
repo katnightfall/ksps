@@ -16,7 +16,8 @@
  * hand-outs, instead of a chat message, and `after` to run once the player continues past
  * that box. A statement box can also hold its continue for `box.holdTicks` while a scene
  * plays, then continue normally or, with `box.advance`, move on by itself; `box.delayTicks` closes
- * the chatbox and opens the box that many ticks later instead. A line's `pauseTicks`
+ * the chatbox and opens the box that many ticks later instead, and `box.pauseTicks` closes it once the
+ * box is continued and waits that many ticks before carrying on. A line's `pauseTicks`
  * closes the chatbox after it and waits that many ticks before the conversation carries on (a
  * scene between two lines). "npc-dialogue:start" plays a named variant on demand
  * and returns an optional request.cancel handle scoped to that playback's chain/chatbox.
@@ -24,7 +25,9 @@
  * with versions emits "npc-dialogue:shop" ({ player, npcId, target, shops, shop }) to pick one.
  * A counted random ({type: "random", count, non_repeating: true}) emits "npc-dialogue:draw" ({ player, npc, npcId,
  * definition, draw, count, text, question }) before each draw: `question` is the first spoken line of the drawn
- * alternative before the ordinal placeholder is filled.
+ * alternative before the ordinal placeholder is filled. A plain random emits "npc-dialogue:random" ({ player, npc,
+ * npcId, definition, options, index }) before it plays: a plugin can set `index` to the alternative this player
+ * always gets (an ogre's chosen seasoning).
  */
 const fs = require("fs");
 const path = require("path");
@@ -1217,8 +1220,11 @@ function startDialogue(api, event, steps, branches = {}, context = {}) {
           return;
         }
         playedAny = true;
+        // The Wiki's colour, as live draws the line (`styled`: Client of Kourend's possessed Veos in
+        // <col=000080>), unless a handler rewrote the words.
+        const shown = request.text === speech && typeof step.styled === "string" ? formatPlayerText(step.styled, player) : formatted;
         // Pages as the chatbox holds them: four lines of font 497 in 380 pixels (ChatTextLayout).
-        const pages = api.core?.ChatTextLayout?.pages(formatted) ?? characterPages(formatted);
+        const pages = api.core?.ChatTextLayout?.pages(shown) ?? characterPages(shown);
         // A typed line spoken by someone other than the NPC being talked to (a
         // paired NPC talking to them, a cutscene actor) gets that speaker's head.
         // An item's own transcript has no NPC; a named speaker still gets their head.
@@ -1315,7 +1321,9 @@ function startDialogue(api, event, steps, branches = {}, context = {}) {
           playedAny = true;
           const [first, second] = Array.isArray(message.box?.items) ? message.box.items : [];
           if (first !== undefined || message.box?.statement === true) {
-            const text = formatPlayerText(String(message.text ?? ""), player);
+            // A box keeps the Wiki's colour (`styled`) unless a handler rewrote its words.
+            const words = message.text === step.text && typeof step.styled === "string" ? step.styled : message.text;
+            const text = formatPlayerText(String(words ?? ""), player);
             const box = new DialogueChainBuilder();
             // `box.holdTicks` (statement boxes): the box first shows that many ticks without
             // "Click here to continue" while a scene plays out, as live sends it; then it gains
@@ -1340,8 +1348,25 @@ function startDialogue(api, event, steps, branches = {}, context = {}) {
                   : new DoubleItemStatementDialogue(boxIndex++, first, second, text));
             }
             box.add(new ActionDialogue(boxIndex, { execute: () => {
+              const pause = Number.isInteger(message.box?.pauseTicks) && message.box.pauseTicks > 0 ? message.box.pauseTicks : 0;
+              const current = pause ? manager.getCurrent?.() : null;
               message.after?.();
-              run(rest, currentRecord);
+              if (!pause) return run(rest, currentRecord);
+              // `box.pauseTicks`: once the box is continued the chatbox closes and the conversation
+              // waits that many ticks (an NPC eating what it was handed), as a line's `pauseTicks` does;
+              // like it, an `after` that started another conversation keeps the chat.
+              if (current && manager.getCurrent() !== current) return;
+              const waiting = new ActionDialogue(0, { execute: () => {} }, true);
+              const idle = new DialogueChainBuilder();
+              idle.add(waiting);
+              const packets = player.getPacketSender();
+              const open = packets.getChatboxGroupId?.() ?? -1;
+              if (open >= 0) packets.closeInterface(open);
+              startChain(idle);
+              api.core.TaskManager.submit(new api.core.CountdownTask(player, pause, () => {
+                if (cancelled || manager.getCurrent?.() !== waiting) return;
+                run(rest, currentRecord);
+              }));
             } }));
             // `box.delayTicks`: the chatbox closes and the box opens that many ticks later, while a scene
             // the handler started plays out (an idle entry holds the conversation, as `pauseTicks` does).
@@ -1418,7 +1443,12 @@ function startDialogue(api, event, steps, branches = {}, context = {}) {
           if (Number.isInteger(step.count) && step.count > 1 && step.non_repeating === true) {
             return countedRandom.start(step, options, rest, currentRecord);
           }
-          const index = Math.floor(Math.random() * options.length);
+          // "npc-dialogue:random" lets a plugin pick the alternative (`index`) a player is always given:
+          // the wiki's "Dialogue 1 / Dialogue 2" for what differs from player to player, not per talk.
+          const draw = { player, npc: event.npc, npcId, definition, options, index: Math.floor(Math.random() * options.length) };
+          api.emitCustomEvent("npc-dialogue:random", draw);
+          const index = Number.isInteger(draw.index) && draw.index >= 0 && draw.index < options.length
+            ? draw.index : Math.floor(Math.random() * options.length);
           const option = options[index];
           if (option.hook) return unavailable();
           // The record lets an "above" jump see the other random alternatives
