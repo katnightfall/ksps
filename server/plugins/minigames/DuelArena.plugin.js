@@ -38,6 +38,13 @@ const CACHE_HIDDEN = [2, 3, 5, 29, 42, 70, 82, 83, 84, 88, 98]
   .map(component => (CACHE_OPTIONS << 16) | component);
 const CONFIRM = 756;
 const MAIN_MODAL_UID = (161 << 16) | 16;
+/** The side panel's modal slot and the cache's equipment_side group, whose `items` layer shows the inventory with ops of our choosing. */
+const SIDE_MODAL_UID = (161 << 16) | 74;
+const STAKE_INVENTORY = 85;
+const STAKE_INVENTORY_ITEMS = STAKE_INVENTORY << 16;
+const SIDE_MODAL_TYPE = 3;
+const PLAYER_INVENTORY = 93;
+const STAKE_OPS = ["Stake-1", "Stake-5", "Stake-10", "Stake-All", "Stake-X"];
 const UI = {
   ROOT: 0, TITLE: 6,
   YOUR_STAKE_LABEL: 10, OPPONENT_STAKE_LABEL: 11,
@@ -449,9 +456,17 @@ function showOptions(session, info = "") {
         })
         .sendSubInterface(uid(CACHE_OPTIONS, 0), OPTIONS, 1);
     }
-    // The duel screens leave the sidebar alone: nothing mounts into the side modal
-    // (161:74), so the tabs stay up throughout instead of blinking out here and
-    // back on at the start of the fight. Rule enforcement lives in the onCan* hooks.
+    // Ours (upstream issue #3387): the stake screen has its own inventory in the side panel again, the
+    // items offering Stake-1/5/10/All/X. It was taken out to keep the tabs up during the setup, which
+    // left the ordinary inventory there: a click wielded the item, and nothing could be staked at all
+    // (handleStake only hears this layer). It closes with the screen, as any side modal does. Rule
+    // enforcement lives in the onCan* hooks.
+    if (!player.isPlayerBot()) {
+      player.getPacketSender()
+        .sendSubInterface(SIDE_MODAL_UID, STAKE_INVENTORY, SIDE_MODAL_TYPE)
+        .sendInterfaceScript(149, [STAKE_INVENTORY_ITEMS, PLAYER_INVENTORY, 4, 7, 1, -1, ...STAKE_OPS])
+        .sendInterfaceFlagsRange(STAKE_INVENTORY_ITEMS, 0, 27, 1180734);
+    }
     player.getPacketSender()
       .sendString(`Dueling with: ${session.players.find(p => p !== player).getDisplayName()}`, uid(OPTIONS, UI.TITLE));
     player.setStatus(PlayerStatus.DUELING);
@@ -688,7 +703,7 @@ function handleInterface(event) {
   const { player, buttonId } = event;
   const group = buttonId >>> 16;
   const child = buttonId & 0xffff;
-  if (stakingEnabled && (buttonId === (85 << 16) && sessions.has(player)
+  if (stakingEnabled && (buttonId === STAKE_INVENTORY_ITEMS && sessions.has(player)
       || group === OPTIONS && child === UI.YOUR_ITEMS)) return handleStake(event);
   if (group !== CACHE_OPTIONS && group !== CONFIRM && (group !== OPTIONS || !stakingEnabled)) return;
   event.handled = true;
@@ -878,5 +893,5 @@ module.exports = {
     api.onCustomEvent("player:option-route", routeChallenge);
   },
   /** For server/tests/pvp-arena-scoreboard.test.cjs and server/tests/ironman.test.cjs. */
-  _test: { accept, end, sessions, snapshot, legacyChallenge, routeChallenge },
+  _test: { accept, end, sessions, snapshot, legacyChallenge, routeChallenge, showOptions, handleInterface, OPTIONS },
 };
