@@ -156,3 +156,114 @@ test("two hand-ins of one save never cross: the logout save is the character, no
   assert.equal(await miami.login("Kat"), null, "and the logout let the character go");
   assert.deepEqual(JSON.parse(miami.rows.get("kat")), { at: "logout", coins: 2 });
 });
+
+test("an answer that is not the master's lets nobody in on a guess, and no save is dropped for it", async (t) => {
+  const hub = await master(t);
+  const dallas = world(t, "1 - Dallas", hub);
+  await dallas.login("Kat");
+  await dallas.logout("Kat", "kat", { at: "first evening" });
+  // Something between the world and the master answers in the master's place.
+  for (const status of [403, 429, 404, 200]) {
+    hub.answers.status = (request) => (request.url === "/sync/checkout" ? status : 0);
+    assert.equal(await dallas.login("Kat"), "The account server can't be reached. Please try again in a moment.", `checkout answered ${status}`);
+  }
+  hub.answers.status = null;
+  assert.equal(await dallas.login("Kat"), null);
+  // The same for a save on its way in: kept, and handed in when the master answers again.
+  for (const status of [429, 400, 200]) {
+    hub.answers.status = (request) => (request.url === "/sync/save" ? status : 0);
+    await dallas.gameSaves("kat", { at: `second evening, ${status}` });
+    await dallas.sync.tick();
+    assert.deepEqual(dallas.sync.state().dirty, ["kat"], `a save answered ${status} is still to hand in`);
+  }
+  hub.answers.status = null;
+  await dallas.sync.tick();
+  assert.deepEqual(dallas.sync.state().dirty, []);
+  assert.deepEqual(hub.saved("kat"), { at: "second evening, 200" });
+  assert.ok(dallas.logged.some((line) => line.event === "unexpected_answer" && line.call === "checkout" && line.status === 403), "and the log says what was answered");
+});
+
+test("a login this world could not prepare is refused, not let in unknown", async (t) => {
+  const hub = await master(t);
+  let broken = false;
+  const rows = new Map();
+  const dallas = world(t, "1 - Dallas", hub, {
+    persistence: {
+      currentJson: (key) => { if (broken) throw new Error("database is locked"); return rows.get(key); },
+      enqueue: (key, writes) => { rows.set(key, writes.find((write) => write.kind === "row").json); },
+    },
+  });
+  const other = world(t, "2 - Miami", hub);
+  await other.login("Kat");
+  await other.logout("Kat", "kat", { at: "Miami" });
+  broken = true;
+  assert.equal(await dallas.accepted("Kat"), "The account server can't be reached. Please try again in a moment.");
+  broken = false;
+  assert.equal(await dallas.login("Kat"), null);
+  assert.deepEqual(JSON.parse(rows.get("kat")), { at: "Miami" });
+});
+
+test("a world set to let players in without the master hands in what they played once it is back", async (t) => {
+  const hub = await master(t);
+  const dallas = world(t, "1 - Dallas", hub, { offline: true });
+  const miami = world(t, "2 - Miami", hub);
+  await dallas.login("Kat");
+  await dallas.logout("Kat", "kat", { at: "before the master went away" });
+  dallas.setDown(true);
+  assert.equal(await dallas.login("Kat"), null, "let in from this world's own copy");
+  await dallas.logout("Kat", "kat", { at: "played while the master was away" });
+  assert.deepEqual(dallas.sync.state().dirty, ["kat"], "noted as still to hand in");
+  dallas.setDown(false);
+  await dallas.sync.tick();
+  assert.deepEqual(hub.saved("kat"), { at: "played while the master was away" });
+  assert.equal(await miami.login("Kat"), null);
+  assert.deepEqual(JSON.parse(miami.rows.get("kat")), { at: "played while the master was away" });
+});
+
+test("a world told for a moment that it is on an old reset still hands in what was played meanwhile", async (t) => {
+  const { createCharacterStore, createSyncApi } = await masterSide;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "master-sync-"));
+  const clock = { now: 1_800_000_000_000 };
+  const store = createCharacterStore(path.join(dir, "characters.sqlite"), () => "2026-11-17|");
+  // The master answers one checkout as if its reset id were another (its settings read half-written).
+  let mistaken = false;
+  const api = createSyncApi({ store: { ...store, reset: (now) => (mistaken ? "" : store.reset(now)) }, key: () => KEY, now: () => clock.now });
+  const server = http.createServer(async (request, response) => { await api(request, response); });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => { store.close(); server.closeAllConnections(); server.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+  const hub = { clock, url: `http://127.0.0.1:${server.address().port}` };
+  const rows = new Map();
+  const call = async (method, target, body) => {
+    const text = body === undefined ? "" : JSON.stringify(body);
+    const response = await fetch(`${hub.url}${target}`, { method, body: method === "POST" ? text : undefined, headers: { "x-master-sync": signRequest(KEY, method, target, text, clock.now) } });
+    return { status: response.status, answer: await response.json().catch(() => ({})) };
+  };
+  const sync = createMasterSync({
+    persistence: { saveKey: (name) => String(name).toLowerCase(), currentJson: (key) => rows.get(key), enqueue: (key, writes) => rows.set(key, writes.find((write) => write.kind === "row").json) },
+    call, world: "1 - Dallas", reset: "2026-11-17", now: () => clock.now,
+  });
+  const saves = async (key, save) => { rows.set(key, JSON.stringify(save)); await sync.rowWritten(key); };
+  const request = { names: ["Kat"], refuse: null };
+  await sync.prepare(request);
+  await sync.entered("Kat");
+  await saves("kat", { at: "before" });
+  await sync.tick();
+  sync.left("Kat");
+  await saves("kat", { at: "logged out" });
+  // The mistaken answer, to another player's login. Kat logs in during the two minutes it is believed.
+  mistaken = true;
+  await sync.prepare({ names: ["Somebody"], refuse: null });
+  mistaken = false;
+  assert.equal(sync.state().stale, true);
+  const again = { names: ["Kat"], refuse: null };
+  await sync.prepare(again);
+  assert.equal(again.refuse, null, "it plays on, on its own");
+  await sync.entered("Kat");
+  await saves("kat", { at: "three hours later" });
+  clock.now += 2 * 60_000 + 1;
+  sync.left("Kat");
+  await saves("kat", { at: "three hours later, logged out" });
+  await sync.tick();
+  assert.equal(sync.state().stale, false);
+  assert.deepEqual(JSON.parse(store.changes(0, clock.now).rows.find((row) => row.key === "kat").json), { at: "three hours later, logged out" }, "handed in once the master agreed again");
+});

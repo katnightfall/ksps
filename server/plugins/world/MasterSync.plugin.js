@@ -60,6 +60,8 @@ const BOT_KEY = /^sitebot\d+$/;
 /** The key two spellings of a login name share: capitals, underscores and extra spaces don't count. */
 const nameKey = (name) => String(name ?? "").replace(/_/g, " ").trim().replace(/\s+/g, " ").toLowerCase();
 
+const UNREACHABLE = "The account server can't be reached. Please try again in a moment.";
+
 /** A reset id as it is compared (deploy/master/characters.mjs resetKey): a world's copy has no "|" in it. */
 const resetKey = (id) => String(id ?? "").replace(/[^A-Za-z0-9:._-]/g, "");
 // Told by the master that this world is on an old reset: asked again after this long.
@@ -211,16 +213,22 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
       markStale(answer.reset);
       return "retry";
     }
-    if (status >= 500 || status === 401 || status === 403) return "retry";
-    // Another world has the character now, or saved it since: its save is the one that counts.
-    log("save_not_taken", { key, lost: answer.lost ?? null, conflict: answer.conflict ?? null, stale: answer.stale === true });
-    dirty.delete(key);
-    persist();
-    if (answer.lost) {
-      const session = tracked.get(key);
-      if (session?.online) kick(session.names, `Your account has logged in on ${answer.lost}.`);
+    if (status === 200 && (answer.lost || Number.isInteger(answer.conflict))) {
+      // Another world has the character now, or saved it since: its save is the one that counts.
+      log("save_not_taken", { key, lost: answer.lost ?? null, conflict: answer.conflict ?? null });
+      dirty.delete(key);
+      persist();
+      if (answer.lost) {
+        const session = tracked.get(key);
+        if (session?.online) kick(session.names, `Your account has logged in on ${answer.lost}.`);
+      }
+      return "dropped";
     }
-    return "dropped";
+    // Neither taken nor refused by the master (a proxy's "forbidden" or "too many requests", a
+    // page that is not the master's): the save is kept and handed in again. Taken for a "no",
+    // it was dropped, and the master's older copy replaced it at the player's next login.
+    if (status < 500 && status !== 401 && status !== 403) unexpected("save", status);
+    return "retry";
   }
 
   async function pushAll(keys = [...dirty.keys()]) {
@@ -240,50 +248,78 @@ function createMasterSync({ persistence, call, world, reset = "", stateFile = nu
     forget(session);
   }
 
+  /** This world's record of a login: its saves are the ones handed in. */
+  function begin(names, keys) {
+    const session = { names, keys: new Set(keys), online: false, releasing: false, finished: false, at: now() };
+    for (const name of names) sessions.set(name, session);
+    for (const key of keys) tracked.set(key, session);
+    persist();
+    return session;
+  }
+
+  async function prepareLogin(request) {
+    const names = [...new Set((request.names ?? []).map(nameKey))];
+    const keys = keysFor(request.names ?? []);
+    if (keys.length === 0) return;
+    // On an old reset this world plays on its own. The login is still known here: should the
+    // master agree after all (it said "old reset" by mistake, or for a moment), what was played
+    // meanwhile is handed in, where it used to be replaced by the master's copy at the next login.
+    if (isStale()) {
+      begin(names, keys);
+      return;
+    }
+    // What this world still owes the master of this account goes first.
+    await pushAll(keys);
+    let result;
+    try {
+      result = await call("POST", "/sync/checkout", { world, reset, keys });
+    } catch {
+      result = null;
+    }
+    if (result?.status === 409 && result.answer.stale) {
+      markStale(result.answer.reset);
+      begin(names, keys);
+      return;
+    }
+    if (result?.status === 200 && result.answer.busy) {
+      request.refuse = `Your account is logged in on ${result.answer.busy}.`;
+      return;
+    }
+    const rows = result?.status === 200 && Array.isArray(result.answer.rows) ? result.answer.rows : null;
+    if (!rows) {
+      // No answer, or one that is not the master's (a proxy's "forbidden" or "too many requests",
+      // a page of something else): the saves could not be fetched, so nobody plays on from an
+      // old copy. Let in regardless, such a login was unknown to this world: nothing it saved
+      // was handed in, and the master's copy replaced it all at the player's next login.
+      if (result && result.status < 500 && result.status !== 401) unexpected("checkout", result.status);
+      if (!offlineLogins()) {
+        request.refuse = UNREACHABLE;
+        return;
+      }
+    }
+    for (const row of rows ?? []) {
+      if (dirty.has(row.key)) continue;
+      versions.set(row.key, Number(row.version) || 0);
+      if (typeof row.json === "string" && persistence.currentJson(row.key) !== row.json) apply(row.key, row.json);
+    }
+    // Let in without the master (the world's setting): the login is known here all the same, so
+    // what is played is handed in once the master is back (unless another world saved since).
+    begin(names, keys);
+  }
+
   return {
     /**
      * Before a login reads the account's saves (PluginManager.onLoginPrepare): `request.names`
      * are its login names; `request.refuse` is set to refuse it.
      */
     async prepare(request) {
-      if (isStale()) return;
-      const names = [...new Set((request.names ?? []).map(nameKey))];
-      const keys = keysFor(request.names ?? []);
-      if (keys.length === 0) return;
-      // What this world still owes the master of this account goes first.
-      await pushAll(keys);
-      let result;
       try {
-        result = await call("POST", "/sync/checkout", { world, reset, keys });
-      } catch {
-        result = null;
+        await prepareLogin(request);
+      } catch (error) {
+        // This world's own save database would not be read or written: no login on a guess.
+        log("prepare_failed", { error: String(error?.message ?? error) });
+        if (!offlineLogins()) request.refuse = UNREACHABLE;
       }
-      if (!result || result.status >= 500 || result.status === 401) {
-        if (!offlineLogins()) request.refuse = "The account server can't be reached. Please try again in a moment.";
-        return;
-      }
-      const { status, answer } = result;
-      if (status === 409 && answer.stale) {
-        markStale(answer.reset);
-        return;
-      }
-      if (status !== 200) {
-        unexpected("checkout", status);
-        return;
-      }
-      if (answer.busy) {
-        request.refuse = `Your account is logged in on ${answer.busy}.`;
-        return;
-      }
-      for (const row of answer.rows ?? []) {
-        if (dirty.has(row.key)) continue;
-        versions.set(row.key, Number(row.version) || 0);
-        if (typeof row.json === "string" && persistence.currentJson(row.key) !== row.json) apply(row.key, row.json);
-      }
-      const session = { names, keys: new Set(keys), online: false, releasing: false, finished: false, at: now() };
-      for (const name of names) sessions.set(name, session);
-      for (const key of keys) tracked.set(key, session);
-      persist();
     },
 
     /** The account entered the world: the master is told at once, so no other world lets it in. */
