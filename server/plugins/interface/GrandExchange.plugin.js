@@ -412,6 +412,24 @@ function recordHistory(player, offer) {
   return true;
 }
 
+/** The offer trades: what it bought or was paid waits in its collection slots. */
+function complete(player, offer) {
+  offer.finished = true;
+  offer.completedAt = Date.now();
+  countFilledBuy(player, offer, offer.completedAt);
+  offer.traded = Math.min(offer.sell ? MAX_TRADE : offer.total, offer.quantity * fillUnitPrice(offer));
+  recordHistory(player, offer);
+  saveOffers(player);
+  refreshCollectionBox(player);
+  const sender = player.getPacketSender();
+  sender.sendInterfaceScript(786, [], marketVarps(offer.slot, offer), undefined,
+    { [COLLECTIONS[offer.slot]]: collection(offer) });
+  if (player.getInterfaceId() === GE && viewing.get(player) === offer.slot && !offers.has(player)) {
+    sender.sendVarbit(SELECTED_SLOT, 0).sendVarbit(SELECTED_SLOT, offer.slot + 1);
+  }
+  sender.sendMessage(`${offer.sell ? "Sold" : "Bought"} ${offer.quantity.toLocaleString("en-US")} x ${ItemDefinition.forId(offer.itemId).getName()}. Click Collect.`);
+}
+
 function scheduleCompletion(player, offer) {
   if (offer.finished || offer.completesAt === null) {
     if (recordHistory(player, offer)) saveOffers(player);
@@ -425,20 +443,7 @@ function scheduleCompletion(player, offer) {
     // A second timer for the same offer (e.g. rescheduled on login) must not
     // re-save and re-announce an already-completed offer.
     if (offer.finished) return;
-    offer.finished = true;
-    offer.completedAt = Date.now();
-    countFilledBuy(player, offer, offer.completedAt);
-    offer.traded = Math.min(offer.sell ? MAX_TRADE : offer.total, offer.quantity * fillUnitPrice(offer));
-    recordHistory(player, offer);
-    saveOffers(player);
-    refreshCollectionBox(player);
-    const sender = player.getPacketSender();
-    sender.sendInterfaceScript(786, [], marketVarps(offer.slot, offer), undefined,
-      { [COLLECTIONS[offer.slot]]: collection(offer) });
-    if (player.getInterfaceId() === GE && viewing.get(player) === offer.slot && !offers.has(player)) {
-      sender.sendVarbit(SELECTED_SLOT, 0).sendVarbit(SELECTED_SLOT, offer.slot + 1);
-    }
-    sender.sendMessage(`${offer.sell ? "Sold" : "Bought"} ${offer.quantity.toLocaleString("en-US")} x ${ItemDefinition.forId(offer.itemId).getName()}. Click Collect.`);
+    complete(player, offer);
   }, Math.max(0, offer.completesAt - Date.now()));
   timers.add(timer);
 }
@@ -1162,6 +1167,14 @@ function abort(player, slot = viewing.get(player)) {
     player.sendMessage("That offer has already completed.");
     return;
   }
+  // Ours: an offer the bots' book met (`met`, set as it was placed or by fillBy) has traded already:
+  // the bots were paid for their goods, or handed what they bid for, at that moment. Aborting it
+  // gave the player's coins or items back as well, so it completes here instead.
+  if (offer.met === true) {
+    complete(player, offer);
+    player.sendMessage("That offer has already completed.");
+    return;
+  }
   offer.finished = true;
   offer.aborted = true;
   if (!offer.sell) releaseLimit(player, offer);
@@ -1420,11 +1433,13 @@ const HISTORY_BUTTONS = [historyUid(2), historyUid(3)];
 
 /**
  * Ours: brings a waiting offer's fill forward to `at` (a bot's goods or bid met it:
- * bots/brain/actions/Exchange). False when there is no such offer waiting.
+ * bots/brain/actions/Exchange). The offer has traded from that moment (`met`): it can no longer
+ * be aborted. False when there is no such offer waiting.
  */
 function fillBy(player, slot, at) {
   const offer = completedOffers(player)[slot];
   if (!offer || offer.finished || offer.aborted) return false;
+  offer.met = true;
   if (offer.completesAt !== null && offer.completesAt <= at) return true;
   offer.completesAt = at;
   scheduleCompletion(player, offer);

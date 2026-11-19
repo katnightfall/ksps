@@ -95,19 +95,22 @@ test("the book is kept through a restart", (t) => {
   assert.deepEqual(second.collect("sitebot1"), { coins: 180, items: [] });
 });
 
-test("a player's buy offer the bots cover fills at once; one they cover in part fills that much sooner", () => {
+test("a player's buy offer the bots cover fills at once and is final; one they cover only in part is left to the market", () => {
   const { exchange } = book();
   exchange.list("sitebot1", LOGS, 30, 90);
   const now = 5_000_000;
   const whole = { itemId: LOGS, sell: false, quantity: 10, price: 100, completesAt: now + 600_000 };
   assert.equal(Exchange.meetOffer(exchange, whole, now), 10);
   assert.equal(whole.completesAt, now + 5000, "from the bots, at once");
+  assert.equal(whole.met, true, "it has traded: the exchange no longer aborts it (tests/bot-exchange-abort.test.cjs)");
   assert.equal(exchange.onSale(LOGS, 100), 20);
+  // An offer fills whole or is aborted whole, so a part sold to it could be paid for and then given back.
   const part = { itemId: LOGS, sell: false, quantity: 80, price: 100, completesAt: now + 800_000 };
-  assert.equal(Exchange.meetOffer(exchange, part, now), 20);
-  assert.equal(part.completesAt, now + 600_000, "a quarter came from the bots: a quarter less of the wait");
-  assert.equal(exchange.onSale(LOGS, 100), 0);
-  assert.deepEqual(exchange.collect("sitebot1"), { coins: 30 * 90, items: [] });
+  assert.equal(Exchange.meetOffer(exchange, part, now), 0);
+  assert.equal(part.completesAt, now + 800_000, "the market's wait, untouched");
+  assert.equal(part.met, undefined);
+  assert.equal(exchange.onSale(LOGS, 100), 20, "the bots keep their logs");
+  assert.deepEqual(exchange.collect("sitebot1"), { coins: 10 * 90, items: [] });
 });
 
 test("an offer below the bots' price takes nothing, and one the market would never fill only trades whole", () => {
