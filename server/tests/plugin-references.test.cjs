@@ -73,7 +73,7 @@ test("no plugin reads a constant, a core class member, a module export or an api
 
 // Both are fixed in the main copy by commits made after this branch left it (Fishing Contest's
 // Hemenster gate, Haunted Mine's cart); once those are merged with this test, empty this list.
-const TILES_FIXED_ELSEWHERE = ["plugins/quests/quests/FishingContest.Quest.js", "plugins/quests/quests/HauntedMine.Quest.js"];
+const TILES_FIXED_ELSEWHERE = [];
 
 test("the plain-tile scanner follows a tile through helpers, required modules, option tables and custom events", () => {
   const { findings } = tiles.scan({ serverDir: SERVER, sourceRoot: FIXTURE });
