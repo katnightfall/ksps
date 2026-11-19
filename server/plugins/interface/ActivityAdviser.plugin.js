@@ -178,13 +178,16 @@ function isOpen(player) {
 
 function open(player) {
   const sender = player.getPacketSender();
+  // Ours: the list goes first. cr_ui's onLoad (script 6377) draws it from the string script 2493
+  // keeps in varcstr 1000; opened before it, the first time in a session, the onLoad stopped at
+  // script 1451 writing into an empty array, and left the rest of its layout undone.
+  sendSuggestions(player);
   sender.sendSubInterface(FLOATER_UID, CR_UI, OVERLAY);
   shown.add(player);
   sender.sendInterfaceFlagsRange(uid(TABS), TAB_ALL, TAB_FREE, OP1);
   sender.sendInterfaceFlagsRange(uid(REFRESH), 0, 0, OP1);
   const ids = questRows().map(({ row }) => first(row.id)).filter(Number.isInteger);
   sender.sendInterfaceFlagsRange(uid(JOURNAL_BUTTONS), 0, Math.max(0, ...ids), OP1);
-  sendSuggestions(player);
 }
 
 function close(player) {

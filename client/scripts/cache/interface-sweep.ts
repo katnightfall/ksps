@@ -27,6 +27,11 @@ const UPDATES = [
 ];
 const GAMEVAL_INTERFACES = 14;
 const SERVER_DIRS = ["../server/plugins", "../server/src"].map((d) => path.resolve(__dirname, "../..", d));
+/**
+ * Ours: scripts our server runs before it opens an interface whose onLoad reads what they set.
+ * The Activity Adviser's list (ActivityAdviser.plugin.js; an empty one is "2||0||5").
+ */
+const SERVER_BEFORE_OPEN: Record<number, (number | string)[]> = { 372: [2493, "2||0||5"] };
 
 export interface InterfaceResult {
     group: number;
@@ -144,6 +149,8 @@ export function sweepInterfaces(dir?: string, maxOpcount = 200_000, only?: numbe
             itemZeroWidgets.clear();
             nullTextWidgets.clear();
             let roots: any[] = [];
+            const beforeOpen = SERVER_BEFORE_OPEN[group];
+            if (beforeOpen) run(undefined, beforeOpen);
             try {
                 wm.getGroup(group);
                 roots = wm.getAllGroupRoots(group) ?? [];
