@@ -356,3 +356,28 @@ test("kept: a charged tome comes through with its pages", (t) => {
   keptCases(t, () => tome(I.TOME_OF_WATER, 20000, I.SOAKED_PAGE));
   keptCases(t, () => tome(I.TOME_OF_EARTH, 19, I.SOILED_PAGE));
 });
+
+// --- Dragonfire shield, Dragonfire ward, Ancient wyvern shield -----------------------------------------------------
+// Wiki, Items Kept on Death: "The dragonfire shield, dragonfire ward and ancient wyvern shield will lose their charges
+// if not protected." Dragonfire ward: "if dropped on death in an unsafe environment, when recovered, the dragonfire
+// ward will be completely uncharged."
+
+const shieldCharges = (id, charges) => withMeta(id, "dragonfire-shield", charges);
+
+test("lost: a charged dragonfire shield, ward and wyvern shield drop for the killer uncharged", (t) => {
+  lost(t, () => [shieldCharges(I.DRAGONFIRE_SHIELD, 37), shieldCharges(I.DRAGONFIRE_WARD, 1), shieldCharges(I.ANCIENT_WYVERN_SHIELD, 49)],
+    [plain(I.DRAGONFIRE_SHIELD_2), plain(I.DRAGONFIRE_WARD_2), plain(I.ANCIENT_WYVERN_SHIELD_2)]);
+  // A charged shield with no saved count is a full one: it is emptied the same.
+  lost(t, () => [plain(I.DRAGONFIRE_SHIELD)], [plain(I.DRAGONFIRE_SHIELD_2)], [], CRATER());
+  for (const id of [I.DRAGONFIRE_SHIELD_2, I.DRAGONFIRE_WARD_2, I.ANCIENT_WYVERN_SHIELD_2]) {
+    assert.equal(new core.Item(id, 1).isPlayerTradeable(), true);
+    assert.equal(partsOf(plain(id)), null, "an uncharged shield is lost as any tradeable item");
+  }
+  assert.equal(lostOnPreview(shieldCharges(I.DRAGONFIRE_WARD, 1)), true);
+});
+
+test("kept: the charged shields come through with their charges", (t) => {
+  keptCases(t, () => shieldCharges(I.DRAGONFIRE_SHIELD, 37));
+  keptCases(t, () => shieldCharges(I.DRAGONFIRE_WARD, 1));
+  keptCases(t, () => shieldCharges(I.ANCIENT_WYVERN_SHIELD, 49));
+});
