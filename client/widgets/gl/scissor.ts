@@ -273,14 +273,15 @@ export class ScissorStack {
 
     /**
      * Push a clip rect in canvas space (top-left origin, +Y down).
-     * The new clip is intersected with the current clip.
+     * The new clip is intersected with the current clip, unless `replace` is set: then it
+     * stands in for the current clip until the matching pop() (only the canvas bounds it).
      */
-    pushCanvasRect(x: number, y: number, w: number, h: number) {
+    pushCanvasRect(x: number, y: number, w: number, h: number, replace = false) {
         this.ensureCapacity();
 
         // Get previous clip bounds
         let prevX0: number, prevY0: number, prevX1: number, prevY1: number;
-        if (this.clipStackTop > 0) {
+        if (this.clipStackTop > 0 && !replace) {
             const prev = this.clipStack[this.clipStackTop - 1];
             prevX0 = prev.x0;
             prevY0 = prev.y0;

@@ -3588,8 +3588,26 @@ export function renderWidgetTreeGL(glr: GLRenderer, root: Widget, opts: GLRender
 
         // Side-panel anchors draw first, then the host's widget overlays (status bars), then
         // this widget's children and every later widget - so tooltips stay on top.
-        if (widgetUid !== 0 && opts.widgetOverlayAnchors?.has(widgetUid)) {
-            opts.widgetOverlayAnchorDrawn?.(widgetUid);
+        if (widgetUid !== 0 && opts.widgetOverlayAnchorDrawn && opts.widgetOverlayAnchors?.has(widgetUid)) {
+            // Ours (upstream issue #6213): the overlays hang beside the anchor, not inside it,
+            // so they are clipped to this pass's own clip (the whole canvas, or the dirty rect of
+            // a partial pass) and not to the anchor's parent. The fixed layout's side panels sit
+            // in a container of exactly their size (548:17) and the modern layout's in one that
+            // starts a pixel left of them (164:96): under that clip the status bars were cut
+            // away whole, and showed only in the passes that never reached the anchor.
+            sc.pushCanvasRect(
+                fullClip.x0,
+                fullClip.y0,
+                fullClip.x1 - fullClip.x0,
+                fullClip.y1 - fullClip.y0,
+                true,
+            );
+            try {
+                opts.widgetOverlayAnchorDrawn(widgetUid);
+            } finally {
+                // Whatever the overlays batched is flushed under their clip before it changes back.
+                sc.pop();
+            }
         }
 
         if (!isContainer && hasChildren) {
