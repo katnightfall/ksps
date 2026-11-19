@@ -376,7 +376,8 @@ export function createAdmin(options) {
             if (method !== "GET" && method !== "HEAD") {
                 if (request.headers["x-tsps-admin"] !== "1") throw new Refusal(403, "That request did not come from the admin page.");
                 const origin = request.headers.origin;
-                if (origin && new URL(origin).host !== request.headers.host) throw new Refusal(403, "That request came from another site.");
+                // An origin that is no address ("null", from a sandboxed frame) is another site too.
+                if (origin && (!URL.canParse(origin) || new URL(origin).host !== request.headers.host)) throw new Refusal(403, "That request came from another site.");
             }
 
             if (action === "login" && method === "POST") {

@@ -521,3 +521,12 @@ test("an entry in the list that is not a record is no world, and stops nothing",
   assert.equal(state.status, 200);
   assert.deepEqual(state.body.worlds.map((world) => world.id), ["kat-net", "new-york", "friends"]);
 });
+
+test("a request that names where it came from in a way that is no address is turned away, not an error of ours", async (t) => {
+  const m = await master(t);
+  for (const origin of ["null", "not an address", "http://"]) {
+    const refused = await m.call("POST", "login", { password: PASSWORD }, { origin });
+    assert.equal(refused.status, 403, origin);
+    assert.match(refused.body.error, /another site/);
+  }
+});
