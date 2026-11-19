@@ -9,6 +9,7 @@
  */
 const Equipment = require("../../src/main/typescript/elvarg/game/model/container/impl/Equipment").Equipment;
 const { Item } = require("../../src/main/typescript/elvarg/game/model/Item");
+const { splitOnPvpDeath, answerLostToPvpKiller } = require("./ChargedItemDeath");
 
 const MAX_CHARGES = 11000;
 const COMBAT_CHARGE = 10;
@@ -141,6 +142,30 @@ function fillCharges(event) {
   event.handled = true;
 }
 
+/** Empties the staff where it is and returns the scales that were in it, which Uncharge gives back. */
+function takeScales(item) {
+  const left = charges(item);
+  item.setId(unchargedByCharged.get(item.getId()) ?? item.getId());
+  item.setMetaValue(CHARGES_META_KEY, undefined);
+  return left;
+}
+
+/**
+ * `player-death:pvp-item-parts` (PlayerDeathTask). Wiki, Toxic Staff of the Dead: "If a player dies with the staff in
+ * PvP scenarios and it is not protected, any scales that were used to charge it will appear on the floor along with
+ * the uncharged staff." The uncharged staff and the scales that were in it then drop for the killer.
+ */
+// Ours (upstream issue #6002): before this an unprotected charged staff came back whole from a PvP death.
+function unchargeOnPvpDeath(query) {
+  splitOnPvpDeath(core, query, (item) => unchargedByCharged.get(item.getId()) ?? null,
+    (item) => [[zulrahScalesId, takeScales(item)]]);
+}
+
+/** `items:lost-to-pvp-killer`: the Items Kept on Death screen's PvP preview shows a charged staff lost. */
+function lostToPvpKiller(query) {
+  answerLostToPvpKiller(core, query, (item) => unchargedByCharged.get(item.getId()) ?? null);
+}
+
 function uncharge({ player, item }) {
   const left = charges(item);
   if (left <= 0) {
@@ -152,8 +177,7 @@ function uncharge({ player, item }) {
     player.sendMessage("You need a free inventory slot to uncharge your toxic staff.");
     return true;
   }
-  item.setId(unchargedByCharged.get(item.getId()) ?? item.getId());
-  item.setMetaValue(CHARGES_META_KEY, undefined);
+  takeScales(item);
   player.getInventory().addItem(refund);
   refresh(player);
   player.sendMessage(`You remove ${left} scales from your toxic staff.`);
@@ -196,6 +220,8 @@ module.exports = {
     });
     api.onItemOnItem(chargeStaff, { noted: false });
     api.onCustomEvent("item:fill-charges", fillCharges);
+    api.onCustomEvent("player-death:pvp-item-parts", unchargeOnPvpDeath);
+    api.onCustomEvent("items:lost-to-pvp-killer", lostToPvpKiller);
     api.onCombatHitResolved(onHitResolved);
     api.onPlayerProcess(({ player }) => {
       if (!player?.isPlayerBot?.()) {

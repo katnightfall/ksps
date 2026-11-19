@@ -22,6 +22,7 @@
  */
 
 const { definePoweredStaff, refundsFit, restricted, plainAmount, takePlain, PRESET_TEXT, distance, ticksFor } = require("./PoweredStaff");
+const { splitOnPvpDeath, answerLostToPvpKiller } = require("./ChargedItemDeath");
 
 const TRIDENT_CHARGE_META_KEY = "trident-charges";
 const TRIDENT_MAX_CHARGES = 2500;
@@ -337,6 +338,11 @@ function chargeWithResources(event) {
   chargeTrident(player, tridentItem, tridentSlot, recipe);
 }
 
+/** What Uncharge gives back for `charges` charges: the runes and a swamp trident's scales, never the coins (Wiki). */
+function unchargeRefunds(recipe, charges) {
+  return recipe.refundResources.map(([resourceId, amountPerCharge]) => new core.Item(resourceId, charges * amountPerCharge));
+}
+
 function unchargeTrident({ player, item }) {
   const recipe = recipeForTridentId(item?.getId?.());
   if (!recipe || !recipe.pairs.some(([charged]) => charged === item.getId())) return false;
@@ -347,7 +353,7 @@ function unchargeTrident({ player, item }) {
   }
 
   const inventory = player.getInventory();
-  const refunds = recipe.refundResources.map(([resourceId, amountPerCharge]) => new core.Item(resourceId, current * amountPerCharge));
+  const refunds = unchargeRefunds(recipe, current);
   if (!refundsFit(inventory, refunds)) {
     player.sendMessage("Your inventory is too full to uncharge your trident.");
     return true;
@@ -362,6 +368,41 @@ function unchargeTrident({ player, item }) {
       : "You uncharge your trident and regain its runes. The coins are not refunded."
   );
   return true;
+}
+
+/**
+ * The uncharged trident a partly charged one becomes, or null. A Trident of the Seas (full) is left as it is: it
+ * trades between players as it stands, so a death drops it whole, as it does any tradeable item.
+ */
+function unchargedTridentId(item) {
+  const id = item.getId();
+  const recipe = recipeForTridentId(id);
+  if (!recipe || recipe.fullChargedIds.has(id)) return null;
+  return recipe.pairs.find(([charged]) => charged === id)?.[1] ?? null;
+}
+
+/**
+ * `player-death:pvp-item-parts` (PlayerDeathTask). Wiki, Trident of the seas and Trident of the seas (e): "If lost on
+ * death, only the uncharged trident will appear on the floor"; Trident of the swamp and (e): "If lost on death, any
+ * scales that were used to charge the trident will appear on the floor along with the uncharged trident." The trident
+ * is emptied as Uncharge empties it; the killer gets the uncharged trident and, of what Uncharge would give back, a
+ * swamp trident's scales alone. The runes are gone, as the coins are. An (o) trident loses its kit by the ornament
+ * kits' own rule (OrnamentKits, ChargedItemDeath).
+ */
+// Ours (upstream issue #6002): before this an unprotected charged trident came back whole from a PvP death.
+function unchargeOnPvpDeath(query) {
+  splitOnPvpDeath(core, query, unchargedTridentId, (item) => {
+    const scales = unchargeRefunds(recipeForTridentId(item.getId()), getCharges(item))
+      .filter((refund) => refund.getId() === ZULRAH_SCALES_ID)
+      .map((refund) => [refund.getId(), refund.getAmount()]);
+    setCharges(item, 0);
+    return scales;
+  });
+}
+
+/** `items:lost-to-pvp-killer`: the Items Kept on Death screen's PvP preview shows a charged trident lost. */
+function lostToPvpKiller(query) {
+  answerLostToPvpKiller(core, query, (item) => (unchargedTridentId(item) == null ? null : recipeForTridentId(item.getId()).unchargedId));
 }
 
 /**
@@ -456,5 +497,7 @@ module.exports = {
     pluginApi.registerCombatMethodResolver({ resolve: resolveTrident });
     pluginApi.onCustomEvent("powered-staff:spell", answerSpell);
     pluginApi.onCustomEvent("item:fill-charges", fillCharges);
+    pluginApi.onCustomEvent("player-death:pvp-item-parts", unchargeOnPvpDeath);
+    pluginApi.onCustomEvent("items:lost-to-pvp-killer", lostToPvpKiller);
   },
 };

@@ -11,6 +11,13 @@
 //   gravestone".
 // - Sanguinesti staff, Tumeken's shadow: the page does not say where the charges go, so the "Chargable items" rule
 //   gives the killer what Uncharge gives back.
+// - Toxic blowpipe: "all scale and dart charges will appear on the floor alongside the blowpipe".
+// - Trident of the seas, and (e): "only the uncharged trident will appear on the floor"; Trident of the swamp, and (e):
+//   "any scales that were used to charge the trident will appear on the floor along with the uncharged trident".
+// - Toxic Staff of the Dead, Serpentine helm: "any scales that were used to charge it will appear on the floor along
+//   with the uncharged" item; Magma / Tanzanite helm: "the magma mutagen will be placed in their gravestone", and Items
+//   Kept on Death, "Tradeable items with untradeable modifications": "Dropped to the PKer as the tradeable uncharged
+//   unmodified version. The PKer gets the charges stored in the helm as well."
 process.env.DISABLE_PLAYER_BOTS = "1";
 const assert = require("node:assert/strict");
 const path = require("node:path");
@@ -52,6 +59,7 @@ function make(id, meta = {}) {
   for (const [key, value] of Object.entries(meta)) item.setMetaValue(key, value);
   return item;
 }
+const loadedPipe = () => ({ "toxic-blowpipe": { scales: 4000, dartId: I.DRAGON_DART, dartAmount: 300 } });
 
 /**
  * Every charged or assembled form: `item()` stages it, `killer` is exactly what an unprotected PvP death drops for the
@@ -73,6 +81,35 @@ function cases() {
     // 1,000 charges of which 600 soul runes were paid in aether runes: Uncharge gives 1,400 soul runes back.
     { name: "Tumeken's shadow", item: () => make(I.TUMEKENS_SHADOW, { "tumekens-shadow-charges": 1000, "tumekens-shadow-aether-runes": 600 }),
       killer: { [I.TUMEKENS_SHADOW_UNCHARGED_]: 1, [I.SOUL_RUNE]: 1400, [I.CHAOS_RUNE]: 5000 }, kept: [] },
+    // Zulrah's scales
+    { name: "Toxic blowpipe", item: () => make(I.TOXIC_BLOWPIPE, loadedPipe()),
+      killer: { [I.TOXIC_BLOWPIPE_EMPTY_]: 1, [I.ZULRAHS_SCALES]: 4000, [I.DRAGON_DART]: 300 }, kept: [] },
+    { name: "Blazing blowpipe", item: () => make(I.BLAZING_BLOWPIPE, loadedPipe()),
+      killer: { [I.TOXIC_BLOWPIPE_EMPTY_]: 1, [I.ZULRAHS_SCALES]: 4000, [I.DRAGON_DART]: 300, [I.TRAILBLAZER_RELOADED_BLOWPIPE_ORNAMENT_KIT]: 1 }, kept: [] },
+    { name: "Toxic blowpipe with scales and no darts", item: () => make(I.TOXIC_BLOWPIPE, { "toxic-blowpipe": { scales: 16383, dartId: -1, dartAmount: 0 } }),
+      killer: { [I.TOXIC_BLOWPIPE_EMPTY_]: 1, [I.ZULRAHS_SCALES]: 16383 }, kept: [] },
+    { name: "Toxic Staff of the Dead", item: () => make(I.TOXIC_STAFF_OF_THE_DEAD, { "toxic-staff-charges": 3210 }),
+      killer: { [I.TOXIC_STAFF_UNCHARGED_]: 1, [I.ZULRAHS_SCALES]: 3210 }, kept: [] },
+    { name: "Serpentine helm", item: () => make(I.SERPENTINE_HELM, { "serpentine-helm": 5000 }),
+      killer: { [I.SERPENTINE_HELM_UNCHARGED_]: 1, [I.ZULRAHS_SCALES]: 5000 }, kept: [] },
+    { name: "Magma helm", item: () => make(I.MAGMA_HELM, { "serpentine-helm": 11000 }),
+      killer: { [I.SERPENTINE_HELM_UNCHARGED_]: 1, [I.ZULRAHS_SCALES]: 11000 }, kept: [I.MAGMA_MUTAGEN] },
+    { name: "Tanzanite helm", item: () => make(I.TANZANITE_HELM, { "serpentine-helm": 70 }),
+      killer: { [I.SERPENTINE_HELM_UNCHARGED_]: 1, [I.ZULRAHS_SCALES]: 70 }, kept: [I.TANZANITE_MUTAGEN] },
+    { name: "Magma helm (uncharged)", item: () => make(I.MAGMA_HELM_UNCHARGED_),
+      killer: { [I.SERPENTINE_HELM_UNCHARGED_]: 1 }, kept: [I.MAGMA_MUTAGEN] },
+    { name: "Trident of the Seas", item: () => make(I.TRIDENT_OF_THE_SEAS, { "trident-charges": 777 }),
+      killer: { [I.UNCHARGED_TRIDENT]: 1 }, kept: [] },
+    { name: "Trident of the Seas (e)", item: () => make(I.TRIDENT_OF_THE_SEAS_E_, { "trident-charges": 15000 }),
+      killer: { [I.UNCHARGED_TRIDENT_E_]: 1 }, kept: [] },
+    { name: "Trident of the Seas (o)", item: () => make(I.TRIDENT_OF_THE_SEAS_O_, { "trident-charges": 777 }),
+      killer: { [I.UNCHARGED_TRIDENT]: 1, [I.DEMONIC_TRIDENT_ORNAMENT_KIT]: 1 }, kept: [] },
+    { name: "Trident of the Swamp", item: () => make(I.TRIDENT_OF_THE_SWAMP, { "trident-charges": 777 }),
+      killer: { [I.UNCHARGED_TOXIC_TRIDENT]: 1, [I.ZULRAHS_SCALES]: 777 }, kept: [] },
+    { name: "Trident of the Swamp (e)", item: () => make(I.TRIDENT_OF_THE_SWAMP_E_, { "trident-charges": 15000 }),
+      killer: { [I.UNCHARGED_TOXIC_TRIDENT_E_]: 1, [I.ZULRAHS_SCALES]: 15000 }, kept: [] },
+    { name: "Trident of the Swamp (e) (o)", item: () => make(I.TRIDENT_OF_THE_SWAMP_E_O_, { "trident-charges": 2 }),
+      killer: { [I.UNCHARGED_TOXIC_TRIDENT_E_]: 1, [I.ZULRAHS_SCALES]: 2, [I.DEMONIC_TRIDENT_ORNAMENT_KIT]: 1 }, kept: [] },
   ];
 }
 
@@ -81,6 +118,9 @@ function cases() {
  */
 function untouched() {
   return [
+    // The Drygore blowpipe (a league's) never trades; a Trident of the Seas (full) trades as it stands.
+    { name: "Drygore blowpipe", item: () => make(I.DRYGORE_BLOWPIPE, { "toxic-blowpipe": { scales: 0, dartId: I.DRAGON_DART, dartAmount: 300 } }), dropsWhole: false },
+    { name: "Trident of the Seas (full)", item: () => make(I.TRIDENT_OF_THE_SEAS_FULL_), dropsWhole: true },
   ];
 }
 
@@ -196,6 +236,16 @@ test("worn, an unprotected item is lost the same way as one carried", (t) => {
   assert.ok(noCarried(victim));
 });
 
+test("worn, a loaded blowpipe and a Magma helm are lost together and their scales are all there", (t) => {
+  const victim = actor(t), killer = actor(t);
+  victim.getEquipment().setItem(core.Equipment.WEAPON_SLOT, make(I.TOXIC_BLOWPIPE, loadedPipe()));
+  victim.getEquipment().setItem(core.Equipment.HEAD_SLOT, make(I.MAGMA_HELM, { "serpentine-helm": 5000 }));
+  const result = die(t, victim, killer, WILDERNESS(), { skulled: true });
+  assert.deepEqual(pile(result), { [I.TOXIC_BLOWPIPE_EMPTY_]: 1, [I.SERPENTINE_HELM_UNCHARGED_]: 1, [I.ZULRAHS_SCALES]: 9000, [I.DRAGON_DART]: 300 });
+  assert.deepEqual(result.keptIds, [I.MAGMA_MUTAGEN]);
+  assert.ok(noCarried(victim));
+});
+
 test("two of the same item each give what was in them: the charges are the item's, not the player's", (t) => {
   const victim = actor(t), killer = actor(t);
   victim.getInventory().setItem(0, make(I.SANGUINESTI_STAFF, { "sanguinesti-staff-charges": 10 }));
@@ -219,6 +269,8 @@ test("a charged item id that holds no charges gives the uncharged item and nothi
   const victim = actor(t), killer = actor(t);
   const staged = [
     [I.SANGUINESTI_STAFF, I.SANGUINESTI_STAFF_UNCHARGED_], [I.TUMEKENS_SHADOW, I.TUMEKENS_SHADOW_UNCHARGED_],
+    [I.SERPENTINE_HELM, I.SERPENTINE_HELM_UNCHARGED_], [I.TRIDENT_OF_THE_SWAMP, I.UNCHARGED_TOXIC_TRIDENT],
+    [I.TOXIC_STAFF_OF_THE_DEAD, I.TOXIC_STAFF_UNCHARGED_],
   ];
   staged.forEach(([charged], slot) => victim.getInventory().setItem(slot, make(charged)));
   const result = die(t, victim, killer, WILDERNESS(), { skulled: true });
@@ -229,6 +281,30 @@ test("a charged item id that holds no charges gives the uncharged item and nothi
 test("the death gives what Uncharge by hand gives: the Sanguinesti staff's blood runes", (t) => {
   const Staff = require("../plugins/items/SanguinestiStaff.plugin")._test;
   assert.deepEqual(byHand(t, "Sanguinesti staff", (player, item) => Staff.uncharge({ player, item })), expected("Sanguinesti staff"));
+});
+
+test("the death gives what Uncharge by hand gives: toxic staff, helm and blowpipe; a swamp trident its scales alone", (t) => {
+  const Toxic = require("../plugins/items/ToxicStaffOfTheDead.plugin")._test;
+  const Helm = require("../plugins/items/SerpentineHelm.plugin")._test;
+  const Pipe = require("../plugins/items/ToxicBlowpipe.plugin")._test;
+  const Trident = require("../plugins/items/Trident.plugin")._test;
+  assert.deepEqual(byHand(t, "Toxic Staff of the Dead", (player, item) => Toxic.uncharge({ player, item })), expected("Toxic Staff of the Dead"));
+  assert.deepEqual(byHand(t, "Serpentine helm", (player, item) => Helm.uncharge({ player, item })), expected("Serpentine helm"));
+  assert.deepEqual(byHand(t, "Toxic blowpipe", (player, item) => Pipe.removeEverything(player, item, 0)), expected("Toxic blowpipe"));
+  // By hand a swamp trident gives its runes back too; the death gives the scales of the same count and no rune.
+  const swamp = byHand(t, "Trident of the Swamp", (player, item) => Trident.unchargeTrident({ player, item }));
+  assert.deepEqual(swamp, { [I.UNCHARGED_TOXIC_TRIDENT]: 1, [I.ZULRAHS_SCALES]: 777, [I.DEATH_RUNE]: 777, [I.CHAOS_RUNE]: 777, [I.FIRE_RUNE]: 3885 });
+  assert.equal(expected("Trident of the Swamp")[I.ZULRAHS_SCALES], swamp[I.ZULRAHS_SCALES]);
+});
+
+test("an Ironman killer gets none of it: the uncharged item and its contents lie for the victim, as any PvP loot does", (t) => {
+  const victim = actor(t), killer = actor(t);
+  killer.setAttribute("ironman:mode", "ironman");
+  victim.getInventory().setItem(0, make(I.TOXIC_BLOWPIPE, loadedPipe()));
+  const result = die(t, victim, killer, WILDERNESS(), { skulled: true });
+  assert.deepEqual(pile(result), {});
+  assert.deepEqual(pile(result, "victim"), { [I.TOXIC_BLOWPIPE_EMPTY_]: 1, [I.ZULRAHS_SCALES]: 4000, [I.DRAGON_DART]: 300 });
+  assert.deepEqual(result.keptIds, []);
 });
 
 test("the Items Kept on Death PvP preview shows every one of them lost", () => {
@@ -347,10 +423,32 @@ test("an answer that already put another item in a charged one's place is left t
   assert.equal(state(item), before);
 });
 
+// --- Left as they were -------------------------------------------------------------------------------------------
+
+test("charged items with no rule stay with the victim whole, and a tradeable one drops whole, as before", (t) => {
+  for (const entry of UNTOUCHED) {
+    const victim = actor(t), killer = actor(t);
+    const item = entry.item();
+    const before = state(item);
+    victim.getInventory().setItem(0, item);
+    const result = die(t, victim, killer, WILDERNESS(), { skulled: true });
+    assert.equal(state(item), before, `${entry.name}: unchanged, charges and all`);
+    if (entry.dropsWhole) {
+      assert.deepEqual(pile(result), { [item.getId()]: 1 }, `${entry.name}: dropped for the killer as it is`);
+      assert.deepEqual(result.kept, []);
+    } else {
+      assert.deepEqual(result.kept, [item], `${entry.name}: the same item comes back`);
+      assert.deepEqual(result.floor, [], `${entry.name}: nothing dropped`);
+      assert.equal(lostOnPreview(item), false, `${entry.name}: not shown lost`);
+    }
+  }
+});
+
 test("an uncharged item carried, with nothing in it, drops as any tradeable item does and no kit or content appears from nowhere", (t) => {
   const victim = actor(t), killer = actor(t);
   const ids = [
     I.SCYTHE_OF_VITUR_UNCHARGED_, I.SANGUINESTI_STAFF_UNCHARGED_, I.TUMEKENS_SHADOW_UNCHARGED_,
+    I.TOXIC_BLOWPIPE_EMPTY_, I.SERPENTINE_HELM_UNCHARGED_, I.UNCHARGED_TOXIC_TRIDENT, I.TOXIC_STAFF_UNCHARGED_,
   ];
   ids.forEach((id, slot) => victim.getInventory().setItem(slot, make(id)));
   const result = die(t, victim, killer, WILDERNESS(), { skulled: true });
