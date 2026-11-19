@@ -31,6 +31,11 @@ individual switches and settings, with nested values replaced in full. For examp
 `"Prayer": false` disables the plugin and keeps its shipped settings. Plugins can read
 their options by short name, such as `api.getPluginConfig("sequentialBurying", false)`.
 
+`plugins.Wilderness.pvpWorld: true` makes a world a PvP world: every tile is PvP ground, as a
+`zones` entry `{ "tags": ["pvp"] }` with no bounds makes it. Zones tagged `safe` or
+`all-buildings-safe` stay safe; a world with neither has no safe ground, banks and the spawn
+included. The switch needs a restart.
+
 On PvP worlds, `plugins.Wilderness.pvpWorldLevelDifference` sets the server's attack limit
 on unlevelled ground. The client overlay still displays the standard 15-level range there.
 
@@ -322,6 +327,7 @@ After changing a plugin's `description` or `config`, run `yarn --cwd server worl
 | --- | --- | --- | --- |
 | `RevenantCaves:entryFee` | number (integer, >= 0, <= 2147483647) | `100000` | **Revenant Caves entry fee.** Coins paid once to enter, lost on a death in the caves or to a player in the Wilderness. 100,000 as in OSRS; 0 lets everyone in for free. |
 | `TutorialIsland:allowSkip` | boolean | `true` | **Allow skipping Tutorial Island.** The Gielinor Guide offers new players to skip the island, which misses some starter items and steps. Turn off to make everyone complete it. |
+| `Wilderness:pvpWorld` | boolean | `false` | **PvP world.** Makes this a PvP world: players can attack each other everywhere, within the unlevelled PvP combat level difference outside the Wilderness. Zones tagged safe or all-buildings-safe in world.json stay safe; a world with neither has no safe ground. The same as a pvp zone with no bounds. Restart to change. |
 | `Wilderness:pvpWorldLevelDifference` | number (integer, >= 0) | `15` | **Unlevelled PvP combat level difference.** Maximum combat level difference on unlevelled PvP ground on PvP worlds. Levelled Wilderness tiles keep their usual range. |
 
 #### Plugin area `bosses` (`pluginConfig`)
