@@ -687,7 +687,8 @@ module.exports = function registerDigSiteQuest(api) {
   function handleCondition({ player, npcId, stepId, text }) {
     if (!player || !EXAMINER_NPC_IDS.has(npcId)) return;
     if (String(text).toLowerCase().includes("does not have a trowel")) {
-      if (quest.getStage(player) > STAGE_STARTED && !owned(player, TROWEL_ITEM_ID)) giveReward(player, TROWEL_ITEM_ID, 1);
+      // Carried, as the condition itself is judged: the examiner has just said "Here you go...".
+      if (quest.getStage(player) > STAGE_STARTED && !held(player, TROWEL_ITEM_ID)) giveReward(player, TROWEL_ITEM_ID, 1);
       return;
     }
     const exam = pendingExam(player);
