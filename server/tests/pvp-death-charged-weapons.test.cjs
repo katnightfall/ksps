@@ -20,6 +20,9 @@
 //   unmodified version. The PKer gets the charges stored in the helm as well."
 // - Venator bow, Warped sceptre, Eye of Ayak, Tonalztics of Ralos: the page does not say where an unprotected item's
 //   charges go, so the "Chargable items" rule gives the killer what Uncharge gives back.
+// - Saradomin's blessed sword: "If the sword is not protected upon death, it will fully degrade into Saradomin's tear."
+// - Emberlight, Scorching bow, Purging staff: "A player killer will receive the synapse from their opponent if it is
+//   not one of the protected items."
 process.env.DISABLE_PLAYER_BOTS = "1";
 const assert = require("node:assert/strict");
 const path = require("node:path");
@@ -125,6 +128,14 @@ function cases() {
       killer: { [I.EYE_OF_AYAK_UNCHARGED_]: 1, [I.DEATH_RUNE]: 600, [I.CHAOS_RUNE]: 300 }, kept: [] },
     { name: "Tonalztics of Ralos", item: () => make(I.TONALZTICS_OF_RALOS, { "tonalztics-of-ralos:charges": 900 }),
       killer: { [I.TONALZTICS_OF_RALOS_UNCHARGED_]: 1, [I.SUNFIRE_SPLINTERS]: 900 }, kept: [] },
+    // Weapons that degrade or come apart
+    { name: "Saradomin's blessed sword", item: () => make(I.SARADOMINS_BLESSED_SWORD),
+      killer: { [I.SARADOMINS_TEAR]: 1 }, kept: [] },
+    { name: "Sara's blessed sword (full)", item: () => make(I.SARAS_BLESSED_SWORD_FULL_),
+      killer: { [I.SARADOMINS_TEAR]: 1 }, kept: [] },
+    { name: "Emberlight", item: () => make(I.EMBERLIGHT), killer: { [I.TORMENTED_SYNAPSE]: 1 }, kept: [] },
+    { name: "Scorching bow", item: () => make(I.SCORCHING_BOW), killer: { [I.TORMENTED_SYNAPSE]: 1 }, kept: [] },
+    { name: "Purging staff", item: () => make(I.PURGING_STAFF), killer: { [I.TORMENTED_SYNAPSE]: 1 }, kept: [] },
   ];
 }
 
@@ -136,6 +147,9 @@ function untouched() {
     // The Drygore blowpipe (a league's) never trades; a Trident of the Seas (full) trades as it stands.
     { name: "Drygore blowpipe", item: () => make(I.DRYGORE_BLOWPIPE, { "toxic-blowpipe": { scales: 0, dartId: I.DRAGON_DART, dartAmount: 300 } }), dropsWhole: false },
     { name: "Trident of the Seas (full)", item: () => make(I.TRIDENT_OF_THE_SEAS_FULL_), dropsWhole: true },
+    // Arclight has no form that trades, and the Wiki gives it no death rule.
+    { name: "Arclight", item: () => make(I.ARCLIGHT, { arclight: { charges: 4321, infusion: 55 } }), dropsWhole: false },
+    { name: "Arclight (inactive)", item: () => make(I.ARCLIGHT_INACTIVE_, { arclight: { charges: 0, infusion: 9000 } }), dropsWhole: false },
   ];
 }
 
@@ -476,6 +490,7 @@ test("an uncharged item carried, with nothing in it, drops as any tradeable item
     I.SCYTHE_OF_VITUR_UNCHARGED_, I.SANGUINESTI_STAFF_UNCHARGED_, I.TUMEKENS_SHADOW_UNCHARGED_,
     I.TOXIC_BLOWPIPE_EMPTY_, I.SERPENTINE_HELM_UNCHARGED_, I.UNCHARGED_TOXIC_TRIDENT, I.TOXIC_STAFF_UNCHARGED_,
     I.VENATOR_BOW_UNCHARGED_, I.WARPED_SCEPTRE_UNCHARGED_, I.EYE_OF_AYAK_UNCHARGED_, I.TONALZTICS_OF_RALOS_UNCHARGED_,
+    I.SARADOMINS_TEAR, I.TORMENTED_SYNAPSE,
   ];
   ids.forEach((id, slot) => victim.getInventory().setItem(slot, make(id)));
   const result = die(t, victim, killer, WILDERNESS(), { skulled: true });

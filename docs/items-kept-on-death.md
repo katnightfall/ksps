@@ -81,6 +81,8 @@ The rule for every chargeable item (Wiki, Items Kept on Death, "Chargable items"
 | Warped sceptre | Warped sceptre (uncharged), 2 chaos and 5 earth runes a charge | | | Warped sceptre: protected, "it will not lose charges"; where they go: "Chargable items", Uncharge "grants all the runes back" |
 | Eye of Ayak | Eye of Ayak (uncharged), 1 demon tear a charge, or 2 death runes and 1 chaos rune a charge | | | Eye of Ayak: it "does not lose charges on death in the Wilderness if the item is protected"; where they go: "Chargable items" |
 | Tonalztics of Ralos | Tonalztics of Ralos (uncharged), 1 sunfire splinter a charge | | | the page does not mention death; "Chargable items" |
+| Saradomin's blessed sword | Saradomin's tear | | the Saradomin sword | Saradomin's blessed sword: "If the sword is not protected upon death, it will fully degrade into Saradomin's tear" |
+| Emberlight, Scorching bow, Purging staff | Tormented synapse | | the rest of the weapon | each page: "A player killer will receive the synapse from their opponent if it is not one of the protected items" |
 
 - **Our choices, where the Wiki's pages are silent or disagree:**
   - *Sanguinesti staff, Tumeken's shadow:* their pages do not say where an unprotected staff's charges go. They follow the "Chargable items" rule, so the killer gets what Uncharge gives back.
@@ -88,11 +90,14 @@ The rule for every chargeable item (Wiki, Items Kept on Death, "Chargable items"
   - *Tridents:* the "Chargable items" rule would give the killer the runes Uncharge returns; the tridents' own pages say only the uncharged trident (and a swamp trident's scales) appears. The tridents' pages are followed: the runes are destroyed.
   - *Trident of the Seas (full):* it trades between players as it stands, so it drops for the killer whole, as it did before, although the trident's page says "only the uncharged trident will appear on the floor". Once a charge is used it is the partly charged trident and is lost as that.
   - *Venator bow, Warped sceptre, Eye of Ayak:* their pages say a protected item loses no charges, and not where an unprotected one's go; the Tonalztics of Ralos page does not mention death. They follow the "Chargable items" rule too.
+  - *Saradomin's blessed sword:* its page says the sword "will fully degrade into Saradomin's tear", and not who gets the tear. It follows the abyssal tentacle's rule (above), which is worded the same: the tear trades, so it drops for the killer.
 - **Left as they were:**
   - *Drygore blowpipe* (a league's): never trades, and the Wiki gives it no death rule.
+  - *Arclight:* neither it nor its inactive form trades, and the Wiki gives it no death rule: it stays with the victim with its charges, as any untradeable does.
   - *Viggora's chainmace, Craw's bow, Ursine chainmace, Webweaver bow, Thammaron's and Accursed sceptre* have their own Wilderness rule, already in their plugins: the ether drops for the killer, protected or not.
 - **Not covered:** a death to a monster (Wiki, "Chargable items", PvM death: "Goes to the gravestone as an uncharged version, and drops the items that would result from uncharging the item to the gravestone too"; here the item goes to the grave charged, which gives the same back); Bryophyta's staff (its page gives no PvP rule; its uncharged form trades, and Uncharge returns nothing).
 - **Not covered, which items are kept:** a charged item has no Grand Exchange price of its own, so the death and the Items Kept on Death screen rank it by its alchemy value, not by the price of the uncharged item it is lost as (the Wiki ranks by "effective Grand Exchange value"). With the prices of November 2026: a charged Scythe of Vitur ranks at 2.4m (the uncharged scythe, 1,150m), below a charged Sanguinesti staff at 3m (the uncharged staff, 13.7m), so with a skull and Protect Item the staff is kept and the scythe lost. The screen shows the same choice the death makes. Ranking by the uncharged item needs a change to `PlayerDeathTask.keepValue`.
+- **Not covered, Saradomin's blessed sword:** making the sword, its 10,000 hits and Revert. Only its special attack and this death rule exist.
 
 ## Ancient Warriors' equipment from the Bounty Hunter Store (Wiki: Ancient Warriors' equipment, Bounty Hunter#Equipment, each item's page)
 
