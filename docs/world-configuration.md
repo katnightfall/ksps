@@ -399,6 +399,7 @@ After changing a plugin's `description` or `config`, run `yarn --cwd server worl
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `DeadmanMode:enabled` | boolean | `false` | **Deadman source preparation.** Unfinished isolated character preparation. Blocks all XP and PvP; not a playable Deadman world. Restart to change. |
+| `HardcoreWorld:enabled` | boolean | `false` | **Hardcore World.** Makes this world a Hardcore World: every login is the account's Hardcore character (a save of its own) with one life. Off leaves the world as it is. |
 | `league:end` | date | *Not set* | **League end date.** When the league ends, as YYYY-MM-DD. The welcome message then shows how many days remain. |
 | `league:start` | date | *Not set* | **League start date.** When the league began, as YYYY-MM-DD. Sets the client's league clock. |
 | `league:type` | enum: `0` (Not a league world), `1` (Leagues I - Twisted), `2` (Leagues II - Trailblazer), `3` (Leagues III - Shattered Relics), `4` (Leagues IV - Trailblazer Reloaded), `5` (Leagues V - Raging Echoes), `6` (Leagues VI - Demonic Pacts) | `0` | **League.** Runs this world as a league: every login is the account's league character, kept apart from its main save. Not a league world is a normal world. The list follows data/leagues.json. Restart to change. |
@@ -887,6 +888,7 @@ This table lists bundled plugins that have a description. The world config page 
 | `EchoBosses` | EchoBosses | modes | yes | Leagues VI Echo encounters using normal-mechanics placeholders. (members only) |
 | `FreeToPlay` | FreeToPlay | modes | no | Switches this world to free-to-play. The spawn must be inside a free-to-play area. |
 | `GroupIronman` | GroupIronman | modes | yes | Group Ironman's rules: The Node, the Group Ironman tab and group chat, storage unlocks, forming groups, Hardcore groups' shared lives, Unranked groups, what a leaver becomes, and new members' weekly wealth limits and item restrictions. |
+| `HardcoreWorld` | HardcoreWorld | modes | yes | Hardcore Worlds: every login is the account's Hardcore character, with one life; a death that counts is announced to the world and the character resets or transfers out. |
 | `Ironman` | Ironman | modes | yes | Adds Ironman, Ultimate, Hardcore and Group Ironman accounts (Group, Hardcore Group and Unranked Group), chosen at the Ironman tutor, downgraded with Adam, or set by the ::ironman command. |
 | `LeagueMode` | LeagueMode | modes | yes | Leagues characters, progression, tasks, relics, region unlocks, combat masteries, Demonic Pacts and rewards. (members only) |
 | `PvpMode` | PvpMode | modes | yes | Adds the ::presets and ::kits commands, opens presets after a PvP death, and lets accounts that may use presets have their prayers without the unlock quests. |

@@ -39,7 +39,8 @@ const ids = { varbits: {}, objs: {} };
 /** Reads the world's config; on a Hardcore world claims its profile and world type. Returns whether it is one. */
 function init(pluginApi) {
   api = pluginApi;
-  enabled = api.getPluginConfig(DATA.config, false) === true;
+  // Ours: the key written out (it is DATA.config), so the world-config tests can match the read to its declaration.
+  enabled = api.getPluginConfig("HardcoreWorld:enabled", false) === true;
   if (!enabled) return false;
   api.setWorldProfile(HARDCORE_PROFILE);
   api.setWorldType(DATA.worldType);

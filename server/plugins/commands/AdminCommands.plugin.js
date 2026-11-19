@@ -1578,7 +1578,9 @@ module.exports = {
           fs.closeSync(fd);
         }
 
-        ServerLogger.info(
+        // Ours: ServerLogger has no info(); it files what console writes. The call threw here, after
+        // the broken save was written, and the owner never got the two lines that say what was done.
+        console.info(
           `[admin] reprocorruptsave target=${targetName} mode=partial_non_atomic file=${filePath} backup=${backupPath} bytes=${partialLength}/${sourceJson.length}`
         );
 

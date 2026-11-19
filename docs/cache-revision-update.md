@@ -30,6 +30,15 @@ Names stay on the ids they had: an id that lost its display name keeps its const
 committed file gave another id is never reused (a renamed id drops its constant and fails to
 compile, rather than silently pointing at something else). Fix the compile errors by name.
 
+The plugins are JavaScript and do not compile: after `yarn build`, run
+`node --test tests/plugin-references.test.cjs` (in `server/`). It reads every plugin and fails on a
+constant, a cache name (`getObjId("...")`) or a hook's NPC, object, item or option name that the
+new cache no longer has, and on an `item-gameplay.json` row with a requirement that the loader now
+skips for its name. The scanners behind it are `scripts/scan-member-refs.cjs`,
+`scan-named-hooks.cjs` and `scan-gamevals.cjs`; each prints its findings when run by itself.
+Names that reach an identifier class from a data file (`ItemIdentifiers[row.item]`) are not
+followed: search the JSON for the removed names as well.
+
 ### 4. Compare the two caches: `yarn compare:cache`
 
 ```bash

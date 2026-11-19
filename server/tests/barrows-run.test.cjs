@@ -369,6 +369,9 @@ test("Barrows: the brother at the chest says 'You dare steal from us!', one in h
     Barrows._test.searchChest(subject, 1);
     assert.equal(queue.length, before + 1, "the tunnel's brother rises");
     assert.deepEqual(shoutOf(queue), ["You dare steal from us!"]);
+    // Ours: he waits three ticks before his first swing. The wait was registered under a timer key that does not
+    // exist (TimerKey.COMBAT_ATTACK), so it held nothing back.
+    assert.equal(queue.at(-1).getCombat().getAttackDelay(), 3, "a risen brother's first attack waits 3 ticks");
 
     const digger = player();
     arrive(digger, AHRIM_MOUND);

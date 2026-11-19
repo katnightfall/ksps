@@ -350,7 +350,9 @@ function onNpcAdded() {
     // A brother woken in his crypt, or the tunnel's brother rising at the chest (rsprox_transcripts/227/00086.txt:233215,
     // and 546 times over the recordings).
     this.forceChat(this.__barrowsChest ? "You dare steal from us!" : "You dare disturb my rest!");
-    this.getTimers().extendOrRegister(TimerKey.COMBAT_ATTACK, 3);
+    // Ours: TimerKey has no COMBAT_ATTACK (the timer went under the key `undefined` and held nothing
+    // back); the wait before his first swing is the combat's own attack delay.
+    this.getCombat().extendAttackDelay(3);
     player.getPacketSender().sendEntityHint(this);
   }
   this.getCombat().attack(player);
