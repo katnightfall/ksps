@@ -442,6 +442,8 @@ After changing a plugin's `description` or `config`, run `yarn --cwd server worl
 | `Gravestones:enabled` | boolean | `true` | **Gravestones.** Player deaths in PvM leave a gravestone. Turn off for the older behaviour where lost items drop where the player died. |
 | `MasterSync:enabled` | boolean | `true` | **Share characters with the master's other worlds.** Only on a world that was given a master's address and key (WORLDS_MASTER_URL and MASTER_PROXY_KEY). Off: this world keeps its characters to itself. |
 | `MasterSync:offlineLogins` | boolean | `false` | **Let players in while the master cannot be reached.** Off (recommended): a login waits for the master, so nobody plays on from an old copy of a character. On: logins go ahead from this world's own copy; what was done on another world since may be lost. |
+| `ScheduledRestart:countdownMinutes` | number (integer, >= 1, <= 60) | `5` | **Scheduled restart countdown (minutes).** How long players see the system update timer before a scheduled restart. |
+| `ScheduledRestart:hours` | number (>= 0, <= 168) | `0` | **Restart every (hours).** The world restarts with a system update this many hours after it started, and takes the newest version as it starts again. 0 turns it off. |
 | `SettingsSave:enabled` | boolean | `true` | **Save changed settings at once.** A player whose settings changed is saved within a few seconds, so a setting survives a crash and is there at once on another world of the same master. Off: settings are saved with everything else, at logout and by the autosave. |
 | `StarterKit:enabled` | boolean | `true` | **Starter items for new characters.** A new character starts with OSRS's Tutorial Island kit and 25 coins in the bank. Worlds that run Tutorial Island give it there instead, whatever this says. |
 
@@ -1094,6 +1096,7 @@ This table lists bundled plugins that have a description. The world config page 
 | `Quetzals` | Quetzals | world | yes | Quetzal Transport System: Renu's flights, landing sites, quetzal whistles and recharges from Pitri, and Primio's Varrock to Fortis trips. (members only) |
 | `RespawnPoints` | RespawnPoints | world | yes | Respawn points: Lumbridge, or Falador, Edgeville, Prifddinas, Ferox Enclave, Kourend Castle, Civitas illa Fortis or Camelot as their NPCs or the Knight Waves set them, for deaths and the items that send players to their respawn point. |
 | `SandPits` | SandPits | world | yes | Using an empty bucket on a sandpit fills all empty buckets, one every two ticks. (members only) |
+| `ScheduledRestart` | ScheduledRestart | world | yes | Restarts the world every so many hours with a system update: players see the countdown, then the game saves, takes the newest version and starts again. |
 | `SettingsSave` | SettingsSave | world | yes | Saves a player within seconds of a change to their settings (bank options, All Settings, key binds, chat filters, layout, auto retaliate, volumes, quick prayers), instead of at the next autosave or logout. |
 | `ShiloCart` | ShiloCart | world | yes | Shilo Village carts: board with Hajedy or Vigroy, or Pay-fare, between Brimhaven and Shilo Village, free after the elite Karamja Diary. (members only) |
 | `SpiritTrees` | SpiritTrees | world | yes | Spirit tree network: the location menu, travel, talk-to and last-destination, with trees you cannot use greyed out. (members only) |
