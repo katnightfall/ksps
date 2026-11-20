@@ -1465,6 +1465,161 @@ test('EOG Brimstail counts a banked crystal saw or seed: no second seed to hand 
   assert.equal(condition({ player: none, npcId: brimstail, text }), true, 'none owned: Brimstail offers one');
 });
 
+test('EOG Brimstail replacement discs become available after all carried discs are dropped', () => {
+  const h = harness('EyesOfGlouphrie');
+  const p = player();
+  const condition = h.hooks.onNpcDialogueCondition.find((fn) => fn.name === 'answerCondition');
+  const action = (player) => h.emit('npc-dialogue:action', {
+    player, npcId: N.BRIMSTAIL_2, stepId: 'zghUpW', handled: false,
+  });
+  const eligible = () => condition({
+    player: p,
+    npcId: N.BRIMSTAIL_2,
+    text: 'If the player has not received the three extra discs from Brimstail:',
+    stepId: 'r8Ly0u',
+  });
+  const discIds = [
+    ...Array.from({ length: 28 }, (_, index) => 9597 + index),
+  ];
+  // Ours: three discs, none a circle and none red.
+  const notGiven = new Set(['CIRCLE', 'RED_TRIANGLE', 'RED_SQUARE', 'RED_PENTAGON'].flatMap((name) => name === 'CIRCLE'
+    ? ['RED', 'ORANGE', 'YELLOW', 'GREEN', 'BLUE', 'INDIGO', 'VIOLET'].map((colour) => I[`${colour}_CIRCLE`]) : [I[name]]));
+  const assertReplacement = (message = 'three replacement discs') => {
+    const given = discIds.filter((id) => (p.items.get(id) ?? 0) > 0);
+    assert.equal(given.reduce((n, id) => n + p.items.get(id), 0), 3, message);
+    assert.equal(given.some((id) => notGiven.has(id)), false, `${message}: no circle or red disc`);
+  };
+
+  assert.equal(eligible(), true, 'the first extra-disc award is available');
+  action(p);
+  assert.deepEqual([p.items.get(9611), p.items.get(9614), p.items.get(9608)], [1, 1, 1]);
+  assert.equal(eligible(), false, 'holding the discs does not duplicate the bundle');
+
+  for (const id of discIds) p.items.delete(id); // the guide says to drop the discs before asking again
+  assert.equal(eligible(), true, 'the cache dialogue condition reopens after the carried discs are dropped');
+  action(p);
+  // Ours: after the first set Brimstail rolls three discs, never a circle or a red one (the Wiki;
+  // tests/eyes-of-glouphrie-brimstail-discs.test.cjs), so a replacement is any three of those.
+  assertReplacement();
+
+  let freeSlots = 2;
+  p.getInventory = () => ({
+    getAmount: (id) => p.items.get(id) ?? 0,
+    getFreeSlots: () => freeSlots,
+    adds: (id, amount = 1) => p.items.set(id, (p.items.get(id) ?? 0) + amount),
+  });
+  for (const id of discIds) p.items.delete(id);
+  assert.equal(eligible(), true, 'recovery remains available when the bag is full');
+  action(p);
+  assert.equal(discIds.some((id) => p.items.has(id)), false, 'a full bag receives no partial bundle');
+  freeSlots = 3;
+  action(p);
+  assertReplacement('the award can be retried after making three slots');
+});
+
+test('EOG Brimstail can replenish discs after the stage-8 lock panel is unlocked', () => {
+  const h = harness('EyesOfGlouphrie');
+  const p = player();
+  let open = -1;
+  let slots = Array.from({ length: 28 }, () => new core.Item(-1, 0));
+  slots[0] = new core.Item(I.RED_SQUARE, 1);
+  const inventory = {
+    getItems: () => slots,
+    getAmount: (id) => slots.filter((item) => item.getId() === id).reduce((n, item) => n + item.getAmount(), 0),
+    getFreeSlots: () => slots.filter((item) => item.getAmount() <= 0).length,
+    setItems: (items) => { slots = items; },
+    refreshItems: noop,
+    adds: (id, amount = 1) => {
+      const index = slots.findIndex((item) => item.getId() === id);
+      if (index >= 0) slots[index].setAmount(slots[index].getAmount() + amount);
+      else {
+        const empty = slots.findIndex((item) => item.getAmount() <= 0);
+        if (empty >= 0) slots[empty] = new core.Item(id, amount);
+      }
+    },
+    deleteNumber: (id, amount = 1) => {
+      const index = slots.findIndex((item) => item.getId() === id && item.getAmount() >= amount);
+      assert.notEqual(index, -1, `missing item ${id}`);
+      slots[index] = slots[index].getAmount() === amount
+        ? new core.Item(-1, 0) : slots[index].clone().setAmount(slots[index].getAmount() - amount);
+    },
+  };
+  const sender = new Proxy({
+    sendInterface: (id) => { open = id; return sender; },
+    sendInterfaceRemoval: () => { open = -1; return sender; },
+    sendVarbit: (id, value) => { p.varbits.set(id, value); return sender; },
+    getVarbit: (id) => p.varbits.get(id) ?? 0,
+  }, { get: (target, key) => target[key] ?? (() => sender) });
+  p.getInventory = () => inventory;
+  p.getPacketSender = () => sender;
+  p.getInterfaceId = () => open;
+
+  const talk = () => h.npcActions.get('Brimstail')['Talk-to']({ player: p, npcId: N.BRIMSTAIL_2 });
+  const chooseOption = (text) => {
+    const options = p.prompt?.options ?? [];
+    const index = options.indexOf(text);
+    assert.notEqual(index, -1, `missing dialogue option: ${text}; got ${options.join(' | ')}`);
+    const action = p.prompt.pairs[index * 2 + 1];
+    p.prompt = null;
+    action();
+  };
+  const finishReplacementBranch = () => {
+    p.manager.advance(); // hello -> menu
+    chooseOption("I can't work out what to do with these discs!");
+    for (let i = 0; i < 12 && inventory.getAmount(I.GREEN_SQUARE) === 0; i++) p.manager.advance();
+  };
+  const talkOptions = () => {
+    assert.equal(talk(), true);
+    assert.ok(p.manager.getCurrent(), 'Talk-to starts the Brimstail transcript');
+    p.manager.advance(); // hello -> native multi-chatbox menu
+    assert.ok(p.prompt, 'Brimstail transcript opens its choice menu');
+    return p.prompt.options;
+  };
+
+  h.quest.setStage(p, 8);
+  const stage8Options = talkOptions();
+  assert.ok(stage8Options.includes("I can't work out what to do with these discs!"),
+    `stage 8 transcript options: ${stage8Options.join(' | ')}`);
+  finishReplacementBranch();
+  assert.deepEqual([I.GREEN_SQUARE, I.BLUE_TRIANGLE, I.YELLOW_PENTAGON].map((id) => inventory.getAmount(id)), [1, 1, 1],
+    'stage 8 grants its existing three-disc bundle through the transcript action');
+
+  const use = { player: p, itemId: I.RED_SQUARE, objectId: 17282, handled: false };
+  h.hooks.onItemOnObject[0](use);
+  assert.equal(use.handled, true);
+  assert.equal(open, 145, 'using the red square opens the real lock panel');
+  const button = (buttonId, slot, itemId) => h.hooks.onInterfaceActionButton.find((fn) => fn.name === 'machineButton')({
+    player: p, buttonId, action: 1, slot, itemId, handled: false,
+  });
+  button(185 << 16, 0, I.RED_SQUARE);
+  button((145 << 16) | 8);
+  button((145 << 16) | 12);
+  assert.equal(h.quest.getStage(p), 9, 'the native lock-panel button advances stage 8 -> 9');
+
+  // Simulate dropping every cache crystal-disc item, after the real panel transition.
+  for (let id = 9597; id <= 9624; id++) {
+    const amount = inventory.getAmount(id);
+    if (amount > 0) inventory.deleteNumber(id, amount);
+  }
+  assert.equal(inventory.getAmount(I.GREEN_SQUARE), 0);
+  const recoveryOptions = talkOptions();
+  assert.ok(recoveryOptions.includes("I can't work out what to do with these discs!"),
+    'stage 9 with no carried discs reuses the existing replacement-disc menu');
+  chooseOption("I can't work out what to do with these discs!");
+  // Ours: the replacement is three rolled discs (never a circle or red), not the first set again.
+  const carriedDiscs = () => Array.from({ length: 28 }, (_, index) => 9597 + index).reduce((n, id) => n + inventory.getAmount(id), 0);
+  for (let i = 0; i < 12 && carriedDiscs() === 0; i++) p.manager.advance();
+  assert.equal(carriedDiscs(), 3, 'stage 9 recovery reaches the existing dialogue action');
+  assert.equal([I.RED_TRIANGLE, I.RED_SQUARE, I.RED_PENTAGON, I.RED_CIRCLE, I.ORANGE_CIRCLE, I.YELLOW_CIRCLE, I.GREEN_CIRCLE,
+    I.BLUE_CIRCLE, I.INDIGO_CIRCLE, I.VIOLET_CIRCLE].some((id) => inventory.getAmount(id) > 0), false, 'no circle or red disc');
+  assert.equal(h.quest.getStage(p), 9, 'the recovery does not regress puzzle progress');
+
+  p.manager.reset();
+  const normalOptions = talkOptions();
+  assert.ok(normalOptions.includes("I think Oaknock's machine is now unlocked, what do I do now?"),
+    'with discs held, stage 9 retains its native unlocked-machine dialogue');
+});
+
 test('Eyes machine map locs keep their stage transform and login varbit in step', () => {
   const h = harness('EyesOfGlouphrie');
   const p = player();

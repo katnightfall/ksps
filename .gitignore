@@ -123,3 +123,7 @@ server/data/definitions/bot-activities.local.json.tmp
 # sign-ins, the key its worlds share, its list of worlds and its copy of every character. Made
 # wherever a master is tried out, this PC included, and the project is public.
 /server/data/saves/master/
+
+# Shared web client release build outputs
+.github/scripts/client-release/node_modules/
+.github/scripts/client-release/releases/
