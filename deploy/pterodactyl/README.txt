@@ -67,6 +67,11 @@ Good to know
     If the same lines changed on both sides, the new version's files are kept whole, the console
     says so, and your edits stay aside in git's stash ("git stash show -p" shows them) for you
     to put back by hand. Turn updates off to stay on your version.
+  * Scheduled restarts. With ScheduledRestart:hours set (world.json; ours is 12), the world
+    restarts by itself that many hours after it started: players see the system update timer
+    (ScheduledRestart:countdownMinutes, 5 by default), the game saves everyone, and the world
+    starts again as it does from the panel, with "Update on start" taking the newest version.
+    ::nextrestart (owners) says when it is; ::gameUpdate cancel puts it off for an hour.
   * An update only ever adds to the version installed. If the project's history was rewritten,
     or the copy has commits of its own, the console says so and the version installed starts;
     "Reinstall" in the panel fetches the project afresh (saves are kept).

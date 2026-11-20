@@ -296,3 +296,47 @@ test('world.local.json is written whole, and one that cannot be read is kept asi
     fs.rmSync(base, { recursive: true, force: true });
   }
 });
+
+test('the launcher starts a fresh run after an update or a scheduled restart, and ends with any other exit', async () => {
+  const { supervise, RELAUNCH_CODE } = await load('launch.mjs');
+  const { EventEmitter } = require('node:events');
+  const watch = () => {
+    const runs = [], exits = [], said = [], signals = {};
+    let clock = 0;
+    const run = () => { const child = new EventEmitter(); child.killed = []; child.kill = (signal) => child.killed.push(signal); runs.push(child); return child; };
+    supervise(run, { log: (line) => said.push(line), exit: (code) => exits.push(code), now: () => clock, onSignal: (signal, handler) => { signals[signal] = handler; } });
+    return { runs, exits, said, signals, wait: (ms) => { clock += ms; } };
+  };
+
+  const world = watch();
+  assert.equal(world.runs.length, 1);
+  world.runs[0].emit('exit', RELAUNCH_CODE, null); // the update brought a new version
+  assert.equal(world.runs.length, 2, 'the new version starts in a fresh run');
+  world.wait(12 * 3600_000);
+  world.runs[1].emit('exit', RELAUNCH_CODE, null); // the game stopped for its scheduled restart
+  assert.equal(world.runs.length, 3, 'which updates and starts again');
+  world.signals.SIGTERM();
+  assert.deepEqual(world.runs[2].killed, ['SIGTERM'], 'the panel\'s stop reaches the run, which saves every player');
+  world.runs[2].emit('exit', 0, null);
+  assert.deepEqual(world.exits, [0]);
+  assert.equal(world.runs.length, 3);
+
+  const stopped = watch();
+  stopped.signals.SIGINT();
+  stopped.runs[0].emit('exit', RELAUNCH_CODE, null);
+  assert.equal(stopped.runs.length, 1, 'a stop is not followed by a fresh run');
+  assert.deepEqual(stopped.exits, [RELAUNCH_CODE]);
+
+  const crashed = watch();
+  crashed.runs[0].emit('exit', 1, null);
+  assert.deepEqual(crashed.exits, [1], 'a failure ends the launcher with its code, for the panel to see');
+  const killed = watch();
+  killed.runs[0].emit('exit', null, 'SIGKILL');
+  assert.deepEqual(killed.exits, [1]);
+
+  const looping = watch();
+  for (let i = 0; i < 5; i++) looping.runs[i].emit('exit', RELAUNCH_CODE, null);
+  assert.equal(looping.runs.length, 5, 'a run asking for another every time is a loop');
+  assert.deepEqual(looping.exits, [1]);
+  assert.match(looping.said[0], /started afresh 6 times in 10 minutes/);
+});

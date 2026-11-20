@@ -5,6 +5,13 @@
  *   node deploy/pterodactyl/launch.mjs             update, prepare, then run the world
  *   node deploy/pterodactyl/launch.mjs --prepare   packages and builds only (the egg's install script)
  *
+ * The process the panel starts only keeps the world running: it starts this file again as a
+ * child (EGG_SUPERVISED=1), which updates, prepares and runs the world, and starts a fresh child
+ * whenever one stops to be started again (RELAUNCH_CODE): after an update that brought a new
+ * version (perhaps of this very file), and when the game stops for its scheduled restart (the
+ * ScheduledRestart plugin: a system update every so many hours, exit UPDATE_RESTART_CODE), so a
+ * world takes the newest version then as it does when the panel restarts it.
+ *
  * One container, one port: the game server and the website's front door (deploy/front.mjs) are
  * started here, and the front door answers on the server's port (SERVER_PORT) with the website,
  * the game connection and the game's /api addresses. The game's own port stays inside the
@@ -49,6 +56,13 @@ const SITES_KEY = "PlayerBots:sites";
 const GAME_PORT = 43594;
 /** The game saves and exits with this code when its settings page asks for a restart. */
 const RESTART_CODE = 75;
+/** The game saves and exits with this code for its scheduled restart: update, then start again. */
+const UPDATE_RESTART_CODE = 76;
+/** A child of the launcher exits with this to be followed by a fresh one (supervise). */
+export const RELAUNCH_CODE = 77;
+/** More fresh starts than this in RELAUNCH_WINDOW_MS is a loop: the launcher stops. */
+const MAX_RELAUNCHES = 5;
+const RELAUNCH_WINDOW_MS = 10 * 60_000;
 export const READY_LINE = "[egg] The world is online";
 const DEFAULT_HEAP_MB = 8192;
 
@@ -381,6 +395,17 @@ function start(env) {
         { cwd: path.join(ROOT, "server"), env: gameEnv(env, ownSettings), stdio: ["ignore", "inherit", "inherit"] });
         game.on("exit", (code, signal) => {
             if (!stopping && code === RESTART_CODE) { say("The game asked to be started again."); startGame(); return; }
+            if (!stopping && code === UPDATE_RESTART_CODE) {
+                // Its scheduled restart: the next run (supervise) takes the newest version first.
+                say("The game stopped for its scheduled restart; starting again with the newest version...");
+                stopping = true;
+                // The front door lets go of the port before the next run opens it.
+                if (front.exitCode !== null || front.signalCode !== null) process.exit(RELAUNCH_CODE);
+                front.once("exit", () => process.exit(RELAUNCH_CODE));
+                front.kill();
+                setTimeout(() => front.kill("SIGKILL"), 30_000).unref();
+                return;
+            }
             if (!stopping) say(`The game server stopped (${signal ?? `exit ${code}`}).`);
             front.kill();
             process.exit(stopping ? 0 : code ?? 1);
@@ -432,6 +457,35 @@ function start(env) {
     waitForGame.unref();
 }
 
+/**
+ * The process the panel starts: runs `runChild()` (this file again, EGG_SUPERVISED=1) and starts
+ * a fresh one each time one exits with RELAUNCH_CODE; any other exit ends this with its code.
+ * Stop signals are passed on to the child, which saves every player before it exits. stdin is
+ * left to the child (the panel's "stop"). Exported for the tests.
+ */
+export function supervise(runChild, { log = say, exit = (code) => process.exit(code), now = Date.now, onSignal = (signal, handler) => process.on(signal, handler) } = {}) {
+    const starts = [];
+    let child = null;
+    let stopping = false;
+    for (const signal of ["SIGINT", "SIGTERM"]) onSignal(signal, () => { stopping = true; child?.kill(signal); });
+    const next = () => {
+        const at = now();
+        starts.push(at);
+        while (starts[0] < at - RELAUNCH_WINDOW_MS) starts.shift();
+        if (starts.length > MAX_RELAUNCHES) {
+            log(`The world was started afresh ${starts.length} times in ${RELAUNCH_WINDOW_MS / 60_000} minutes; stopping instead of trying again.`);
+            exit(1);
+            return;
+        }
+        child = runChild();
+        child.on("exit", (code, signal) => {
+            if (code === RELAUNCH_CODE && !stopping) { next(); return; }
+            exit(code ?? (signal ? 1 : 0));
+        });
+    };
+    next();
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
     // process.env itself: everything started from here (packages, builds, the game) takes it.
     const env = process.env;
@@ -440,12 +494,15 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
         if (process.argv.includes("--prepare")) {
             prepare(env);
             say("Packages and builds are ready.");
+        } else if (env.EGG_SUPERVISED !== "1") {
+            // Each run updates: a fresh run after an update finds itself current and starts.
+            const childEnv = { ...env, EGG_SUPERVISED: "1" };
+            delete childEnv.EGG_UPDATED;
+            supervise(() => spawn(process.execPath, process.argv.slice(1), { stdio: "inherit", env: childEnv }));
         } else if (update(env)) {
             // The update may have changed this file: the rest of the start is the new version's.
             say("Starting with the updated version...");
-            const again = spawn(process.execPath, process.argv.slice(1), { stdio: "inherit", env: { ...env, EGG_UPDATED: "1" } });
-            for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => again.kill(signal));
-            again.on("exit", (code) => process.exit(code ?? 1));
+            process.exit(RELAUNCH_CODE);
         } else {
             prepare(env);
             writeWorld(env);
