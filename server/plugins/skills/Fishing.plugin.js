@@ -667,8 +667,46 @@ function storageRoom(player, itemId) {
   return request.room;
 }
 
-/** An open container takes the catch first ("storage:gather"); the rest goes to the inventory. */
-function giveCatch(player, itemId, amount, xp = 0) {
+/**
+ * Ours: world setting "Fishing:notedCatch". A player's fish come as notes, so a backpack never
+ * fills; junk (caskets, boots, seaweed) stays as it is, and fish the cache has no note for (big fish,
+ * lava, infernal and sacred eels, Camdozaal's, minnows, karambwanji) come as before. Bots keep OSRS's catch, so their
+ * fill-the-backpack-then-bank loop is unchanged.
+ */
+let notedCatch = false;
+const NOTED_CATCH_CONFIG = "Fishing:notedCatch";
+
+function setNotedCatch(value) {
+  notedCatch = value === true;
+}
+
+/** The note this player's fish comes as under "Fishing:notedCatch", else null. */
+function notedCatchId(player, fish) {
+  if (!notedCatch || fish.junk || player?.isPlayerBot?.() === true) return null;
+  const { ItemDefinition } = pluginApi.core;
+  const definition = ItemDefinition.forId(fish.id);
+  if (!definition || definition.isNoted() || definition.isStackable()) return null;
+  const noteId = definition.getNoteId();
+  return noteId >= 0 && ItemDefinition.forId(noteId)?.isNoted() === true ? noteId : null;
+}
+
+/** Whether the backpack already holds this player's noted stack of the fish. */
+function hasNotedStack(player, fish) {
+  const noteId = notedCatchId(player, fish);
+  return noteId !== null && player.getInventory().contains(noteId);
+}
+
+/**
+ * An open container takes the catch first ("storage:gather"); the rest goes to the inventory.
+ * Ours: a noted catch ("Fishing:notedCatch") goes straight to its stack in the backpack, or a free
+ * slot; only when it has neither does an open fish barrel take the fish as they are.
+ */
+function giveCatch(player, itemId, amount, xp = 0, noteId = null) {
+  const inventory = player.getInventory();
+  if (noteId !== null && (inventory.contains(noteId) || inventory.getFreeSlots() > 0)) {
+    inventory.addItem(new Item(noteId, amount));
+    return;
+  }
   const request = { player, itemId, amount, stored: 0, skill: Skill.FISHING, xp };
   pluginApi?.emitCustomEvent("storage:gather", request);
   if (amount > request.stored) {
@@ -819,7 +857,8 @@ function statement(player, text) {
 function hasRoom(player, fish) {
   const inventory = player.getInventory();
   return inventory.getFreeSlots() > 0 || storageRoom(player, fish.id) ||
-    (inventory.contains(fish.id) && pluginApi.core.ItemDefinition.forId(fish.id).isStackable());
+    (inventory.contains(fish.id) && pluginApi.core.ItemDefinition.forId(fish.id).isStackable()) ||
+    hasNotedStack(player, fish); // Ours: its noted stack, under "Fishing:notedCatch"
 }
 
 /** A full inventory only stops fishing when the catch has nowhere to stack. */
@@ -827,7 +866,8 @@ function inventoryBlocks(player, tool) {
   const inventory = player.getInventory();
   return inventory.isFull() &&
     !tool.fish.some((fish) => inventory.contains(fish.id) && pluginApi.core.ItemDefinition.forId(fish.id).isStackable()) &&
-    !tool.fish.some((fish) => storageRoom(player, fish.id));
+    !tool.fish.some((fish) => storageRoom(player, fish.id)) &&
+    !tool.fish.some((fish) => hasNotedStack(player, fish)); // Ours: a noted stack still takes the catch
 }
 
 /**
@@ -849,7 +889,7 @@ function landExtra(player, variant, fish, amount, flaked) {
     return;
   }
   if (!hasRoom(player, fish)) return;
-  giveCatch(player, fish.id, amount);
+  giveCatch(player, fish.id, amount, 0, notedCatchId(player, fish)); // Ours: the note, under "Fishing:notedCatch"
   if (message) spam(player, message);
 }
 
@@ -864,7 +904,7 @@ function landCatch(player, tool, variant, caught, spotId = null) {
     const amount = fish.amount(player);
     landed.push({ fish, kind, amount, flaked: tool !== TOOLS.PARK_NET && SpiritFlakes.consumeFlake(player) });
     if (!variant.infernal || !InfernalHarpoon.tryCookFish(player, fish.id)) {
-      giveCatch(player, fish.id, amount, fish.experience * xpMultiplier);
+      giveCatch(player, fish.id, amount, fish.experience * xpMultiplier, notedCatchId(player, fish)); // Ours: the note
       spam(player, fish.message(amount));
       // Junk (a casket, an old boot) is no fish, so it is its own event: "fishing:junk"
       // { player, itemId, amount }, for a league's "Obtain a Casket from Fishing" or an old boot.
@@ -1098,8 +1138,16 @@ function pauseFishing(event) {
 module.exports = {
   name: "Fishing",
   description: "Fishing at all spot types: nets, cages, harpoons, rods and karambwan vessels, with tool animations, rolls and catches.",
+  // Ours
+  config: {
+    [NOTED_CATCH_CONFIG]: {
+      type: "boolean", label: "Players' fish come noted", default: false,
+      help: "Off is OSRS. On, a player's catch goes into the backpack as notes (one stack a fish), so fishing never stops for a full backpack. Junk and fish without a note (big fish, lava, infernal and sacred eels, Camdozaal's) come as before; noted fish can't be cooked until they are unnoted at a bank. Bots keep the normal catch.",
+    },
+  },
   register(api) {
     pluginApi = api;
+    setNotedCatch(api.getPluginConfig?.(NOTED_CATCH_CONFIG, false) === true); // Ours
     TaskManager = api.getTaskManager();
     World = api.getWorld();
     const activeSessions = new Map();
@@ -1154,4 +1202,6 @@ module.exports = {
   hasToolRequirements,
   landCatch,
   anglerXpMultiplier: (player) => AnglerOutfit.xpMultiplier(player),
+  // Ours: "Fishing:notedCatch", for tests.
+  _test: { setNotedCatch, notedCatchId, inventoryBlocks },
 };

@@ -7,6 +7,7 @@
     "WelcomeScreen:messageOfTheWeek": "Welcome to Kat-Net!<br>Edited and hosted for free by kat-net.us",
     "SkillLevelUp:interruptActions": false,
     "Woodcutting:regularTreeTicks": 45,
+    "Fishing:notedCatch": true,
     "Fletching:maxSets": 1000,
     "SetSkillLevel:adminsOnly": true,
     "CustomShops:players": false,
