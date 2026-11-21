@@ -671,6 +671,20 @@ function defineDoorData({ ObjectIdentifiers: O }) {
       closeTicks: 2,
       openSoundId: 81,
     })),
+    // Ours: the Fishing Guild's front door (fishguilddoor 20925, the south edge of 2611,3394). It used to vanish for
+    // the player crossing it (the user's report, 2026-11-21: "the door disappears when we open it"). No capture:
+    // shaped as the captured guild doors here (the Farming Guild's south-facing one above, sound 62): inviswall on
+    // the doorway, the leaf swung onto the tile outside by the ordinary door rule (turned to face 0), the player
+    // steps across and the door is back two ticks later. The cache has no open fishguilddoor, so the swung leaf is
+    // the door itself, as Golrie's below. The 68 Fishing check is Guild.Fishing's (door:toggle).
+    Object.freeze({
+      closed: [[O.DOOR_422, 2611, 3394, 0, 3]],
+      opened: [[NAMELESS_DOOR_LEAF_IDS.INVISWALL, 2611, 3394, 0, 3], [O.DOOR_422, 2611, 3393, 0, 0]],
+      crossY: 3394,
+      walkOver: true,
+      closeTicks: 2,
+      openSoundId: 62,
+    }),
     // Tree Gnome Village's Khazard stronghold front door (khazard_stronghold_door 2184), crossed from inside in the
     // user's rsprox captures (local 1001802 ticks 1587-1592; revision 242): Open puts inviswall 38848 on the doorway
     // and inactivepoordoor (1539) on the tile north, sound 46 (bigdoor_open), the player steps out onto the doorway

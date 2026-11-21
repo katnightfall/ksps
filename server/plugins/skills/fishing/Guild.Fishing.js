@@ -1,9 +1,11 @@
 /**
  * Fishing Guild (OSRS Wiki): level 68 Fishing to go through the front door, and temporary boosts
  * count. Inside, an invisible +7 Fishing boost applies to catch rolls.
+ *
+ * Ours (2026-11-21): the door swings open and shut as the other guild doors do, in Doors.plugin.js
+ * (its PASS_THROUGH_GATES entry); it used to be hidden from the player while they crossed, so it
+ * seemed to vanish. Only the level check is here.
  */
-const ObstacleRunner = require("../agility/ObstacleRunner.Agility");
-
 const GUILD_LEVEL = 68;
 const INVISIBLE_BOOST = 7;
 
@@ -33,45 +35,24 @@ function invisibleBoost(player) {
   return isInGuild(player) ? INVISIBLE_BOOST : 0;
 }
 
-/** Steps the player through the doorway, hiding the door for them while they pass. */
-function crossDoor(player, door, x, y) {
-  if (ObstacleRunner.isBusy(player)) return;
-  const from = player.getLocation().clone();
-  const dx = x - from.getX();
-  const dy = y - from.getY();
-  if (Math.abs(dx) + Math.abs(dy) !== 1) {
-    player.moveTo(new core.Location(x, y, from.getZ()));
-    return;
-  }
-  player.getPacketSender().sendObjectRemoval(door);
-  // The agility runner walks one tile per tick through the doorway, as the Al
-  // Kharid toll gate does, so the client plays the player's own walk animation
-  // and a weapon with a distinct walk anim is not overwritten by a fixed one.
-  ObstacleRunner.run({ player }, [{ wait: 1 }, { walk: [[x, y]] }], {
-    onFinish: () => player.getPacketSender().sendObject(door),
-  });
-}
-
-// Leaving is always allowed; only players outside are checked.
+// Leaving is always allowed; only players outside are checked. Ours: a player let in is left to
+// Doors.plugin.js (request.handled stays false), which swings the door open and steps them across.
 function useGuildDoor(request) {
-  const { player, object, location } = request;
-  if (request.objectId !== core.ObjectIdentifiers.DOOR_422 ||
-      location.x !== DOOR.x || location.y !== DOOR.y || location.z !== DOOR.z) {
-    return;
-  }
-  request.handled = true;
+  if (request.handled) return;
+  const { player, location } = request;
+  // The swung-open door (on the tile outside for two ticks) is the same loc with the same Open:
+  // checked too, or a low level could follow someone else in.
+  const onDoor = location.x === DOOR.x && location.z === DOOR.z && (location.y === DOOR.y || location.y === OUTSIDE[1]);
+  if (request.objectId !== core.ObjectIdentifiers.DOOR_422 || !onDoor) return;
   const entering = player.getLocation().getY() < INSIDE[1];
   if (entering && player.getSkillManager().getCurrentLevel(core.Skill.FISHING) < GUILD_LEVEL) {
+    request.handled = true;
     player.sendMessage(`You need a Fishing level of ${GUILD_LEVEL} to enter the Fishing Guild.`);
-    return;
   }
-  const [x, y] = entering ? INSIDE : OUTSIDE;
-  crossDoor(player, object, x, y);
 }
 
 function attach(api) {
   core = api.core;
-  ObstacleRunner.init(api);
   api.onCustomEvent("door:toggle", useGuildDoor);
 }
 

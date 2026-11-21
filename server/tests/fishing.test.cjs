@@ -377,23 +377,15 @@ test("the infernal harpoon cooks a third of its catch, runs on 5,000 charges and
   }
 
   // Fishing Guild door (loc 20925 at 2611,3394): 68 Fishing to go in, boosts count, leaving is free.
+  // Ours: a player let through is left to the Doors plugin's swing (tests/fishing-guild-door.test.cjs).
   const Guild = require("../plugins/skills/fishing/Guild.Fishing");
   const { Location } = core;
   function visitor(level, [x, y]) {
-    const log = { messages: [], removed: 0, moved: null };
-    const attributes = new Map();
+    const log = { messages: [] };
     return Object.assign(log, {
       getLocation: () => new Location(x, y, 0),
       getSkillManager: () => ({ getCurrentLevel: () => level }),
       sendMessage: (message) => log.messages.push(message),
-      getAttribute: (key) => attributes.get(key),
-      setAttribute: (key, value) => attributes.set(key, value),
-      getForceMovement: () => null,
-      setForceMovement() {},
-      getCombat: () => ({ reset() {} }),
-      getMovementQueue: () => ({ reset() {}, setBlockMovement() {} }),
-      getPacketSender: () => ({ sendObjectRemoval: () => log.removed++, sendObject() {}, sendTypedMessage: (type, message) => log.messages.push(message) }),
-      moveTo: (to) => { log.moved = to; },
     });
   }
   const door = { x: 2611, y: 3394, z: 0 };
@@ -406,13 +398,14 @@ test("the infernal harpoon cooks a third of its catch, runs on 5,000 charges and
   const tooLow = visitor(67, Guild.OUTSIDE);
   assert.equal(knock(tooLow).handled, true);
   assert.equal(tooLow.messages[0], "You need a Fishing level of 68 to enter the Fishing Guild.");
-  assert.equal(tooLow.removed, 0);
+  const lowOnSwungDoor = visitor(67, Guild.OUTSIDE);
+  assert.equal(knock(lowOnSwungDoor, core.ObjectIdentifiers.DOOR_422, { x: 2611, y: 3393, z: 0 }).handled, true,
+    "the swung-open door is checked too: no following someone else in");
   const boosted = visitor(68, Guild.OUTSIDE);
-  knock(boosted);
-  assert.equal(boosted.removed, 1, "walks through");
+  assert.equal(knock(boosted).handled, false, "let through: the Doors plugin opens it");
+  assert.deepEqual(boosted.messages, []);
   const leaving = visitor(1, Guild.INSIDE);
-  knock(leaving);
-  assert.equal(leaving.removed, 1, "anyone can leave");
+  assert.equal(knock(leaving).handled, false, "anyone can leave");
   assert.equal(knock(visitor(1, Guild.OUTSIDE), core.ObjectIdentifiers.DOOR_422, { x: 3200, y: 3200, z: 0 }).handled, false);
   assert.equal(Guild.invisibleBoost({ getLocation: () => new Location(...Guild.OUTSIDE, 0) }), 0);
   assert.equal(Guild.invisibleBoost({ getLocation: () => new Location(...Guild.INSIDE, 0) }), 7);
