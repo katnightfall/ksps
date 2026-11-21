@@ -141,3 +141,41 @@ test("::allquests banks the reward items and leaves the player's own backpack as
   assert.ok(messages.includes("The reward items are in your bank (1,042 items)."), messages.join(" | "));
   assert.ok(!messages.some((line) => line.startsWith("Your bank would not take")));
 });
+
+// The owner's wish (2026-11-20): ::quest all complete gives 1x experience, not the world's rate.
+test("::quest all complete pays its quests' experience at 1x on a 10x world", async (t) => {
+  const path = require("node:path");
+  const { CachePipeline } = require("../dist/game/cache/CachePipeline");
+  const { PluginManager } = require("../dist/plugins/PluginManager");
+  const { Player } = require("../dist/game/entity/impl/player/Player");
+  const { GameConstants } = require("../dist/game/GameConstants");
+  await CachePipeline.initialize(path.resolve(__dirname, ".."));
+  const real = PluginManager.getCoreApi();
+  const { Skill } = real;
+
+  const rate = GameConstants.EXPERIENCE_MULTIPLIER;
+  GameConstants.setExperienceRate(10);
+  const hooks = PluginManager.canGainExperienceHooks;
+  const attached = hooks.length;
+  const core = { ...real, TaskManager: { ...real.TaskManager, submit: (task) => task.execute() } };
+  QuestCommand.register({ core, registerCommand() {}, onCanGainExperience: (handler) => hooks.push({ handler }) });
+  t.after(() => {
+    hooks.length = attached;
+    GameConstants.setExperienceRate(rate);
+    QuestCommand.register({ registerCommand() {} });
+  });
+
+  QuestRuntime.registerQuest(api, { key: "pays_cooking", name: "Pays Cooking", varpId: 2004, questPoints: 1,
+    onReward: (player) => player.getSkillManager().addExperiences(Skill.COOKING, 300) });
+
+  const p = new Player(null);
+  p.getSession = () => ({ sendClientPacket: () => true, write: () => true });
+  p.setUsername("allquestsxp");
+  p.sendMessage = () => {};
+  quietly(() => QuestCommand._test.completeAll(p));
+  assert.equal(p.getSkillManager().getExperience(Skill.COOKING), 300, "the quest's 300, not 3,000");
+
+  // Afterwards the world's rate is back for everything else.
+  p.getSkillManager().addExperiences(Skill.COOKING, 10);
+  assert.equal(p.getSkillManager().getExperience(Skill.COOKING), 400);
+});

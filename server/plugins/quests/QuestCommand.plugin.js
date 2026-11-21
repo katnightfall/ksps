@@ -30,6 +30,19 @@ const UNPLAYED = { experience: false, scroll: false, announce: false };
 let core = null;
 
 /**
+ * Ours (the owner's wish, 2026-11-20): the experience of ::quest all complete comes at 1x, not at
+ * the world's rate (10x on ours). While it runs, the experience gate divides the world's rate back
+ * out of that player's gains; a character's own rate (a league's) still applies.
+ */
+let completingAll = null;
+
+function oneTimesExperience(event) {
+  if (!completingAll || event.player !== completingAll) return;
+  const rate = Number(core?.GameConstants?.EXPERIENCE_MULTIPLIER);
+  if (Number.isFinite(rate) && rate > 0) event.multiplier = (Number(event.multiplier) || 1) / rate;
+}
+
+/**
  * Ours: everything in the backpack goes to the bank, as a deposit does (notes unnoted, the item's
  * own tab). Returns what the bank took (a count of items) and what it would not take (left in the
  * backpack: a full bank, an item that may not be banked).
@@ -68,6 +81,7 @@ function completeAll(player) {
   let banked = 0;
   const failed = [];
   const kept = [];
+  completingAll = player; // Ours: 1x experience (oneTimesExperience)
   try {
     for (const quest of QuestRuntime.getRegisteredQuests()) {
       try {
@@ -84,6 +98,7 @@ function completeAll(player) {
       inventory.resetItems();
     }
   } finally {
+    completingAll = null;
     if (toBank) {
       inventory.setItems(own);
       // forceAdd: what fits goes in the backpack, the rest on the floor under the player.
@@ -199,6 +214,7 @@ module.exports = {
   description: "Adds the admin ::quest command to show, set, complete or reset a player's quest stage, for testing quest-gated content.",
   register(api) {
     core = api.core ?? null; // Ours: for the bank (completeAll).
+    api.onCanGainExperience?.(oneTimesExperience); // Ours: ::quest all complete at 1x
     api.registerCommand("quest", questCommand, PlayerRights.ADMINISTRATOR, "Show or set a quest's progress: ::quest <name> [complete|reset|<stage>]");
     // Ours: the short way to complete every quest.
     api.registerCommand("allquests", ({ player }) => { completeAll(player); return true; }, PlayerRights.ADMINISTRATOR, "Complete every quest (the same as ::quest all complete)");
