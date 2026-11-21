@@ -14,7 +14,7 @@ const { PlayerSave } = require('../dist/game/entity/impl/player/persistence/Play
 const Training = require('../plugins/npcs/BarbarianTraining.plugin');
 const Fishing = require('../plugins/skills/Fishing.plugin');
 const FINAL_REPLY = 'We do not use these fish quite as you might expect. When you return we can speak more of this matter.';
-let core, otto, spot;
+let core, otto, spot, worldRate;
 let emptyTranscript = false;
 let emptyReportTranscript = false;
 const ownedNpcs = [];
@@ -26,6 +26,10 @@ before(async () => {
   // Loading unrelated plugins without their startup would leave unrelated logout hooks uninitialized.
   require('../plugins/npcs/NpcDialogues.plugin').register(PM.createApi('NpcDialogues'));
   Fishing.register(PM.createApi('Fishing'));
+  // Ours: OSRS's catch at 1x, whatever world.json sets (noted fish, 10x).
+  Fishing._test.setNotedCatch(false);
+  worldRate = core.GameConstants.EXPERIENCE_MULTIPLIER;
+  core.GameConstants.setExperienceRate(1);
   Training.register(PM.createApi('BarbarianTraining'));
   PM.createApi('RodTranscriptFaultFixture').onCustomEvent('npc-dialogue:start', (request) => {
     if (emptyTranscript && request.variant === 'starting-off-after-speaking-to-him-once') request.select([]);
@@ -48,6 +52,7 @@ before(async () => {
 after(() => {
   for (const n of ownedNpcs) if (n.isRegistered()) core.World.getNpcs().removes(n);
   PM.emitServerShutdown({});
+  core.GameConstants.setExperienceRate(worldRate);
 });
 
 function fixture(t) {

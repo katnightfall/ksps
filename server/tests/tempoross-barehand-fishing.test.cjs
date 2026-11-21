@@ -3,7 +3,7 @@
 // harpoonfish need 55 Fishing and 35 Strength (current levels, as Fishing checks them) and give 10 Strength XP. Wiki
 // (Tempoross): a harpoon is "not required if using barbarian fishing", at a regular harpoon's rates.
 const assert = require("node:assert/strict");
-const { before, test } = require("node:test");
+const { after, before, test } = require("node:test");
 const { Server } = require("../dist/Server");
 Server.installProductionPathResolver();
 const { CachePipeline } = require("../dist/game/cache/CachePipeline");
@@ -17,9 +17,13 @@ const core = PluginManager.getCoreApi();
 const I = core.ItemIdentifiers;
 const taught = new Set();
 const successes = [];
+let worldRate;
 
 before(async () => {
   await CachePipeline.initialize();
+  // Ours: the XP here is at 1x, whatever rate world.json gives.
+  worldRate = core.GameConstants.EXPERIENCE_MULTIPLIER;
+  core.GameConstants.setExperienceRate(1);
   Shared.bind({
     core,
     emitCustomEvent(name, payload) {
@@ -28,6 +32,7 @@ before(async () => {
     },
   });
 });
+after(() => core.GameConstants.setExperienceRate(worldRate));
 
 function fisher({ fishing = 55, boostedFishing = fishing, strength = 35, boostedStrength = strength, lesson = true } = {}) {
   const player = new Player(null);

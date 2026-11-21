@@ -1,7 +1,7 @@
 // Run after `yarn build`: node --test tests/leaping-fish-cooking.test.cjs
 // A knife on leaping trout, salmon and sturgeon: roe or caviar, offcuts and Cooking XP (Wiki, Mod Ash's rates).
 const assert = require("node:assert/strict");
-const { before, test } = require("node:test");
+const { after, before, test } = require("node:test");
 
 const { Server } = require("../dist/Server");
 Server.installProductionPathResolver();
@@ -23,11 +23,16 @@ const api = new Proxy({
 }, { get: (target, key) => target[key] ?? (() => {}) });
 
 let LeapingFish;
+let worldRate;
 before(async () => {
   await CachePipeline.initialize(process.cwd());
+  // Ours: the XP here is at 1x, whatever rate world.json gives.
+  worldRate = core.GameConstants.EXPERIENCE_MULTIPLIER;
+  core.GameConstants.setExperienceRate(1);
   require("../plugins/skills/Cooking.plugin").register(api);
   LeapingFish = require("../plugins/skills/cooking/LeapingFish.Cooking")._test;
 });
+after(() => core.GameConstants.setExperienceRate(worldRate));
 
 function player(t, cooking, carried) {
   const p = new Player(null);

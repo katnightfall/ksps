@@ -151,6 +151,14 @@ test("fishing spots, catch chances and the catch cascade follow OSRS", async () 
   assert.equal(hasToolRequirements(player({ inventory: [I.BARBARIAN_ROD, I.FISH_OFFCUTS] }), TOOLS.BARBARIAN_ROD), null,
     "rod permission fails closed without its training owner, including on free worlds");
   assert.deepEqual(FISH.LEAPING_STURGEON.extraXp, [[Skill.STRENGTH, 7], [Skill.AGILITY, 7]]);
+  // Ours: the Wiki's bait order (Fish offcuts, Leaping trout): offcuts, fishing bait, feathers, roe, caviar.
+  const { findBait } = Fishing._test;
+  const baited = (...inventory) => findBait(player({ inventory }), TOOLS.BARBARIAN_ROD);
+  assert.equal(baited(I.FEATHER, I.FISH_OFFCUTS, I.FISHING_BAIT, I.ROE), I.FISH_OFFCUTS, "offcuts first");
+  assert.equal(baited(I.FEATHER, I.FISHING_BAIT, I.ROE), I.FISHING_BAIT);
+  assert.equal(baited(I.CAVIAR, I.ROE, I.FEATHER), I.FEATHER, "roe and caviar only without other bait");
+  assert.equal(baited(I.CAVIAR, I.ROE), I.ROE);
+  assert.equal(baited(I.CAVIAR), I.CAVIAR);
 
   // Infernal eels need ice gloves worn; dark crabs need dark fishing bait.
   const eeler = { inventory: [I.OILY_FISHING_ROD, I.FISHING_BAIT] };
@@ -1314,6 +1322,11 @@ test("native ordinary trout catch can award an eligible beginner clue bottle", a
   core.RegionManager.init();
   core.RegionManager.loadMapFiles(3104, 3424);
   PM.emitServerStartup({});
+  // Ours: OSRS's catch at 1x, whatever world.json sets (noted fish, 10x).
+  require("../plugins/skills/Fishing.plugin")._test.setNotedCatch(false);
+  const worldRate = core.GameConstants.EXPERIENCE_MULTIPLIER;
+  core.GameConstants.setExperienceRate(1);
+  t.after(() => core.GameConstants.setExperienceRate(worldRate));
   const channel = {kind: "test", remoteAddress: "127.0.0.1", isOpen: () => true,
     send: () => true, close() {}, onData() {}, onError() {}, onClose() {}};
   player = new Player(new PlayerSession(channel));

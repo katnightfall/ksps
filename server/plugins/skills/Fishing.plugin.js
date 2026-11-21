@@ -424,8 +424,9 @@ const TOOLS = Object.freeze({
   BARBARIAN_ROD: new FishingTool({
     id: ItemIds.BARBARIAN_ROD, level: 48, ...ROD, animation: ANIM.BARBARIAN_ROD, loopAnimation: ANIM.BARBARIAN_ROD_ON_SPOT,
     fish: [FISH.LEAPING_STURGEON, FISH.LEAPING_SALMON, FISH.LEAPING_TROUT], variants: BARBARIAN_RODS,
-    // Wiki: Barbarian rod. Any of these baits the rod.
-    bait: [ItemIds.FISHING_BAIT, ItemIds.FEATHER, ItemIds.FISH_OFFCUTS, ItemIds.ROE, ItemIds.CAVIAR],
+    // Wiki: Barbarian rod. Any of these baits the rod. Ours: used in the Wiki's order (Fish offcuts,
+    // Leaping trout): offcuts first (update of 9 April 2015), then fishing bait, feathers, roe, caviar.
+    bait: [ItemIds.FISH_OFFCUTS, ItemIds.FISHING_BAIT, ItemIds.FEATHER, ItemIds.ROE, ItemIds.CAVIAR],
     unlock: "barbarian_rod", requires: FISH.LEAPING_TROUT.requires,
     unlockMessage: "You need to speak to Otto Godblessed about fishing with a barbarian rod first.",
     startMessage: CAST_AND_ATTEMPT, noBaitStatement: NO_BARBARIAN_BAIT,
@@ -1202,6 +1203,6 @@ module.exports = {
   hasToolRequirements,
   landCatch,
   anglerXpMultiplier: (player) => AnglerOutfit.xpMultiplier(player),
-  // Ours: "Fishing:notedCatch", for tests.
-  _test: { setNotedCatch, notedCatchId, inventoryBlocks },
+  // Ours: "Fishing:notedCatch" and the bait order, for tests.
+  _test: { setNotedCatch, notedCatchId, inventoryBlocks, findBait },
 };
