@@ -8,6 +8,7 @@
     "SkillLevelUp:interruptActions": false,
     "Woodcutting:regularTreeTicks": 45,
     "Fishing:notedCatch": true,
+    "QuestCommand:everyone": true,
     "Fletching:maxSets": 1000,
     "SetSkillLevel:adminsOnly": true,
     "CustomShops:players": false,

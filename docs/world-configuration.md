@@ -418,6 +418,7 @@ After changing a plugin's `description` or `config`, run `yarn --cwd server worl
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
+| `QuestCommand:everyone` | boolean | `false` | **::allquests for every player.** Off: only administrators and above. On: every player may complete all their quests at once with ::allquests (or ::quest all complete); the reward items go to their bank and the experience comes at 1x. Setting a stage, resetting and completing one quest stay with staff. |
 | `quests:equipment-requirements` | boolean | `true` | **Quest equipment and spellbook requirements.** Require quest completion for equipment and spellbook access (including the Arceuus spells that need A Kingdom Divided and the Lunar spells that need Dream Mentor), and boss kills for ancient rings. Turn off to remove these restrictions. Player bots bypass equipment requirements. |
 
 #### Plugin area `skills` (`pluginConfig`)

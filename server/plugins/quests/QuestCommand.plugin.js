@@ -209,15 +209,60 @@ function questCommand({ player, parts }) {
   return true;
 }
 
+/**
+ * Ours (the owner's wish, 2026-11-20): world setting "QuestCommand:everyone". On, every player may
+ * complete all their quests with ::allquests or ::quest all complete. The rest of ::quest (a stage,
+ * a reset, one quest) stays with administrators and above: a reset followed by another completion
+ * would hand every quest's rewards out again.
+ */
+const EVERYONE_CONFIG = "QuestCommand:everyone";
+const STAFF_ONLY = "Only ::quest all complete (or ::allquests) is open to players; the rest of ::quest is for staff.";
+let pluginApi = null;
+
+function everyoneMayCompleteAll() {
+  return pluginApi?.getPluginConfig?.(EVERYONE_CONFIG, false) === true;
+}
+
+function isStaff(player) {
+  return PlayerRights.hasAdminRights(player);
+}
+
+/** ::quest as registered: staff as before; another player only for "all complete", while the world allows it. */
+function playerQuestCommand(event) {
+  if (isStaff(event.player)) return questCommand(event);
+  const args = event.parts.slice(1).map((part) => String(part).toLowerCase());
+  if (everyoneMayCompleteAll() && args.length === 2 && args[0] === "all" && args[1] === "complete") return questCommand(event);
+  event.player.sendMessage(everyoneMayCompleteAll() ? STAFF_ONLY : "You do not have permission to use this command.");
+  return true;
+}
+
+function allQuestsCommand({ player }) {
+  if (!isStaff(player) && !everyoneMayCompleteAll()) {
+    player.sendMessage("You do not have permission to use this command.");
+    return true;
+  }
+  completeAll(player);
+  return true;
+}
+
 module.exports = {
   name: "QuestCommand",
   description: "Adds the admin ::quest command to show, set, complete or reset a player's quest stage, for testing quest-gated content.",
+  // Ours
+  config: {
+    [EVERYONE_CONFIG]: {
+      type: "boolean", label: "::allquests for every player", default: false,
+      help: "Off: only administrators and above. On: every player may complete all their quests at once with ::allquests (or ::quest all complete); the reward items go to their bank and the experience comes at 1x. Setting a stage, resetting and completing one quest stay with staff.",
+    },
+  },
   register(api) {
+    pluginApi = api; // Ours: for QuestCommand:everyone.
     core = api.core ?? null; // Ours: for the bank (completeAll).
     api.onCanGainExperience?.(oneTimesExperience); // Ours: ::quest all complete at 1x
-    api.registerCommand("quest", questCommand, PlayerRights.ADMINISTRATOR, "Show or set a quest's progress: ::quest <name> [complete|reset|<stage>]");
+    // Ours: registered for every rank; playerQuestCommand keeps all but "all complete" with staff.
+    api.registerCommand("quest", playerQuestCommand, PlayerRights.NONE, "Show or set a quest's progress: ::quest <name> [complete|reset|<stage>]");
     // Ours: the short way to complete every quest.
-    api.registerCommand("allquests", ({ player }) => { completeAll(player); return true; }, PlayerRights.ADMINISTRATOR, "Complete every quest (the same as ::quest all complete)");
+    api.registerCommand("allquests", allQuestsCommand, PlayerRights.NONE, "Complete every quest (the same as ::quest all complete)");
   },
-  _test: { questCommand, findQuests, completeAll, resetAll },
+  _test: { questCommand, playerQuestCommand, findQuests, completeAll, resetAll },
 };

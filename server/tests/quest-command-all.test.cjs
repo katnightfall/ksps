@@ -8,6 +8,7 @@ Server.installProductionPathResolver();
 
 const QuestRuntime = require("../plugins/quests/QuestRuntime");
 const QuestCommand = require("../plugins/quests/QuestCommand.plugin");
+const { PlayerRights } = require("../src/main/typescript/elvarg/game/model/rights/PlayerRights");
 
 const events = [];
 const api = new Proxy({}, { get: (_target, name) => (name === "emitCustomEvent" ? (event, payload) => events.push([event, payload]) : () => {}) });
@@ -68,8 +69,56 @@ test("::allquests is the same command", () => {
   QuestCommand.register({ registerCommand: (name, handler) => registered.set(name, handler) });
   assert.ok(registered.has("quest") && registered.has("allquests"));
   const player = createPlayer();
+  player.getRights = () => PlayerRights.ADMINISTRATOR;
   assert.equal(quietly(() => registered.get("allquests")({ player, parts: ["allquests"] })), true);
   assert.ok(grandTree.isComplete(player) && gnomeVillage.isComplete(player));
+});
+
+// The owner's wish (2026-11-20): every player may complete all their quests (QuestCommand:everyone).
+test("QuestCommand:everyone opens ::allquests and ::quest all complete to players, and nothing else of ::quest", () => {
+  const registered = new Map();
+  let everyone = false;
+  QuestCommand.register({
+    registerCommand: (name, handler, rights) => registered.set(name, { handler, rights }),
+    getPluginConfig: (key, fallback) => (key === "QuestCommand:everyone" ? everyone : fallback),
+  });
+  assert.equal(registered.get("quest").rights, PlayerRights.NONE);
+  assert.equal(registered.get("allquests").rights, PlayerRights.NONE);
+  const command = (player, text) => quietly(() => registered.get(text.split(" ")[0]).handler({ player, parts: text.split(" ") }));
+  const player = () => Object.assign(createPlayer(), { getRights: () => PlayerRights.NONE });
+
+  // Off (the default): players are refused, as before.
+  const refused = player();
+  command(refused, "allquests");
+  command(refused, "quest all complete");
+  assert.ok(!grandTree.isComplete(refused));
+  assert.deepEqual(refused.messages, ["You do not have permission to use this command.", "You do not have permission to use this command."]);
+
+  // On: both complete every quest.
+  everyone = true;
+  const short = player();
+  command(short, "allquests");
+  for (const quest of allQuests()) assert.ok(quest.isComplete(short), quest.name);
+  const long = player();
+  command(long, "quest ALL Complete");
+  for (const quest of allQuests()) assert.ok(quest.isComplete(long), quest.name);
+
+  // A reset (then the rewards again), a stage or one quest stay with staff.
+  for (const text of ["quest all reset", "quest grand tree reset", "quest grand tree 5", "quest grand tree"]) {
+    command(long, text);
+    assert.equal(long.messages.at(-1), "Only ::quest all complete (or ::allquests) is open to players; the rest of ::quest is for staff.", text);
+  }
+  assert.ok(grandTree.isComplete(long), "nothing was reset");
+  const fresh = player();
+  command(fresh, "quest grand tree complete");
+  assert.ok(!grandTree.isComplete(fresh));
+
+  // Staff keep the whole command.
+  const admin = Object.assign(createPlayer(), { getRights: () => PlayerRights.ADMINISTRATOR });
+  command(admin, "quest grand tree complete");
+  assert.ok(grandTree.isComplete(admin));
+  command(admin, "quest grand tree reset");
+  assert.equal(grandTree.getStage(admin), 0);
 });
 
 test("::quest all reset puts every quest back to not started, with its points", () => {
