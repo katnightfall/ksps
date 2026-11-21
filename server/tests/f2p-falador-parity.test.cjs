@@ -351,3 +351,27 @@ test('Black Knights: captured chat-head animations, with the cat on the data rat
   const meow = h.line(N.WITCH_5, 'Meow!');
   assert.equal(meow.speakerId, N.BLACK_CAT); assert.equal(meow.expression, undefined);
 });
+
+// Ours (the owner's report, 2026-11-20): after the quest Thurgo makes another sword from a blurite ore and two iron bars.
+test("after The Knight's Sword, Thurgo remakes the sword from one blurite ore and two iron bars", () => {
+  const h = setup('KnightsSword'); h.quest.setStage(h.player, 7);
+  assert.deepEqual(h.variant(N.THURGO), { page: 'Thurgo', variant: 'standard-dialogue-after-the-knight-s-sword' });
+  const has = 'If the player has a blurite ore and two iron bars:', lacks = 'If the player does not have all the required materials:';
+  assert.equal(h.condition(N.THURGO, has), false); assert.equal(h.condition(N.THURGO, lacks), true);
+  h.inventory.set(I.BLURITE_ORE, 1); h.inventory.set(I.IRON_BAR, 1);
+  assert.equal(h.condition(N.THURGO, has), false, 'one bar is not enough');
+  h.inventory.set(I.IRON_BAR, 2);
+  assert.equal(h.condition(N.THURGO, has), true); assert.equal(h.condition(N.THURGO, lacks), false);
+
+  const made = h.action(N.THURGO, 'Hjor6B');
+  assert.equal(made.handled, true);
+  assert.deepEqual(made.steps, [{ type: 'message', text: 'You give the blurite ore and iron bars to Thurgo. Thurgo makes you another sword.', id: 'ours-thurgo-remakes-sword' }]);
+  assert.deepEqual(h.action(N.THURGO, 'ours-thurgo-remakes-sword').box, { items: [I.BLURITE_SWORD] });
+  assert.equal(h.inventory.get(I.BLURITE_ORE), 0); assert.equal(h.inventory.get(I.IRON_BAR), 0); assert.equal(h.inventory.get(I.BLURITE_SWORD), 1);
+  assert.equal(h.action(N.THURGO, 'Pxwbxo').handled, true); assert.equal(h.inventory.get(I.BLURITE_SWORD), 1, 'the receive step gives no second sword');
+
+  // Materials gone by the time he makes it: no sword, nothing taken.
+  const again = h.action(N.THURGO, 'Hjor6B');
+  assert.deepEqual(again.steps, [{ player: "Okay, I'll go and find that." }, { type: 'end' }]);
+  assert.equal(h.inventory.get(I.BLURITE_SWORD), 1);
+});

@@ -40,6 +40,16 @@ module.exports = function registerKnightsSwordQuest(api) {
   const PORTRAIT_GIVE_ACTION_ID = "3_D_pF"; // action "Portrait"
   const SWORD_SMITH_MESSAGE_ID = "7zBX9C"; // "You give the blurite ore and iron bars…"
   const SWORD_HANDIN_ACTION_ID = "7-huYO"; // action "Blurite sword"
+  // Ours: Thurgo's "Can you make me another of Sir Vyvin's swords?" after the quest. Its two
+  // conditions were never answered and its steps never handled, so nothing happened (the owner's
+  // report, 2026-11-20).
+  const REMAKE_ACTION_ID = "Hjor6B"; // action "Thurgo makes you another sword"
+  const REMAKE_RECEIVE_ID = "Pxwbxo"; // receive "Blurite sword"
+  const REMAKE_MESSAGE_ID = "ours-thurgo-remakes-sword";
+  // The quest's own hand-over box (7zBX9C), with "another": the Wiki gives the remake no words of its own.
+  const REMAKE_MESSAGE = "You give the blurite ore and iron bars to Thurgo. Thurgo makes you another sword.";
+  const CONDITION_HAS_MATERIALS = "has a blurite ore and two iron bars";
+  const CONDITION_LACKS_MATERIALS = "does not have all the required materials";
 
   const PAGE_SQUIRE = "Squire";
   const PAGE_QUESTS = "The Knight's Sword";
@@ -88,6 +98,10 @@ module.exports = function registerKnightsSwordQuest(api) {
 
   const ownsSword = (player) =>
     hasItem(player, BLURITE_SWORD_ITEM_ID) || isWieldingSword(player);
+
+  /** Ours: one blurite ore and two iron bars in the backpack (notes don't count). */
+  const hasSwordMaterials = (player) =>
+    hasItem(player, BLURITE_ORE_ITEM_ID) && hasItem(player, IRON_BAR_ITEM_ID, 2);
 
   function replaceObject(object, newId) {
     const location = object.getLocation();
@@ -251,6 +265,9 @@ module.exports = function registerKnightsSwordQuest(api) {
     if (npcId === THURGO_NPC_ID) {
       if (value.includes(CONDITION_NOT_ALREADY_MET_THURGO)) return !metThurgo(player);
       if (value.includes(CONDITION_MET_THURGO)) return metThurgo(player);
+      // Ours: the remade sword's materials.
+      if (value.includes(CONDITION_HAS_MATERIALS)) return hasSwordMaterials(player);
+      if (value.includes(CONDITION_LACKS_MATERIALS)) return !hasSwordMaterials(player);
       return null;
     }
     return null;
@@ -383,6 +400,23 @@ module.exports = function registerKnightsSwordQuest(api) {
         }
         return; // leave handled false so the message still shows
       }
+      // Ours: another sword after the quest. The materials are taken and the sword given here, checked
+      // again (the backpack may have changed since the condition); the box shows it, and the
+      // transcript's "receive" step that follows has nothing left to do.
+      if (stepId === REMAKE_ACTION_ID) {
+        event.handled = true;
+        if (!quest.isComplete(player) || !hasSwordMaterials(player)) {
+          event.steps = [{ player: "Okay, I'll go and find that." }, { type: "end" }];
+          return;
+        }
+        player.getInventory().deleteNumber(BLURITE_ORE_ITEM_ID, 1);
+        player.getInventory().deleteNumber(IRON_BAR_ITEM_ID, 2);
+        player.getInventory().adds(BLURITE_SWORD_ITEM_ID, 1);
+        event.steps = [{ type: "message", text: REMAKE_MESSAGE, id: REMAKE_MESSAGE_ID }];
+        return;
+      }
+      if (stepId === REMAKE_MESSAGE_ID) { event.box = { items: [BLURITE_SWORD_ITEM_ID] }; return; }
+      if (stepId === REMAKE_RECEIVE_ID) { event.handled = true; return; }
       return;
     }
 
